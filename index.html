@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Painel Controladoria</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-1:#fcfcfb; --page:#f9f9f7; --card:#ffffff;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#898781;
+    --gridline:#e1e0d9; --border:rgba(11,11,11,0.10);
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --accent:#2a78d6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --surface-1:#1a1a19; --page:#0d0d0d; --card:#212120;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
+      --gridline:#2c2c2a; --border:rgba(255,255,255,0.10);
+      --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#e66767;
+      --accent:#3987e5;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d; --card:#212120;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
+    --gridline:#2c2c2a; --border:rgba(255,255,255,0.10);
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#e66767;
+    --accent:#3987e5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--page); color:var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height:100vh;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 24px; background:var(--surface-1); border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:5;
+  }
+  header h1{ font-size:16px; margin:0; font-weight:600; }
+  header .who{ font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:12px; }
+  header button{ font-size:13px; }
+  main{ max-width:1100px; margin:0 auto; padding:24px; }
+  button, select, input{
+    font-family:inherit; font-size:14px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text-primary); padding:8px 12px;
+  }
+  button{ cursor:pointer; }
+  button.primary{ background:var(--accent); color:#fff; border-color:transparent; font-weight:600; }
+  button.ghost{ background:transparent; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  a{ color:var(--accent); }
+
+  /* Login */
+  #login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  #login-card{
+    width:100%; max-width:360px; background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:28px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  #login-card h2{ margin:0 0 4px; font-size:18px; }
+  #login-card p.sub{ margin:0 0 20px; color:var(--text-secondary); font-size:13px; }
+  #login-card label{ display:block; font-size:12px; color:var(--text-secondary); margin:14px 0 6px; }
+  #login-card select, #login-card input{ width:100%; }
+  #login-error{ color:var(--critical); font-size:13px; margin-top:12px; display:none; }
+  #login-card button[type=submit]{ width:100%; margin-top:20px; padding:10px; }
+
+  /* Tabs */
+  .tabs{ display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--gridline); }
+  .tabs button{ border:none; background:transparent; border-radius:0; padding:10px 4px; margin-right:20px; color:var(--text-secondary); font-weight:600; border-bottom:2px solid transparent; }
+  .tabs button.active{ color:var(--text-primary); border-bottom-color:var(--accent); }
+
+  /* Overview */
+  .domain-group{ margin-bottom:28px; }
+  .domain-group h3{ font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-muted); margin:0 0 10px; }
+  .card-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px; }
+  .status-card{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .status-card .top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .status-card .tab{ font-weight:600; font-size:14px; }
+  .status-pill{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; display:inline-flex; align-items:center; gap:4px; }
+  .status-pill.good{ color:var(--good); background:color-mix(in srgb, var(--good) 15%, transparent); }
+  .status-pill.warning{ color:var(--warning); background:color-mix(in srgb, var(--warning) 18%, transparent); }
+  .status-pill.critical{ color:var(--critical); background:color-mix(in srgb, var(--critical) 15%, transparent); }
+  .status-card .meta{ font-size:12px; color:var(--text-secondary); line-height:1.6; }
+
+  /* Data browser */
+  .filters{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
+  .filters .grow{ flex:1; min-width:180px; }
+  table{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--gridline); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  th{ color:var(--text-secondary); font-weight:600; position:sticky; top:57px; background:var(--card); }
+  .table-wrap{ overflow:auto; border:1px solid var(--border); border-radius:10px; max-height:65vh; }
+  .table-footer{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:12px; color:var(--text-secondary); }
+  .hint{ font-size:12px; color:var(--text-muted); margin-top:6px; }
+  .spinner{ font-size:13px; color:var(--text-secondary); padding:20px; text-align:center; }
+  .login-logo-wrap{ text-align:center; margin-bottom:18px; }
+  .login-logo{ height:60px; width:auto; max-width:100%; }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .header-logo{ height:34px; width:auto; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div id="login-card">
+    <div class="login-logo-wrap"><img src="logo.png" alt="Atlântico" class="login-logo"/></div>
+    <h2 style="text-align:center;">Painel Controladoria</h2>
+    <p class="sub">Acesso restrito ao time da controladoria.</p>
+    <form id="login-form">
+      <label for="who">Usuário</label>
+      <select id="who" required></select>
+      <label for="pwd">Senha</label>
+      <input id="pwd" type="password" required autocomplete="current-password" />
+      <div id="login-error"></div>
+      <button type="submit" class="primary" id="login-btn">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <div class="brand"><img src="logo.png" alt="Atlântico" class="header-logo"/><h1>Painel Controladoria</h1></div>
+    <div class="who">
+      <span id="who-label"></span>
+      <button class="ghost" id="logout-btn">Sair</button>
+    </div>
+  </header>
+  <main>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview">Visão geral</button>
+      <button class="tab-btn" data-tab="data">Dados</button>
+    </div>
+    <div id="tab-overview"></div>
+    <div id="tab-data" style="display:none;"></div>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = "https://dxanuyfarsxmsunocumg.supabase.co";
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4YW51eWZhcnN4bXN1bm9jdW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzUxMDUsImV4cCI6MjEwMjExMTEwNX0.FPzzszUQuAfQRrFssTrEssZDcgFk7jwi_B3Ujwo9iUs";
+
+const USERS = [
+  { label: "Jefferson Barretto (Controlador Jr)", email: "jefferson.barretto@controladoria.internal" },
+  { label: "Filipe Dantas (Controlador Jr)", email: "filipe.dantas@controladoria.internal" },
+  { label: "Fabio Gomes (Controlador Jr)", email: "fabio.gomes@controladoria.internal" },
+  { label: "Cleito Araujo (Auditor)", email: "cleito.araujo@controladoria.internal" },
+  { label: "João Victor (Auditor)", email: "joao.victor@controladoria.internal" },
+  { label: "Thairone (Gerente da Controladoria)", email: "thairone@controladoria.internal" },
+];
+
+const DOMAIN_ORDER = ["Abastecimento", "Telemetria", "Pneus", "Manutencao", "OS"];
+
+// ---------- session ----------
+function saveSession(s){
+  try{ localStorage.setItem("ctrl_session", JSON.stringify(s)); }catch(e){}
+}
+function loadSession(){
+  try{ return JSON.parse(localStorage.getItem("ctrl_session")||"null"); }catch(e){ return null; }
+}
+function clearSession(){
+  try{ localStorage.removeItem("ctrl_session"); }catch(e){}
+}
+
+async function login(email, password){
+  const resp = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+    method: "POST",
+    headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await resp.json();
+  if(!resp.ok) throw new Error(body.error_description || body.msg || "Falha no login");
+  const session = {
+    access_token: body.access_token,
+    refresh_token: body.refresh_token,
+    expires_at: Date.now() + (body.expires_in || 3600) * 1000,
+    user: body.user,
+  };
+  saveSession(session);
+  return session;
+}
+
+async function refreshSession(session){
+  const resp = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
+    method: "POST",
+    headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+  if(!resp.ok){ clearSession(); return null; }
+  const body = await resp.json();
+  const newSession = {
+    access_token: body.access_token,
+    refresh_token: body.refresh_token,
+    expires_at: Date.now() + (body.expires_in || 3600) * 1000,
+    user: body.user || session.user,
+  };
+  saveSession(newSession);
+  return newSession;
+}
+
+let currentSession = null;
+
+async function getValidSession(){
+  if(!currentSession) currentSession = loadSession();
+  if(!currentSession) return null;
+  if(currentSession.expires_at - Date.now() < 60000){
+    currentSession = await refreshSession(currentSession);
+  }
+  return currentSession;
+}
+
+// ---------- REST helpers ----------
+async function rest(path, opts){
+  opts = opts || {};
+  const headers = opts.headers || {};
+  const session = await getValidSession();
+  if(!session) throw new Error("not_authenticated");
+  const fetchOpts = Object.assign({}, opts);
+  fetchOpts.headers = Object.assign({ apikey: ANON_KEY, Authorization: "Bearer " + session.access_token }, headers);
+  const resp = await fetch(SUPABASE_URL + "/rest/v1/" + path, fetchOpts);
+  if(resp.status === 401){ clearSession(); throw new Error("not_authenticated"); }
+  return resp;
+}
+
+// ---------- UI: login ----------
+const whoSelect = document.getElementById("who");
+USERS.forEach(function(u){
+  const opt = document.createElement("option");
+  opt.value = u.email; opt.textContent = u.label;
+  whoSelect.appendChild(opt);
+});
+
+document.getElementById("login-form").addEventListener("submit", async function(e){
+  e.preventDefault();
+  const btn = document.getElementById("login-btn");
+  const errEl = document.getElementById("login-error");
+  errEl.style.display = "none";
+  btn.disabled = true; btn.textContent = "Entrando...";
+  try{
+    const email = whoSelect.value;
+    const pwd = document.getElementById("pwd").value;
+    currentSession = await login(email, pwd);
+    showApp();
+  }catch(err){
+    errEl.textContent = "Usuário ou senha incorretos.";
+    errEl.style.display = "block";
+  }finally{
+    btn.disabled = false; btn.textContent = "Entrar";
+  }
+});
+
+document.getElementById("logout-btn").addEventListener("click", function(){
+  clearSession();
+  currentSession = null;
+  location.reload();
+});
+
+function labelFor(email){
+  const u = USERS.find(function(u){ return u.email === email; });
+  return u ? u.label : email;
+}
+
+async function showApp(){
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("who-label").textContent = labelFor(currentSession.user.email);
+  await renderOverview();
+}
+
+// ---------- tabs ----------
+document.querySelectorAll(".tab-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    const tab = btn.dataset.tab;
+    document.getElementById("tab-overview").style.display = tab === "overview" ? "block" : "none";
+    document.getElementById("tab-data").style.display = tab === "data" ? "block" : "none";
+    if(tab === "data" && !dataInitDone) initDataTab();
+  });
+});
+
+// ---------- overview ----------
+function fmtDateTime(iso){
+  if(!iso) return "nunca";
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+}
+function statusFor(lastSyncedAt){
+  if(!lastSyncedAt) return { cls: "critical", label: "nunca sincronizado" };
+  const hours = (Date.now() - new Date(lastSyncedAt).getTime()) / 3600000;
+  if(hours < 20) return { cls: "good", label: "em dia" };
+  if(hours < 48) return { cls: "warning", label: "atrasado" };
+  return { cls: "critical", label: "crítico" };
+}
+
+async function renderOverview(){
+  const el = document.getElementById("tab-overview");
+  el.innerHTML = '<div class="spinner">Carregando...</div>';
+  try{
+    const resp = await rest("source_sheets?select=*&order=domain,tab_name");
+    const rows = await resp.json();
+    const byDomain = {};
+    rows.forEach(function(r){ (byDomain[r.domain] = byDomain[r.domain] || []).push(r); });
+    const domains = Object.keys(byDomain).sort(function(a,b){
+      const ia = DOMAIN_ORDER.indexOf(a), ib = DOMAIN_ORDER.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    el.innerHTML = domains.map(function(domain){
+      const cards = byDomain[domain].map(function(r){
+        const st = statusFor(r.last_synced_at);
+        return '<div class="status-card"><div class="top"><span class="tab">' + escapeHtml(r.tab_name) + '</span><span class="status-pill ' + st.cls + '">' + st.label + '</span></div><div class="meta">Última sync: ' + fmtDateTime(r.last_synced_at) + '<br/>Linhas (última carga): ' + (r.last_row_count == null ? 0 : r.last_row_count).toLocaleString("pt-BR") + '</div></div>';
+      }).join("");
+      return '<div class="domain-group"><h3>' + escapeHtml(domain) + '</h3><div class="card-grid">' + cards + '</div></div>';
+    }).join("") || '<p>Nenhuma fonte encontrada.</p>';
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar visão geral: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+function escapeHtml(s){
+  if(s === null || s === undefined) s = "";
+  return String(s).replace(/[&<>"']/g, function(c){
+    return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+  });
+}
+
+// ---------- data browser ----------
+let dataInitDone = false;
+let dataState = { tabName: null, snapshotDate: null, rows: [], columns: [], nextOffset: 0, pageSize: 1000, total: null, loading: false };
+
+async function initDataTab(){
+  dataInitDone = true;
+  const el = document.getElementById("tab-data");
+  el.innerHTML = '<div class="filters"><select id="tab-name-select"><option value="">Selecione uma planilha...</option></select><select id="snapshot-date-select" disabled></select><input id="search-box" class="grow" placeholder="Buscar na tabela carregada..." disabled /><button id="export-btn" disabled>Exportar CSV</button></div><div id="data-table-area"><p class="hint">Escolha uma planilha para visualizar os dados.</p></div>';
+  try{
+    const resp = await rest("source_sheets?select=tab_name,domain&order=domain,tab_name");
+    const rows = await resp.json();
+    const sel = document.getElementById("tab-name-select");
+    rows.forEach(function(r){
+      const opt = document.createElement("option");
+      opt.value = r.tab_name; opt.textContent = r.tab_name + " (" + r.domain + ")";
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", function(){ onTabNameChange(sel.value); });
+  }catch(err){
+    document.getElementById("data-table-area").innerHTML = '<p>Erro: ' + escapeHtml(err.message) + '</p>';
+  }
+  document.getElementById("search-box").addEventListener("input", renderTable);
+  document.getElementById("export-btn").addEventListener("click", exportCsv);
+}
+
+async function onTabNameChange(tabName){
+  const dateSel = document.getElementById("snapshot-date-select");
+  const searchBox = document.getElementById("search-box");
+  const exportBtn = document.getElementById("export-btn");
+  dateSel.innerHTML = ""; dateSel.disabled = true; searchBox.disabled = true; exportBtn.disabled = true;
+  dataState = { tabName: tabName, snapshotDate: null, rows: [], columns: [], nextOffset: 0, pageSize: 1000, total: null, loading: false };
+  if(!tabName){ document.getElementById("data-table-area").innerHTML = ""; return; }
+  document.getElementById("data-table-area").innerHTML = '<div class="spinner">Carregando datas...</div>';
+  try{
+    const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&select=snapshot_date&order=snapshot_date.desc&limit=60");
+    const rows = await resp.json();
+    const dates = Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
+    dates.forEach(function(d){
+      const opt = document.createElement("option");
+      opt.value = d; opt.textContent = d;
+      dateSel.appendChild(opt);
+    });
+    dateSel.disabled = false;
+    dateSel.addEventListener("change", function(){ loadSnapshot(tabName, dateSel.value); });
+    if(dates.length){ dateSel.value = dates[0]; await loadSnapshot(tabName, dates[0]); }
+    else { document.getElementById("data-table-area").innerHTML = "<p>Nenhum dado sincronizado ainda para esta planilha.</p>"; }
+  }catch(err){
+    document.getElementById("data-table-area").innerHTML = '<p>Erro: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+async function loadSnapshot(tabName, snapshotDate){
+  dataState = { tabName: tabName, snapshotDate: snapshotDate, rows: [], columns: [], nextOffset: 0, pageSize: 1000, total: null, loading: false };
+  await loadMoreRows();
+}
+
+async function loadMoreRows(){
+  if(dataState.loading || !dataState.tabName) return;
+  dataState.loading = true;
+  const area = document.getElementById("data-table-area");
+  try{
+    const from = dataState.nextOffset;
+    const to = from + dataState.pageSize - 1;
+    const resp = await rest(
+      "sheet_records?tab_name=eq." + encodeURIComponent(dataState.tabName) + "&snapshot_date=eq." + encodeURIComponent(dataState.snapshotDate) + "&select=row_data,id&order=id.asc",
+      { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
+    );
+    const rows = await resp.json();
+    const contentRange = resp.headers.get("content-range");
+    if(contentRange){
+      const total = contentRange.split("/")[1];
+      dataState.total = total === "*" ? null : parseInt(total, 10);
+    }
+    rows.forEach(function(r){ dataState.rows.push(r.row_data || {}); });
+    dataState.nextOffset += rows.length;
+    if(dataState.columns.length === 0 && dataState.rows.length){
+      dataState.columns = Object.keys(dataState.rows[0]);
+    }
+    document.getElementById("search-box").disabled = false;
+    document.getElementById("export-btn").disabled = false;
+    renderTable();
+  }catch(err){
+    area.innerHTML = '<p>Erro ao carregar dados: ' + escapeHtml(err.message) + '</p>';
+  }finally{
+    dataState.loading = false;
+  }
+}
+
+function isHashPlaceholder(v){
+  if(typeof v !== "string") return false;
+  const t = v.trim();
+  return t.length >= 3 && /^#+$/.test(t);
+}
+
+function renderTable(){
+  const area = document.getElementById("data-table-area");
+  const term = (document.getElementById("search-box").value || "").toLowerCase().trim();
+  let rows = dataState.rows;
+  if(term){
+    rows = rows.filter(function(r){ return JSON.stringify(r).toLowerCase().includes(term); });
+  }
+  const cols = dataState.columns;
+  const shown = rows.slice(0, 500);
+  const head = cols.map(function(c){ return "<th>" + escapeHtml(c) + "</th>"; }).join("");
+  const body = shown.map(function(r){
+    return "<tr>" + cols.map(function(c){
+      const raw = r[c];
+      if(isHashPlaceholder(raw)){
+        return '<td title="A planilha de origem exportou este valor como ' + escapeHtml(raw) + ' (coluna estreita demais na fonte). O dado real precisa ser corrigido na planilha e ressincronizado."><span style="color:var(--text-muted);font-style:italic;">coluna estreita na origem</span></td>';
+      }
+      return '<td title="' + escapeHtml(raw) + '">' + escapeHtml(raw) + "</td>";
+    }).join("") + "</tr>";
+  }).join("");
+  const hasMore = dataState.total === null ? (dataState.rows.length === dataState.nextOffset && dataState.nextOffset > 0) : (dataState.nextOffset < dataState.total);
+  const totalLabel = dataState.total !== null ? dataState.total.toLocaleString("pt-BR") : "?";
+  area.innerHTML = '<div class="table-wrap"><table><thead><tr>' + head + '</tr></thead><tbody>' + (body || '<tr><td>Nenhum registro.</td></tr>') + '</tbody></table></div><div class="table-footer"><span>' + rows.length.toLocaleString("pt-BR") + ' linha(s) carregada(s) exibida(s)' + (term ? " (filtrado)" : "") + ' de ' + totalLabel + ' no total, mostrando até 500 na tela</span>' + (hasMore ? '<button id="load-more-btn">Carregar mais</button>' : '') + '</div>';
+  const moreBtn = document.getElementById("load-more-btn");
+  if(moreBtn) moreBtn.addEventListener("click", loadMoreRows);
+}
+
+function exportCsv(){
+  const term = (document.getElementById("search-box").value || "").toLowerCase().trim();
+  let rows = dataState.rows;
+  if(term){ rows = rows.filter(function(r){ return JSON.stringify(r).toLowerCase().includes(term); }); }
+  const cols = dataState.columns;
+  const esc = function(v){
+    const s = (v === null || v === undefined) ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [cols.map(esc).join(",")].concat(rows.map(function(r){ return cols.map(function(c){ return esc(r[c]); }).join(","); }));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = dataState.tabName + "_" + dataState.snapshotDate + ".csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- boot ----------
+(async function boot(){
+  const session = await getValidSession();
+  if(session){ currentSession = session; showApp(); }
+})();
+</script>
+</body>
+</html>
