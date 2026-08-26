@@ -38,14 +38,27 @@
     min-height:100vh;
   }
   header{
-    display:flex; align-items:center; justify-content:space-between;
-    padding:16px 24px; background:var(--surface-1); border-bottom:1px solid var(--border);
-    position:sticky; top:0; z-index:5;
+    display:flex; align-items:center; justify-content:flex-end;
+    padding:12px 24px; background:var(--surface-1); border-bottom:1px solid var(--border);
   }
   header h1{ font-size:16px; margin:0; font-weight:600; }
-  header .who{ font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:12px; }
   header button{ font-size:13px; }
   main{ max-width:1300px; margin:0 auto; padding:24px; }
+
+  /* Theme menu (top-right) */
+  #theme-menu-wrap{ position:relative; }
+  #theme-menu-btn{ font-size:18px; line-height:1; padding:6px 12px; }
+  #theme-menu-dropdown{
+    display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:20;
+    background:var(--card); border:1px solid var(--border); border-radius:10px; padding:6px;
+    min-width:160px; box-shadow:0 4px 16px rgba(0,0,0,0.15);
+  }
+  #theme-menu-dropdown button{
+    display:block; width:100%; text-align:left; border:none; background:transparent;
+    padding:9px 10px; border-radius:6px; font-size:13px; color:var(--text-primary);
+  }
+  #theme-menu-dropdown button:hover{ background:var(--border); }
+  #theme-menu-dropdown button.active{ font-weight:700; color:var(--accent); }
 
   /* Shell: sidebar + content */
   #shell{ display:flex; min-height:100vh; }
@@ -53,9 +66,14 @@
     width:220px; flex-shrink:0; background:var(--surface-1); border-right:1px solid var(--border);
     display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto;
   }
-  #sidebar .side-brand{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:22px 16px; border-bottom:1px solid var(--border); text-align:center; }
-  #sidebar .side-brand img{ height:44px; width:auto; background:#000; padding:8px 14px; border-radius:8px; }
-  #sidebar .side-brand span{ font-size:13px; font-weight:600; }
+  #sidebar .side-brand{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:22px 16px 16px; text-align:center; }
+  #sidebar .side-brand img{ height:58px; width:auto; border-radius:8px; }
+  #sidebar .side-divider{ height:1px; background:var(--border); margin:0 16px; flex-shrink:0; }
+  #sidebar .side-subtitle{ padding:14px 16px; font-size:16px; font-weight:700; text-align:center; color:var(--text-primary); flex-shrink:0; }
+  #sidebar .side-group-label{ padding:14px 16px 6px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:700; flex-shrink:0; }
+  #sidebar .nav-btn.soon{ opacity:.55; cursor:default; }
+  #sidebar .nav-btn.soon:hover{ background:transparent; }
+  #sidebar .nav-btn .soon-tag{ margin-left:auto; font-size:9.5px; font-weight:700; text-transform:uppercase; color:var(--text-muted); background:var(--border); padding:1px 6px; border-radius:999px; }
   #sidebar nav{ flex:1; padding:12px 8px; }
   #sidebar .nav-btn{
     display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:none;
@@ -66,6 +84,8 @@
   #sidebar .nav-btn:hover{ background:var(--border); }
   #sidebar .nav-btn.active{ background:var(--accent); color:#fff; }
   #sidebar .side-foot{ padding:12px 16px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); }
+  #who-label{ font-size:12.5px; font-weight:700; color:var(--text-primary); margin-bottom:3px; }
+  #who-access{ font-size:11px; color:var(--text-muted); }
   #content{ flex:1; min-width:0; }
   #content main{ margin:0; max-width:none; }
   .section{ display:none; }
@@ -92,6 +112,8 @@
   .badge.b-info{ color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
   .empty-hint{ font-size:13px; color:var(--text-muted); padding:14px 0; }
   .src-note{ font-size:11px; color:var(--text-muted); margin-top:4px; }
+  .section-footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--gridline); }
+  .section-footer .src-note{ margin-top:6px; }
   details.vgroup{ border:1px solid var(--border); border-radius:10px; margin-bottom:10px; background:var(--card); overflow:hidden; }
   details.vgroup summary{ padding:10px 14px; cursor:pointer; font-weight:600; font-size:13px; list-style:none; display:flex; justify-content:space-between; }
   details.vgroup summary::-webkit-details-marker{ display:none; }
@@ -162,17 +184,26 @@
   .hint{ font-size:12px; color:var(--text-muted); margin-top:6px; }
   .spinner{ font-size:13px; color:var(--text-secondary); padding:20px; text-align:center; }
   .login-logo-wrap{ text-align:center; margin-bottom:18px; }
-  .login-logo{ height:110px; width:auto; max-width:100%; background:#000; padding:18px 28px; border-radius:12px; }
-  .brand{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
-  .brand .brand-user{ font-size:12px; color:var(--text-secondary); font-weight:600; }
-  .header-logo{ height:52px; width:auto; background:#000; padding:9px 16px; border-radius:8px; }
+  .login-logo{ height:110px; width:auto; max-width:100%; border-radius:12px; }
 </style>
 </head>
 <body>
 
+<script>
+(function(){
+  var t = null;
+  try{ t = localStorage.getItem("theme_pref"); }catch(e){}
+  if(t !== "light" && t !== "dark"){
+    t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", t);
+  window.__theme = t;
+})();
+</script>
+
 <div id="login-screen">
   <div id="login-card">
-    <div class="login-logo-wrap"><img src="logo.png" alt="Atlântico" class="login-logo"/></div>
+    <div class="login-logo-wrap"><img class="themed-logo login-logo" alt="Atlântico"/></div>
     <h2 style="text-align:center;">Painel Controladoria</h2>
     <p class="sub">Acesso restrito ao time da controladoria.</p>
     <form id="login-form">
@@ -189,26 +220,42 @@
 <div id="app" style="display:none;">
   <div id="shell">
     <aside id="sidebar">
-      <div class="side-brand"><img src="logo.png" alt="Atlântico"/><span>Painel Controladoria</span></div>
+      <div class="side-brand"><img class="themed-logo" alt="Atlântico"/></div>
+      <div class="side-divider"></div>
+      <div class="side-subtitle">Painel Controladoria</div>
+      <div class="side-divider"></div>
       <nav>
-        <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home / Visão Geral</button>
+        <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home</button>
         <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
         <button class="nav-btn" data-section="pneus"><span class="ico">🛞</span> Pneus</button>
-        <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Dados e Visão Geral</button>
+        <button class="nav-btn soon" data-soon="Retenção"><span class="ico">🔁</span> Retenção <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn soon" data-soon="Preventiva"><span class="ico">🛠️</span> Preventiva <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn soon" data-soon="Abastecimento"><span class="ico">⛽</span> Abastecimento <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn soon" data-soon="Suprimentos"><span class="ico">📦</span> Suprimentos <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn soon" data-soon="Dashboard"><span class="ico">📊</span> Dashboard <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Base de Dados</button>
       </nav>
-      <div class="side-foot" id="who-label"></div>
+      <div class="side-foot">
+        <div id="who-label"></div>
+        <div id="who-access"></div>
+      </div>
       <div class="side-foot"><button class="ghost" id="logout-btn" style="width:100%;">Sair</button></div>
     </aside>
     <div id="content">
       <header>
-        <div class="brand"><img src="logo.png" alt="Atlântico" class="header-logo"/><span class="brand-user" id="who-label-top"></span></div>
-        <h1 id="page-title">Home / Visão Geral</h1>
+        <div id="theme-menu-wrap">
+          <button class="ghost" id="theme-menu-btn" title="Menu">⋮</button>
+          <div id="theme-menu-dropdown">
+            <button id="theme-light-btn">☀️ Modo claro</button>
+            <button id="theme-dark-btn">🌙 Modo escuro</button>
+          </div>
+        </div>
       </header>
       <main>
 
         <div class="section active" id="sec-home">
           <div class="section-head">
-            <h2>Home / Visão Geral</h2>
+            <h2>Home</h2>
             <p>Resumo consolidado dos módulos de Telemetria e Pneus, com base nos dados mais recentes sincronizados.</p>
           </div>
           <div id="home-body"><div class="spinner">Carregando...</div></div>
@@ -217,7 +264,6 @@
         <div class="section" id="sec-telemetria">
           <div class="section-head">
             <h2>Telemetria</h2>
-            <p>Fontes: <code>Base - TML</code>, <code>O.S Aberta - TML</code>, <code>O.S Fechada - TML</code>, <code>Abastecimento - TML</code>.</p>
           </div>
           <div id="telemetria-body"><div class="spinner">Carregando...</div></div>
         </div>
@@ -225,18 +271,25 @@
         <div class="section" id="sec-pneus">
           <div class="section-head">
             <h2>Pneus</h2>
-            <p>Fontes: <code>Dados RPV - Pneus</code>, <code>Base de Veiculos - Pneus</code>, <code>Manutencao - PRV</code> (pendência de coleta).</p>
           </div>
           <div id="pneus-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dados">
           <div class="section-head">
-            <h2>Dados e Visão Geral</h2>
+            <h2>Base de Dados</h2>
             <p>Área restrita: status de sincronização de todas as planilhas e extração/exportação de dados brutos.</p>
           </div>
           <div id="dados-gated-hint" class="empty-hint">Esta seção é protegida por uma senha adicional. Clique no menu novamente para desbloquear.</div>
           <div id="dados-body" style="display:none;"></div>
+        </div>
+
+        <div class="section" id="sec-placeholder">
+          <div class="section-head">
+            <h2 id="placeholder-title">Módulo</h2>
+            <p>Este módulo ainda não está conectado a nenhuma fonte de dados.</p>
+          </div>
+          <p class="empty-hint">Em breve — assim que a sincronização deste módulo for configurada, os dados aparecerão aqui automaticamente.</p>
         </div>
 
       </main>
@@ -295,6 +348,7 @@ async function login(email, password){
     refresh_token: body.refresh_token,
     expires_at: Date.now() + (body.expires_in || 3600) * 1000,
     user: body.user,
+    loginAt: Date.now(),
   };
   saveSession(session);
   return session;
@@ -313,6 +367,7 @@ async function refreshSession(session){
     refresh_token: body.refresh_token,
     expires_at: Date.now() + (body.expires_in || 3600) * 1000,
     user: body.user || session.user,
+    loginAt: session.loginAt || Date.now(),
   };
   saveSession(newSession);
   return newSession;
@@ -373,7 +428,7 @@ function periodToolbarHtml(id, currentValue){
     + '<input type="date" id="' + id + '-asof" min="' + MIN_PERIOD_DATE + '" max="' + todayStr() + '" value="' + (currentValue || "") + '" />'
     + '<button class="primary" id="' + id + '-apply">Aplicar</button>'
     + '<button class="ghost" id="' + id + '-reset">Mais recente</button>'
-    + '</div><div class="hint" id="' + id + '-resolved" style="margin:-10px 0 14px;"></div>';
+    + '</div>';
 }
 function wirePeriodToolbar(id, onChange){
   document.getElementById(id + "-apply").addEventListener("click", function(){
@@ -389,7 +444,7 @@ function resolvedDatesNote(resolvedDates){
   const parts = Object.keys(resolvedDates).map(function(k){
     return escapeHtml(k) + ": <b>" + fmtDateBR(resolvedDates[k]) + "</b>";
   });
-  return "Dados sincronizados usados — " + parts.join(" &nbsp;·&nbsp; ");
+  return '<p class="hint">Dados sincronizados usados — ' + parts.join(" &nbsp;·&nbsp; ") + '</p>';
 }
 
 async function fetchAllRows(tabName, snapshotDate){
@@ -538,21 +593,60 @@ async function showApp(){
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app").style.display = "block";
   document.getElementById("who-label").textContent = labelFor(currentSession.user.email);
-  document.getElementById("who-label-top").textContent = labelFor(currentSession.user.email);
+  document.getElementById("who-access").textContent = "Acesso: " + fmtDateTime(currentSession.loginAt);
   await renderHome();
+}
+
+// ---------- theme ----------
+function updateLogos(theme){
+  const src = theme === "light" ? "logo-light.png" : "logo-dark.png";
+  document.querySelectorAll(".themed-logo").forEach(function(img){ img.src = src; });
+}
+function updateThemeMenuUI(theme){
+  const lightBtn = document.getElementById("theme-light-btn");
+  const darkBtn = document.getElementById("theme-dark-btn");
+  if(lightBtn) lightBtn.classList.toggle("active", theme === "light");
+  if(darkBtn) darkBtn.classList.toggle("active", theme === "dark");
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme", theme);
+  try{ localStorage.setItem("theme_pref", theme); }catch(e){}
+  window.__theme = theme;
+  updateLogos(theme);
+  updateThemeMenuUI(theme);
+}
+updateLogos(window.__theme || "dark");
+updateThemeMenuUI(window.__theme || "dark");
+const themeMenuBtn = document.getElementById("theme-menu-btn");
+if(themeMenuBtn){
+  themeMenuBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    const dd = document.getElementById("theme-menu-dropdown");
+    dd.style.display = dd.style.display === "block" ? "none" : "block";
+  });
+  document.addEventListener("click", function(){
+    const dd = document.getElementById("theme-menu-dropdown");
+    if(dd) dd.style.display = "none";
+  });
+  document.getElementById("theme-light-btn").addEventListener("click", function(){ applyTheme("light"); });
+  document.getElementById("theme-dark-btn").addEventListener("click", function(){ applyTheme("dark"); });
 }
 
 // ---------- sidebar navigation ----------
 const SECTION_TITLES = {
-  home: "Home / Visão Geral",
+  home: "Home",
   telemetria: "Telemetria",
   pneus: "Pneus",
-  dados: "Dados e Visão Geral",
+  dados: "Base de Dados",
 };
 const sectionLoaded = { home:false, telemetria:false, pneus:false, dados:false };
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
+    if(btn.dataset.soon){
+      activatePlaceholder(btn.dataset.soon);
+      return;
+    }
     const section = btn.dataset.section;
     if(section === "dados" && sessionStorage.getItem("dados_gate_ok") !== "1"){
       openGate();
@@ -566,7 +660,6 @@ function activateSection(section){
   document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.section === section); });
   document.querySelectorAll(".section").forEach(function(s){ s.classList.remove("active"); });
   document.getElementById("sec-" + section).classList.add("active");
-  document.getElementById("page-title").textContent = SECTION_TITLES[section];
   if(!sectionLoaded[section]){
     sectionLoaded[section] = true;
     if(section === "home") renderHome();
@@ -574,6 +667,13 @@ function activateSection(section){
     if(section === "pneus") renderPneus();
     if(section === "dados") renderDadosGeral();
   }
+}
+
+function activatePlaceholder(moduleName){
+  document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.remove("active"); });
+  document.querySelectorAll(".section").forEach(function(s){ s.classList.remove("active"); });
+  document.getElementById("sec-placeholder").classList.add("active");
+  document.getElementById("placeholder-title").textContent = moduleName;
 }
 
 // ---------- gate modal ----------
@@ -713,7 +813,6 @@ async function renderTelemetria(newAsOf){
   const area = document.getElementById("telemetria-data-area");
   try{
     const data = await getTelemetriaData(telemetriaAsOf, newAsOf !== undefined);
-    document.getElementById("telemetria-resolved").innerHTML = resolvedDatesNote(data.resolvedDates);
     const vehicles = data.vehicles;
     const total = vehicles.length;
     const criticos = vehicles.filter(function(v){ return v.classe === "critico"; }).length;
@@ -735,7 +834,7 @@ async function renderTelemetria(newAsOf){
       + kpiCard("+60 dias sem comunicação", fmtNum(mais60), mais60>0?"critical":"good")
       + kpiCard("Média dias sem comunicação", fmtNum(media), "info")
       + kpiCard("Com abastecimento recente", fmtNum(comAbast), "info")
-      + '</div>' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML");
+      + '</div>';
 
     if(recorrentes.length){
       html += '<div class="subsection"><h3>Veículos recorrentes em O.S. de telemetria (≥2 desde 19/05/2026)</h3><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Unidade</th><th>Qtd O.S. Telemetria</th><th>Dias sem com.</th></tr></thead><tbody>'
@@ -755,6 +854,8 @@ async function renderTelemetria(newAsOf){
         }).join("") + '</tbody></table></div></div></details>';
     });
     html += '</div>';
+
+    html += '<div class="section-footer">' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML") + resolvedDatesNote(data.resolvedDates) + '</div>';
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
   }catch(err){
@@ -927,7 +1028,6 @@ async function renderPneus(newAsOf){
   const area = document.getElementById("pneus-data-area");
   try{
     const d = await getPneusData(pneusAsOf, newAsOf !== undefined);
-    document.getElementById("pneus-resolved").innerHTML = resolvedDatesNote(d.resolvedDates);
     let html = '<div class="kpi-grid">'
       + kpiCard("Veículos analisados", fmtNum(d.totalVeiculos), "info")
       + kpiCard("Pneus analisados", fmtNum(d.totalPneus), "info")
@@ -938,7 +1038,7 @@ async function renderPneus(newAsOf){
       + kpiCard("Pendente de coleta", fmtNum(d.alerts.coleta.length), d.alerts.coleta.length?"warning":"good")
       + kpiCard("Sucata", fmtNum(d.alerts.sucata.length), d.alerts.sucata.length?"critical":"good")
       + kpiCard("Sem pneu", fmtNum(d.alerts.sempneu.length), d.alerts.sempneu.length?"critical":"good")
-      + '</div>' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV");
+      + '</div>';
 
     html += '<div class="subsection"><h3>Ranking por garagem / empresa</h3><div class="table-wrap"><table><thead><tr><th>Garagem / Empresa</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
       + d.ranking.map(function(r){
@@ -976,6 +1076,8 @@ async function renderPneus(newAsOf){
     html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
     html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
 
+    html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV") + resolvedDatesNote(d.resolvedDates) + '</div>';
+
     area.innerHTML = html;
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
@@ -996,7 +1098,6 @@ async function renderHome(newAsOf){
     const force = newAsOf !== undefined;
     const [t, p] = await Promise.all([ getTelemetriaData(homeAsOf, force), getPneusData(homeAsOf, force) ]);
     const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates);
-    document.getElementById("home-resolved").innerHTML = resolvedDatesNote(resolved);
     const totalCarros = t.vehicles.length;
     const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
     const totalOs = t.vehicles.reduce(function(s,v){ return s+v.qtdOs; },0);
@@ -1015,7 +1116,10 @@ async function renderHome(newAsOf){
       + kpiCard("Sucata", fmtNum(p.alerts.sucata.length), p.alerts.sucata.length?"critical":"good")
       + '</div></div>';
 
-    html += '<p class="hint">Para detalhamento completo, acesse as seções Telemetria e Pneus no menu lateral. Para status de sincronização e exportação de dados brutos, acesse "Dados e Visão Geral".</p>';
+    html += '<p class="hint">Para detalhamento completo, acesse as seções Telemetria e Pneus no menu lateral. Para status de sincronização e exportação de dados brutos, acesse "Base de Dados".</p>';
+
+    html += '<div class="section-footer">' + resolvedDatesNote(resolved) + '</div>';
+
     area.innerHTML = html;
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
