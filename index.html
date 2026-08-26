@@ -67,7 +67,7 @@
   #sidebar .nav-btn.active{ background:var(--accent); color:#fff; }
   #sidebar .side-foot{ padding:12px 16px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); }
   #content{ flex:1; min-width:0; }
-  #content main{ margin:0; max-width:1300px; }
+  #content main{ margin:0; max-width:none; }
   .section{ display:none; }
   .section.active{ display:block; }
   .section-head{ margin-bottom:18px; }
@@ -156,7 +156,7 @@
   .filters .grow{ flex:1; min-width:180px; }
   table{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }
   th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--gridline); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
-  th{ color:var(--text-secondary); font-weight:600; position:sticky; top:57px; background:var(--card); }
+  th{ color:var(--text-secondary); font-weight:600; position:sticky; top:0; background:var(--card); }
   .table-wrap{ overflow:auto; border:1px solid var(--border); border-radius:10px; max-height:65vh; }
   .table-footer{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:12px; color:var(--text-secondary); }
   .hint{ font-size:12px; color:var(--text-muted); margin-top:6px; }
@@ -351,15 +351,28 @@ async function fetchAllRows(tabName, snapshotDate){
   const out = [];
   if(!snapshotDate) return out;
   let offset = 0;
-  const pageSize = 1000;
+  const pageSize = 5000;
   let total = null;
   while(true){
     const from = offset, to = offset + pageSize - 1;
-    const resp = await rest(
-      "sheet_records?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=eq." + encodeURIComponent(snapshotDate) + "&select=row_data&order=id.asc",
-      { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
-    );
-    const rows = await resp.json();
+    let resp, rows, attempt = 0;
+    while(true){
+      resp = await rest(
+        "sheet_records?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=eq." + encodeURIComponent(snapshotDate) + "&select=row_data&order=id.asc",
+        { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
+      );
+      if(resp.ok){
+        try{ rows = await resp.json(); }catch(e){ rows = null; }
+        if(Array.isArray(rows)) break;
+      }
+      attempt++;
+      if(attempt >= 3){
+        let detail = "";
+        try{ const body = await resp.clone().json(); detail = (body && (body.message || body.hint)) || ""; }catch(e){}
+        throw new Error("Falha ao buscar " + tabName + " (HTTP " + resp.status + (detail ? ": " + detail : "") + ")");
+      }
+      await new Promise(function(r){ setTimeout(r, 500 * attempt); });
+    }
     const cr = resp.headers.get("content-range");
     if(cr){ const t = cr.split("/")[1]; total = t === "*" ? null : parseInt(t, 10); }
     rows.forEach(function(r){ out.push(r.row_data || {}); });
