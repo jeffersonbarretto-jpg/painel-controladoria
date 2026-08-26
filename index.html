@@ -67,7 +67,8 @@
     display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto;
   }
   #sidebar .side-brand{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:22px 16px 16px; text-align:center; }
-  #sidebar .side-brand img{ height:58px; width:auto; border-radius:8px; }
+  #sidebar .side-brand .logo-box{ width:100%; max-width:172px; height:56px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  #sidebar .side-brand .logo-box img{ max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:8px; }
   #sidebar .side-divider{ height:1px; background:var(--border); margin:0 16px; flex-shrink:0; }
   #sidebar .side-subtitle{ padding:14px 16px; font-size:16px; font-weight:700; text-align:center; color:var(--text-primary); flex-shrink:0; }
   #sidebar .side-group-label{ padding:14px 16px 6px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:700; flex-shrink:0; }
@@ -184,7 +185,8 @@
   .hint{ font-size:12px; color:var(--text-muted); margin-top:6px; }
   .spinner{ font-size:13px; color:var(--text-secondary); padding:20px; text-align:center; }
   .login-logo-wrap{ text-align:center; margin-bottom:18px; }
-  .login-logo{ height:110px; width:auto; max-width:100%; border-radius:12px; }
+  .login-logo-wrap .logo-box{ display:flex; align-items:center; justify-content:center; width:100%; height:96px; }
+  .login-logo{ max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:12px; }
 </style>
 </head>
 <body>
@@ -203,7 +205,7 @@
 
 <div id="login-screen">
   <div id="login-card">
-    <div class="login-logo-wrap"><img class="themed-logo login-logo" alt="Atlântico"/></div>
+    <div class="login-logo-wrap"><div class="logo-box"><img class="themed-logo login-logo" alt="Atlântico"/></div></div>
     <h2 style="text-align:center;">Painel Controladoria</h2>
     <p class="sub">Acesso restrito ao time da controladoria.</p>
     <form id="login-form">
@@ -220,7 +222,7 @@
 <div id="app" style="display:none;">
   <div id="shell">
     <aside id="sidebar">
-      <div class="side-brand"><img class="themed-logo" alt="Atlântico"/></div>
+      <div class="side-brand"><div class="logo-box"><img class="themed-logo" alt="Atlântico"/></div></div>
       <div class="side-divider"></div>
       <div class="side-subtitle">Painel Controladoria</div>
       <div class="side-divider"></div>
@@ -589,11 +591,28 @@ function labelFor(email){
   return u ? u.label : email;
 }
 
+function fitOneLine(el, maxSize, minSize){
+  el.style.whiteSpace = "nowrap";
+  let size = maxSize;
+  el.style.fontSize = size + "px";
+  const availWidth = el.clientWidth;
+  while(el.scrollWidth > availWidth && size > minSize){
+    size -= 0.5;
+    el.style.fontSize = size + "px";
+  }
+}
+
 async function showApp(){
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app").style.display = "block";
-  document.getElementById("who-label").textContent = labelFor(currentSession.user.email);
+  if(!currentSession.loginAt){
+    currentSession.loginAt = Date.now();
+    saveSession(currentSession);
+  }
+  const whoLabel = document.getElementById("who-label");
+  whoLabel.textContent = labelFor(currentSession.user.email);
   document.getElementById("who-access").textContent = "Acesso: " + fmtDateTime(currentSession.loginAt);
+  fitOneLine(whoLabel, 12.5, 9);
   await renderHome();
 }
 
