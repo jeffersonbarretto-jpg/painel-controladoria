@@ -230,6 +230,7 @@
         <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home</button>
         <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
         <button class="nav-btn" data-section="pneus"><span class="ico">🛞</span> Pneus</button>
+        <button class="nav-btn" data-section="inventario"><span class="ico">🗃️</span> Inventário</button>
         <button class="nav-btn soon" data-soon="Retenção"><span class="ico">🔁</span> Retenção <span class="soon-tag">em breve</span></button>
         <button class="nav-btn soon" data-soon="Preventiva"><span class="ico">🛠️</span> Preventiva <span class="soon-tag">em breve</span></button>
         <button class="nav-btn soon" data-soon="Abastecimento"><span class="ico">⛽</span> Abastecimento <span class="soon-tag">em breve</span></button>
@@ -275,6 +276,14 @@
             <h2>Pneus</h2>
           </div>
           <div id="pneus-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-inventario">
+          <div class="section-head">
+            <h2>Inventário</h2>
+            <p>Ciclo de inventário por semestre — alimentação semestral (a cada 6 meses, com a chegada de um novo levantamento).</p>
+          </div>
+          <div id="inventario-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dados">
@@ -656,9 +665,10 @@ const SECTION_TITLES = {
   home: "Home",
   telemetria: "Telemetria",
   pneus: "Pneus",
+  inventario: "Inventário",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, dados:false };
+const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, dados:false };
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -684,6 +694,7 @@ function activateSection(section){
     if(section === "home") renderHome();
     if(section === "telemetria") renderTelemetria();
     if(section === "pneus") renderPneus();
+    if(section === "inventario") renderInventario();
     if(section === "dados") renderDadosGeral();
   }
 }
@@ -1101,6 +1112,152 @@ async function renderPneus(newAsOf){
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
+}
+
+// =====================================================================
+// INVENTÁRIO (alimentação semestral)
+// =====================================================================
+function invBRL(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits:0, maximumFractionDigits:0 });
+}
+function invPctFmt(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  return (Number(n)*100).toLocaleString("pt-BR", { minimumFractionDigits:1, maximumFractionDigits:1 }) + "%";
+}
+
+let inventarioCache = null;
+let inventarioSemestreSel = null;
+
+async function getInventarioData(force){
+  if(force || !inventarioCache){
+    inventarioCache = buildInventarioData().catch(function(err){ inventarioCache = null; throw err; });
+  }
+  return inventarioCache;
+}
+
+async function buildInventarioData(){
+  const [resumoResp, gruposResp, evolResp] = await Promise.all([
+    rest("inventario_resumo_semestre?select=*"),
+    rest("inventario_ajustes_grupo?select=*"),
+    rest("inventario_unidade_evolucao?select=*"),
+  ]);
+  if(!resumoResp.ok) throw new Error("Falha ao buscar inventario_resumo_semestre (HTTP " + resumoResp.status + ")");
+  if(!gruposResp.ok) throw new Error("Falha ao buscar inventario_ajustes_grupo (HTTP " + gruposResp.status + ")");
+  if(!evolResp.ok) throw new Error("Falha ao buscar inventario_unidade_evolucao (HTTP " + evolResp.status + ")");
+  const resumo = await resumoResp.json();
+  const grupos = await gruposResp.json();
+  const evolucao = await evolResp.json();
+
+  const resumoNum = resumo.map(function(r){
+    return Object.assign({}, r, {
+      inventario_geral: Number(r.inventario_geral), ajuste_entrada: Number(r.ajuste_entrada),
+      ajuste_saida: Number(r.ajuste_saida), ajuste_total: Number(r.ajuste_total), pct_ajustes: Number(r.pct_ajustes),
+    });
+  });
+  const gruposNum = grupos.map(function(g){
+    return Object.assign({}, g, { entrada: Number(g.entrada), saida: Number(g.saida), total: Number(g.total) });
+  });
+  const evolucaoNum = evolucao.map(function(u){
+    return Object.assign({}, u, {
+      variacao_pct: Number(u.variacao_pct), variacao_total: Number(u.variacao_total),
+      movimentacao_total: Number(u.movimentacao_total), valor_base: Number(u.valor_base),
+    });
+  });
+
+  const semestres = Array.from(new Set(resumoNum.map(function(r){ return r.semestre; }))).sort();
+
+  return { resumo: resumoNum, grupos: gruposNum, evolucao: evolucaoNum, semestres: semestres };
+}
+
+async function renderInventario(force){
+  const el = document.getElementById("inventario-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de inventário...</div>';
+  try{
+    const data = await getInventarioData(force);
+    if(!inventarioSemestreSel || data.semestres.indexOf(inventarioSemestreSel) === -1){
+      inventarioSemestreSel = data.semestres.length ? data.semestres[data.semestres.length - 1] : null;
+    }
+    renderInventarioBody(data);
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Inventário: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+function renderInventarioBody(data){
+  const el = document.getElementById("inventario-body");
+  const sem = inventarioSemestreSel;
+
+  if(!data.semestres.length){
+    el.innerHTML = '<p class="empty-hint">Nenhum ciclo de inventário sincronizado ainda.</p>';
+    return;
+  }
+
+  const rowsSem = data.resumo.filter(function(r){ return r.semestre === sem; });
+  const total = rowsSem.find(function(r){ return r.almoxarifado === "TOTAL"; });
+  const unidades = rowsSem.filter(function(r){ return r.almoxarifado !== "TOTAL"; })
+    .sort(function(a,b){ return b.pct_ajustes - a.pct_ajustes; });
+
+  let html = '<div class="filters" style="margin-bottom:18px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Semestre:</label>'
+    + '<select id="inventario-sem-select">'
+    + data.semestres.map(function(s){ return '<option value="' + escapeHtml(s) + '"' + (s === sem ? " selected" : "") + '>' + escapeHtml(s) + '</option>'; }).join("")
+    + '</select>'
+    + '<button class="ghost" id="inventario-refresh">Atualizar dados</button>'
+    + '</div>';
+
+  html += '<div class="kpi-grid">'
+    + kpiCard("Inventário geral", total ? invBRL(total.inventario_geral) : "—", "info")
+    + kpiCard("Ajuste total", total ? invBRL(total.ajuste_total) : "—", (total && total.ajuste_total > 0) ? "warning" : "good")
+    + kpiCard("% de ajustes sobre o inventário", total ? invPctFmt(total.pct_ajustes) : "—", (total && total.pct_ajustes > 0.15) ? "critical" : "good")
+    + '</div>';
+
+  html += '<div class="subsection"><h3>Ranking por almoxarifado — % de ajuste (' + escapeHtml(sem) + ')</h3>';
+  html += unidades.length
+    ? '<div class="table-wrap"><table><thead><tr><th>Almoxarifado</th><th>Inventário</th><th>Ajuste total</th><th>% ajuste</th></tr></thead><tbody>'
+      + unidades.map(function(r){
+        const pctCell = r.pct_ajustes > 0.15
+          ? '<span class="badge b-critical">' + invPctFmt(r.pct_ajustes) + '</span>'
+          : invPctFmt(r.pct_ajustes);
+        return '<tr><td>'+escapeHtml(r.almoxarifado)+'</td><td>'+invBRL(r.inventario_geral)+'</td><td>'+invBRL(r.ajuste_total)+'</td><td>'+pctCell+'</td></tr>';
+      }).join("") + '</tbody></table></div>'
+    : '<p class="empty-hint">Sem dados para este semestre.</p>';
+  html += '</div>';
+
+  const grupos = data.grupos.filter(function(g){ return g.semestre === sem && g.nivel === "Grupo" && g.grupo !== "Total Geral"; })
+    .sort(function(a,b){ return b.total - a.total; });
+  html += '<div class="subsection"><h3>Grupos de material por ajuste total (' + escapeHtml(sem) + ')</h3>';
+  html += grupos.length
+    ? '<div class="table-wrap"><table><thead><tr><th>Grupo</th><th>Entrada</th><th>Saída</th><th>Total</th></tr></thead><tbody>'
+      + grupos.map(function(g){
+        return '<tr><td>'+escapeHtml(g.grupo)+'</td><td>'+invBRL(g.entrada)+'</td><td>'+invBRL(g.saida)+'</td><td>'+invBRL(g.total)+'</td></tr>';
+      }).join("") + '</tbody></table></div>'
+    : '<p class="empty-hint">Sem dados para este semestre.</p>';
+  html += '</div>';
+
+  const evolOrdenada = data.evolucao.slice().sort(function(a,b){ return Math.abs(b.variacao_pct) - Math.abs(a.variacao_pct); });
+  html += '<div class="subsection"><h3>Unidades em destaque — variação vs. semestre base</h3>';
+  html += evolOrdenada.length
+    ? '<div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Tendência</th><th>Variação</th><th>Semestre base</th></tr></thead><tbody>'
+      + evolOrdenada.map(function(u){
+        const tone = u.tendencia === "Alta" ? "b-critical" : "b-good";
+        return '<tr><td>'+escapeHtml(u.unidade)+'</td><td><span class="badge '+tone+'">'+escapeHtml(u.tendencia||"—")+'</span></td><td>'+invPctFmt(Math.abs(u.variacao_pct))+'</td><td>'+escapeHtml(u.semestre_base||"—")+'</td></tr>';
+      }).join("") + '</tbody></table></div>'
+    : '<p class="empty-hint">Sem dados de evolução.</p>';
+  html += '</div>';
+
+  html += '<div class="section-footer">'
+    + srcNote("inventario_resumo_semestre, inventario_ajustes_grupo, inventario_unidade_evolucao")
+    + '<p class="hint">Alimentação semestral — dados atualizados a cada 6 meses, na chegada de um novo levantamento de inventário. Semestre selecionado: <b>' + escapeHtml(sem) + '</b> · ' + data.semestres.length + ' semestre(s) disponível(is).</p>'
+    + '</div>';
+
+  el.innerHTML = html;
+
+  document.getElementById("inventario-sem-select").addEventListener("change", function(e){
+    inventarioSemestreSel = e.target.value;
+    renderInventarioBody(data);
+  });
+  document.getElementById("inventario-refresh").addEventListener("click", function(){ renderInventario(true); });
 }
 
 // =====================================================================
