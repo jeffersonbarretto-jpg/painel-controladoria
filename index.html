@@ -347,6 +347,50 @@ async function getLatestSnapshotDate(tabName){
   return rows[0] ? rows[0].snapshot_date : null;
 }
 
+// Resolves which synced snapshot_date to use for a tab: the latest one if asOfDate is empty,
+// otherwise the most recent snapshot on or before asOfDate (i.e. "data as of that period").
+const MIN_PERIOD_DATE = "2026-01-01";
+async function resolveSnapshotDate(tabName, asOfDate){
+  if(!asOfDate) return await getLatestSnapshotDate(tabName);
+  const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=lte." + encodeURIComponent(asOfDate) + "&select=snapshot_date&order=snapshot_date.desc&limit=1");
+  const rows = await resp.json();
+  return rows[0] ? rows[0].snapshot_date : null;
+}
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function fmtDateBR(iso){
+  if(!iso) return "sem dado sincronizado";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("pt-BR");
+}
+// Renders a small "period" toolbar (date input + apply/reset) reusable across sections.
+function periodToolbarHtml(id, currentValue){
+  return '<div class="filters" style="margin-bottom:18px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Período (dados até a data selecionada):</label>'
+    + '<input type="date" id="' + id + '-asof" min="' + MIN_PERIOD_DATE + '" max="' + todayStr() + '" value="' + (currentValue || "") + '" />'
+    + '<button class="primary" id="' + id + '-apply">Aplicar</button>'
+    + '<button class="ghost" id="' + id + '-reset">Mais recente</button>'
+    + '</div><div class="hint" id="' + id + '-resolved" style="margin:-10px 0 14px;"></div>';
+}
+function wirePeriodToolbar(id, onChange){
+  document.getElementById(id + "-apply").addEventListener("click", function(){
+    const v = document.getElementById(id + "-asof").value;
+    onChange(v || null);
+  });
+  document.getElementById(id + "-reset").addEventListener("click", function(){
+    document.getElementById(id + "-asof").value = "";
+    onChange(null);
+  });
+}
+function resolvedDatesNote(resolvedDates){
+  const parts = Object.keys(resolvedDates).map(function(k){
+    return escapeHtml(k) + ": <b>" + fmtDateBR(resolvedDates[k]) + "</b>";
+  });
+  return "Dados sincronizados usados — " + parts.join(" &nbsp;·&nbsp; ");
+}
+
 async function fetchAllRows(tabName, snapshotDate){
   const out = [];
   if(!snapshotDate) return out;
@@ -565,15 +609,27 @@ function isTelemetriaOS(text){
   return TELEMETRIA_KEYWORDS.some(function(k){ return t.indexOf(k) !== -1; });
 }
 
-let telemetriaCache = null;
+const telemetriaCacheByDate = {};
+async function getTelemetriaData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !telemetriaCacheByDate[key]){
+    telemetriaCacheByDate[key] = buildTelemetriaData(asOfDate).catch(function(err){ delete telemetriaCacheByDate[key]; throw err; });
+  }
+  return telemetriaCacheByDate[key];
+}
 
-async function buildTelemetriaData(){
-  const snap = await getLatestSnapshotDate("Base - TML");
+async function buildTelemetriaData(asOfDate){
+  const [baseSnap, abertaSnap, fechadaSnap, abastSnap] = await Promise.all([
+    resolveSnapshotDate("Base - TML", asOfDate),
+    resolveSnapshotDate("O.S Aberta - TML", asOfDate),
+    resolveSnapshotDate("O.S Fechada - TML", asOfDate),
+    resolveSnapshotDate("Abastecimento - TML", asOfDate),
+  ]);
   const [baseRows, abertaRows, fechadaRows, abastRows] = await Promise.all([
-    fetchAllRows("Base - TML", snap),
-    fetchAllRows("O.S Aberta - TML", await getLatestSnapshotDate("O.S Aberta - TML")),
-    fetchAllRows("O.S Fechada - TML", await getLatestSnapshotDate("O.S Fechada - TML")),
-    fetchAllRows("Abastecimento - TML", await getLatestSnapshotDate("Abastecimento - TML")),
+    fetchAllRows("Base - TML", baseSnap),
+    fetchAllRows("O.S Aberta - TML", abertaSnap),
+    fetchAllRows("O.S Fechada - TML", fechadaSnap),
+    fetchAllRows("Abastecimento - TML", abastSnap),
   ]);
 
   const osAberta = abertaRows.filter(function(r){ return r.OS; }).map(function(r){
@@ -636,8 +692,8 @@ async function buildTelemetriaData(){
     };
   });
 
-  return { vehicles: vehicles, snapDates: {
-    base: snap,
+  return { vehicles: vehicles, resolvedDates: {
+    "Base - TML": baseSnap, "O.S Aberta - TML": abertaSnap, "O.S Fechada - TML": fechadaSnap, "Abastecimento - TML": abastSnap,
   }};
 }
 
@@ -647,12 +703,16 @@ function classBadge(classe){
   return '<span class="badge b-good">ok</span>';
 }
 
-async function renderTelemetria(force){
+let telemetriaAsOf = null;
+async function renderTelemetria(newAsOf){
+  if(newAsOf !== undefined) telemetriaAsOf = newAsOf;
   const el = document.getElementById("telemetria-body");
-  el.innerHTML = '<div class="spinner">Carregando dados de telemetria...</div>';
+  el.innerHTML = periodToolbarHtml("telemetria", telemetriaAsOf) + '<div id="telemetria-data-area"><div class="spinner">Carregando dados de telemetria...</div></div>';
+  wirePeriodToolbar("telemetria", function(v){ renderTelemetria(v); });
+  const area = document.getElementById("telemetria-data-area");
   try{
-    if(!telemetriaCache || force) telemetriaCache = await buildTelemetriaData();
-    const data = telemetriaCache;
+    const data = await getTelemetriaData(telemetriaAsOf, newAsOf !== undefined);
+    document.getElementById("telemetria-resolved").innerHTML = resolvedDatesNote(data.resolvedDates);
     const vehicles = data.vehicles;
     const total = vehicles.length;
     const criticos = vehicles.filter(function(v){ return v.classe === "critico"; }).length;
@@ -695,9 +755,9 @@ async function renderTelemetria(force){
     });
     html += '</div>';
 
-    el.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
+    area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
   }catch(err){
-    el.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
+    area.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
@@ -706,13 +766,25 @@ async function renderTelemetria(force){
 // =====================================================================
 const AXLE_PAIRS = [["DD","DE"],["TDE","TDI"],["TEE","TEI"],["TKDE","TKDI"],["TKEE","TKEI"],["TTDE","TTDI"],["TTEE","TTEI"]];
 
-let pneusCache = null;
+const pneusCacheByDate = {};
+async function getPneusData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !pneusCacheByDate[key]){
+    pneusCacheByDate[key] = buildPneusData(asOfDate).catch(function(err){ delete pneusCacheByDate[key]; throw err; });
+  }
+  return pneusCacheByDate[key];
+}
 
-async function buildPneusData(){
+async function buildPneusData(asOfDate){
+  const [rpvSnap, veicSnap, prvSnap] = await Promise.all([
+    resolveSnapshotDate("Dados RPV - Pneus", asOfDate),
+    resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
+    resolveSnapshotDate("Manutencao - PRV", asOfDate),
+  ]);
   const [rpvRows, veicRows, prvRows] = await Promise.all([
-    fetchAllRows("Dados RPV - Pneus", await getLatestSnapshotDate("Dados RPV - Pneus")),
-    fetchAllRows("Base de Veiculos - Pneus", await getLatestSnapshotDate("Base de Veiculos - Pneus")),
-    fetchAllRows("Manutencao - PRV", await getLatestSnapshotDate("Manutencao - PRV")),
+    fetchAllRows("Dados RPV - Pneus", rpvSnap),
+    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
+    fetchAllRows("Manutencao - PRV", prvSnap),
   ]);
 
   const companyByCode = {};
@@ -825,7 +897,9 @@ async function buildPneusData(){
     return r;
   }).sort(function(a,b){ return b.score - a.score; });
 
-  return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size };
+  return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size, resolvedDates: {
+    "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap,
+  }};
 }
 
 function sulcoBadge(t){
@@ -843,12 +917,16 @@ function tireTable(list, cols){
   return '<div class="table-wrap"><table><thead><tr>'+head+'</tr></thead><tbody>'+(body || '<tr><td>Nenhum registro.</td></tr>')+'</tbody></table></div>' + more;
 }
 
-async function renderPneus(force){
+let pneusAsOf = null;
+async function renderPneus(newAsOf){
+  if(newAsOf !== undefined) pneusAsOf = newAsOf;
   const el = document.getElementById("pneus-body");
-  el.innerHTML = '<div class="spinner">Carregando dados de pneus...</div>';
+  el.innerHTML = periodToolbarHtml("pneus", pneusAsOf) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
+  wirePeriodToolbar("pneus", function(v){ renderPneus(v); });
+  const area = document.getElementById("pneus-data-area");
   try{
-    if(!pneusCache || force) pneusCache = await buildPneusData();
-    const d = pneusCache;
+    const d = await getPneusData(pneusAsOf, newAsOf !== undefined);
+    document.getElementById("pneus-resolved").innerHTML = resolvedDatesNote(d.resolvedDates);
     let html = '<div class="kpi-grid">'
       + kpiCard("Veículos analisados", fmtNum(d.totalVeiculos), "info")
       + kpiCard("Pneus analisados", fmtNum(d.totalPneus), "info")
@@ -897,24 +975,27 @@ async function renderPneus(force){
     html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
     html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
 
-    el.innerHTML = html;
+    area.innerHTML = html;
   }catch(err){
-    el.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
+    area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
 // =====================================================================
 // HOME
 // =====================================================================
-async function renderHome(){
+let homeAsOf = null;
+async function renderHome(newAsOf){
+  if(newAsOf !== undefined) homeAsOf = newAsOf;
   const el = document.getElementById("home-body");
-  el.innerHTML = '<div class="spinner">Carregando...</div>';
+  el.innerHTML = periodToolbarHtml("home", homeAsOf) + '<div id="home-data-area"><div class="spinner">Carregando...</div></div>';
+  wirePeriodToolbar("home", function(v){ renderHome(v); });
+  const area = document.getElementById("home-data-area");
   try{
-    const tasks = [];
-    if(!telemetriaCache) tasks.push(buildTelemetriaData().then(function(r){ telemetriaCache = r; }));
-    if(!pneusCache) tasks.push(buildPneusData().then(function(r){ pneusCache = r; }));
-    if(tasks.length) await Promise.all(tasks);
-    const t = telemetriaCache, p = pneusCache;
+    const force = newAsOf !== undefined;
+    const [t, p] = await Promise.all([ getTelemetriaData(homeAsOf, force), getPneusData(homeAsOf, force) ]);
+    const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates);
+    document.getElementById("home-resolved").innerHTML = resolvedDatesNote(resolved);
     const totalCarros = t.vehicles.length;
     const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
     const totalOs = t.vehicles.reduce(function(s,v){ return s+v.qtdOs; },0);
@@ -934,9 +1015,9 @@ async function renderHome(){
       + '</div></div>';
 
     html += '<p class="hint">Para detalhamento completo, acesse as seções Telemetria e Pneus no menu lateral. Para status de sincronização e exportação de dados brutos, acesse "Dados e Visão Geral".</p>';
-    el.innerHTML = html;
+    area.innerHTML = html;
   }catch(err){
-    el.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
+    area.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
