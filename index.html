@@ -45,7 +45,69 @@
   header h1{ font-size:16px; margin:0; font-weight:600; }
   header .who{ font-size:13px; color:var(--text-secondary); display:flex; align-items:center; gap:12px; }
   header button{ font-size:13px; }
-  main{ max-width:1100px; margin:0 auto; padding:24px; }
+  main{ max-width:1300px; margin:0 auto; padding:24px; }
+
+  /* Shell: sidebar + content */
+  #shell{ display:flex; min-height:100vh; }
+  #sidebar{
+    width:220px; flex-shrink:0; background:var(--surface-1); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow-y:auto;
+  }
+  #sidebar .side-brand{ display:flex; align-items:center; gap:10px; padding:18px 16px; border-bottom:1px solid var(--border); }
+  #sidebar .side-brand img{ height:26px; width:auto; }
+  #sidebar .side-brand span{ font-size:13px; font-weight:600; }
+  #sidebar nav{ flex:1; padding:12px 8px; }
+  #sidebar .nav-btn{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; border:none;
+    background:transparent; color:var(--text-secondary); font-weight:600; font-size:13.5px;
+    padding:10px 12px; border-radius:8px; margin-bottom:2px; cursor:pointer;
+  }
+  #sidebar .nav-btn .ico{ font-size:15px; width:18px; text-align:center; }
+  #sidebar .nav-btn:hover{ background:var(--border); }
+  #sidebar .nav-btn.active{ background:var(--accent); color:#fff; }
+  #sidebar .side-foot{ padding:12px 16px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); }
+  #content{ flex:1; min-width:0; }
+  #content main{ margin:0; max-width:1300px; }
+  .section{ display:none; }
+  .section.active{ display:block; }
+  .section-head{ margin-bottom:18px; }
+  .section-head h2{ margin:0 0 4px; font-size:19px; }
+  .section-head p{ margin:0; font-size:13px; color:var(--text-secondary); }
+
+  /* KPI cards */
+  .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(155px,1fr)); gap:10px; margin-bottom:22px; }
+  .kpi-card{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; border-left:3px solid var(--gridline); }
+  .kpi-card .kpi-label{ font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted); margin-bottom:6px; }
+  .kpi-card .kpi-value{ font-size:22px; font-weight:700; line-height:1.1; }
+  .kpi-card.k-good{ border-left-color:var(--good); }
+  .kpi-card.k-warning{ border-left-color:var(--warning); }
+  .kpi-card.k-critical{ border-left-color:var(--critical); }
+  .kpi-card.k-info{ border-left-color:var(--accent); }
+  .subsection{ margin:28px 0 14px; }
+  .subsection h3{ font-size:14px; margin:0 0 10px; }
+  .badge{ font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-block; }
+  .badge.b-good{ color:var(--good); background:color-mix(in srgb, var(--good) 15%, transparent); }
+  .badge.b-warning{ color:var(--warning); background:color-mix(in srgb, var(--warning) 20%, transparent); }
+  .badge.b-critical{ color:var(--critical); background:color-mix(in srgb, var(--critical) 15%, transparent); }
+  .badge.b-info{ color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
+  .empty-hint{ font-size:13px; color:var(--text-muted); padding:14px 0; }
+  .src-note{ font-size:11px; color:var(--text-muted); margin-top:4px; }
+  details.vgroup{ border:1px solid var(--border); border-radius:10px; margin-bottom:10px; background:var(--card); overflow:hidden; }
+  details.vgroup summary{ padding:10px 14px; cursor:pointer; font-weight:600; font-size:13px; list-style:none; display:flex; justify-content:space-between; }
+  details.vgroup summary::-webkit-details-marker{ display:none; }
+  details.vgroup .vgroup-body{ padding:0 14px 14px; }
+
+  /* Gate modal (Dados e Visão Geral) */
+  #gate-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:50; }
+  #gate-card{ width:100%; max-width:320px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+  #gate-card h3{ margin:0 0 6px; font-size:16px; }
+  #gate-card p{ margin:0 0 14px; font-size:12.5px; color:var(--text-secondary); }
+  #gate-card input{ width:100%; margin-bottom:10px; }
+  #gate-error{ color:var(--critical); font-size:12.5px; display:none; margin-bottom:8px; }
+  .cal-table td, .cal-table th{ text-align:center; }
+  .cal-table td:first-child, .cal-table th:first-child{ text-align:left; white-space:nowrap; }
+  .cal-yes{ color:var(--good); font-weight:700; }
+  .cal-no{ color:var(--critical); font-weight:700; }
   button, select, input{
     font-family:inherit; font-size:14px; border-radius:8px; border:1px solid var(--border);
     background:var(--card); color:var(--text-primary); padding:8px 12px;
@@ -124,26 +186,78 @@
 </div>
 
 <div id="app" style="display:none;">
-  <header>
-    <div class="brand"><img src="logo.png" alt="Atlântico" class="header-logo"/><h1>Painel Controladoria</h1></div>
-    <div class="who">
-      <span id="who-label"></span>
-      <button class="ghost" id="logout-btn">Sair</button>
+  <div id="shell">
+    <aside id="sidebar">
+      <div class="side-brand"><img src="logo.png" alt="Atlântico"/><span>Painel Controladoria</span></div>
+      <nav>
+        <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home / Visão Geral</button>
+        <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
+        <button class="nav-btn" data-section="pneus"><span class="ico">🛞</span> Pneus</button>
+        <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Dados e Visão Geral</button>
+      </nav>
+      <div class="side-foot" id="who-label"></div>
+      <div class="side-foot"><button class="ghost" id="logout-btn" style="width:100%;">Sair</button></div>
+    </aside>
+    <div id="content">
+      <header>
+        <div class="brand"><img src="logo.png" alt="Atlântico" class="header-logo"/><h1 id="page-title">Home / Visão Geral</h1></div>
+        <div class="who"><span id="who-label-top"></span></div>
+      </header>
+      <main>
+
+        <div class="section active" id="sec-home">
+          <div class="section-head">
+            <h2>Home / Visão Geral</h2>
+            <p>Resumo consolidado dos módulos de Telemetria e Pneus, com base nos dados mais recentes sincronizados.</p>
+          </div>
+          <div id="home-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-telemetria">
+          <div class="section-head">
+            <h2>Telemetria</h2>
+            <p>Fontes: <code>Base - TML</code>, <code>O.S Aberta - TML</code>, <code>O.S Fechada - TML</code>, <code>Abastecimento - TML</code>.</p>
+          </div>
+          <div id="telemetria-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus">
+          <div class="section-head">
+            <h2>Pneus</h2>
+            <p>Fontes: <code>Dados RPV - Pneus</code>, <code>Base de Veiculos - Pneus</code>, <code>Manutencao - PRV</code> (pendência de coleta).</p>
+          </div>
+          <div id="pneus-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-dados">
+          <div class="section-head">
+            <h2>Dados e Visão Geral</h2>
+            <p>Área restrita: status de sincronização de todas as planilhas e extração/exportação de dados brutos.</p>
+          </div>
+          <div id="dados-gated-hint" class="empty-hint">Esta seção é protegida por uma senha adicional. Clique no menu novamente para desbloquear.</div>
+          <div id="dados-body" style="display:none;"></div>
+        </div>
+
+      </main>
     </div>
-  </header>
-  <main>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="overview">Visão geral</button>
-      <button class="tab-btn" data-tab="data">Dados</button>
-    </div>
-    <div id="tab-overview"></div>
-    <div id="tab-data" style="display:none;"></div>
-  </main>
+  </div>
+</div>
+
+<div id="gate-overlay" style="display:none;">
+  <div id="gate-card">
+    <h3>Área restrita</h3>
+    <p>Informe a senha adicional para acessar "Dados e Visão Geral".</p>
+    <div id="gate-error">Senha incorreta.</div>
+    <input id="gate-pwd" type="password" placeholder="Senha" maxlength="12" />
+    <button class="primary" id="gate-submit" style="width:100%;">Entrar</button>
+    <button class="ghost" id="gate-cancel" style="width:100%;margin-top:6px;">Cancelar</button>
+  </div>
 </div>
 
 <script>
 const SUPABASE_URL = "https://dxanuyfarsxmsunocumg.supabase.co";
 const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4YW51eWZhcnN4bXN1bm9jdW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzUxMDUsImV4cCI6MjEwMjExMTEwNX0.FPzzszUQuAfQRrFssTrEssZDcgFk7jwi_B3Ujwo9iUs";
+const DADOS_GATE_CODE = "170726";
 
 const USERS = [
   { label: "Jefferson Barretto (Controlador Jr)", email: "jefferson.barretto@controladoria.internal" },
@@ -227,6 +341,102 @@ async function rest(path, opts){
   return resp;
 }
 
+async function getLatestSnapshotDate(tabName){
+  const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&select=snapshot_date&order=snapshot_date.desc&limit=1");
+  const rows = await resp.json();
+  return rows[0] ? rows[0].snapshot_date : null;
+}
+
+async function fetchAllRows(tabName, snapshotDate){
+  const out = [];
+  if(!snapshotDate) return out;
+  let offset = 0;
+  const pageSize = 1000;
+  let total = null;
+  while(true){
+    const from = offset, to = offset + pageSize - 1;
+    const resp = await rest(
+      "sheet_records?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=eq." + encodeURIComponent(snapshotDate) + "&select=row_data&order=id.asc",
+      { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
+    );
+    const rows = await resp.json();
+    const cr = resp.headers.get("content-range");
+    if(cr){ const t = cr.split("/")[1]; total = t === "*" ? null : parseInt(t, 10); }
+    rows.forEach(function(r){ out.push(r.row_data || {}); });
+    offset += rows.length;
+    if(rows.length === 0) break;
+    if(total !== null && offset >= total) break;
+    if(rows.length < pageSize) break;
+  }
+  return out;
+}
+
+// ---------- generic helpers ----------
+function escapeHtml(s){
+  if(s === null || s === undefined) s = "";
+  return String(s).replace(/[&<>"']/g, function(c){
+    return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
+  });
+}
+function isHashPlaceholder(v){
+  if(typeof v !== "string") return false;
+  const t = v.trim();
+  return t.length >= 3 && /^#+$/.test(t);
+}
+function fmtDateTime(iso){
+  if(!iso) return "nunca";
+  const d = new Date(iso);
+  return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+}
+// Lenient dd/mm/yyyy or mm/dd/yyyy parser (disambiguates when one part > 12); Brazilian source data defaults to D/M/Y on ties.
+function parseLenientDate(s){
+  if(!s || typeof s !== "string") return null;
+  const t = s.trim();
+  if(!t || isHashPlaceholder(t) || t === "-") return null;
+  const m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m) return null;
+  const a = parseInt(m[1],10), b = parseInt(m[2],10), year = parseInt(m[3],10);
+  let day, month;
+  if(a > 12){ day = a; month = b; }
+  else if(b > 12){ day = b; month = a; }
+  else { day = a; month = b; }
+  const hh = m[4] ? parseInt(m[4],10) : 0, mm = m[5] ? parseInt(m[5],10) : 0, ss = m[6] ? parseInt(m[6],10) : 0;
+  const d = new Date(year, month - 1, day, hh, mm, ss);
+  if(isNaN(d.getTime())) return null;
+  return d;
+}
+function daysSince(date){
+  if(!date) return null;
+  return Math.floor((Date.now() - date.getTime()) / 86400000);
+}
+// Extracts the vehicle number from mixed formats like "001 - 882636", "001/882545", "0110 PA", "AGREG00006", "881563"
+// by taking the longest digit run in the string (vehicle numbers are longer than company/site prefixes).
+function vehicleKey(s){
+  if(!s) return null;
+  const runs = String(s).match(/\d+/g);
+  if(!runs || !runs.length) return null;
+  let best = runs[0];
+  for(const r of runs){ if(r.replace(/^0+/,"").length >= best.replace(/^0+/,"").length) best = r; }
+  const stripped = best.replace(/^0+/, "");
+  return stripped || "0";
+}
+function num(v){
+  if(v === null || v === undefined) return NaN;
+  const s = String(v).trim().replace(/\./g,"").replace(",",".");
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
+}
+function fmtNum(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  return n.toLocaleString("pt-BR");
+}
+function kpiCard(label, value, tone){
+  return '<div class="kpi-card k-' + (tone||"info") + '"><div class="kpi-label">' + escapeHtml(label) + '</div><div class="kpi-value">' + escapeHtml(value) + '</div></div>';
+}
+function srcNote(text){
+  return '<p class="src-note">Fonte: ' + escapeHtml(text) + '</p>';
+}
+
 // ---------- UI: login ----------
 const whoSelect = document.getElementById("who");
 USERS.forEach(function(u){
@@ -257,6 +467,7 @@ document.getElementById("login-form").addEventListener("submit", async function(
 document.getElementById("logout-btn").addEventListener("click", function(){
   clearSession();
   currentSession = null;
+  try{ sessionStorage.removeItem("dados_gate_ok"); }catch(e){}
   location.reload();
 });
 
@@ -269,27 +480,466 @@ async function showApp(){
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("app").style.display = "block";
   document.getElementById("who-label").textContent = labelFor(currentSession.user.email);
-  await renderOverview();
+  document.getElementById("who-label-top").textContent = labelFor(currentSession.user.email);
+  await renderHome();
 }
 
-// ---------- tabs ----------
-document.querySelectorAll(".tab-btn").forEach(function(btn){
+// ---------- sidebar navigation ----------
+const SECTION_TITLES = {
+  home: "Home / Visão Geral",
+  telemetria: "Telemetria",
+  pneus: "Pneus",
+  dados: "Dados e Visão Geral",
+};
+const sectionLoaded = { home:false, telemetria:false, pneus:false, dados:false };
+
+document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
-    document.querySelectorAll(".tab-btn").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    const tab = btn.dataset.tab;
-    document.getElementById("tab-overview").style.display = tab === "overview" ? "block" : "none";
-    document.getElementById("tab-data").style.display = tab === "data" ? "block" : "none";
-    if(tab === "data" && !dataInitDone) initDataTab();
+    const section = btn.dataset.section;
+    if(section === "dados" && sessionStorage.getItem("dados_gate_ok") !== "1"){
+      openGate();
+      return;
+    }
+    activateSection(section);
   });
 });
 
-// ---------- overview ----------
-function fmtDateTime(iso){
-  if(!iso) return "nunca";
-  const d = new Date(iso);
-  return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+function activateSection(section){
+  document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.section === section); });
+  document.querySelectorAll(".section").forEach(function(s){ s.classList.remove("active"); });
+  document.getElementById("sec-" + section).classList.add("active");
+  document.getElementById("page-title").textContent = SECTION_TITLES[section];
+  if(!sectionLoaded[section]){
+    sectionLoaded[section] = true;
+    if(section === "home") renderHome();
+    if(section === "telemetria") renderTelemetria();
+    if(section === "pneus") renderPneus();
+    if(section === "dados") renderDadosGeral();
+  }
 }
+
+// ---------- gate modal ----------
+function openGate(){
+  document.getElementById("gate-overlay").style.display = "flex";
+  document.getElementById("gate-error").style.display = "none";
+  document.getElementById("gate-pwd").value = "";
+  document.getElementById("gate-pwd").focus();
+}
+function closeGate(){ document.getElementById("gate-overlay").style.display = "none"; }
+document.getElementById("gate-cancel").addEventListener("click", closeGate);
+document.getElementById("gate-submit").addEventListener("click", submitGate);
+document.getElementById("gate-pwd").addEventListener("keydown", function(e){ if(e.key === "Enter") submitGate(); });
+function submitGate(){
+  const val = document.getElementById("gate-pwd").value.trim();
+  if(val === DADOS_GATE_CODE){
+    try{ sessionStorage.setItem("dados_gate_ok", "1"); }catch(e){}
+    closeGate();
+    document.getElementById("dados-gated-hint").style.display = "none";
+    document.getElementById("dados-body").style.display = "block";
+    activateSection("dados");
+  }else{
+    document.getElementById("gate-error").style.display = "block";
+  }
+}
+
+// =====================================================================
+// TELEMETRIA
+// =====================================================================
+const TELEMETRIA_CUTOFF = new Date(2026, 4, 19); // 2026-05-19
+const TELEMETRIA_KEYWORDS = ["telemetria","sem comunica","desde o dia","sem sinal","gps"];
+function isTelemetriaOS(text){
+  const t = (text || "").toLowerCase();
+  return TELEMETRIA_KEYWORDS.some(function(k){ return t.indexOf(k) !== -1; });
+}
+
+let telemetriaCache = null;
+
+async function buildTelemetriaData(){
+  const snap = await getLatestSnapshotDate("Base - TML");
+  const [baseRows, abertaRows, fechadaRows, abastRows] = await Promise.all([
+    fetchAllRows("Base - TML", snap),
+    fetchAllRows("O.S Aberta - TML", await getLatestSnapshotDate("O.S Aberta - TML")),
+    fetchAllRows("O.S Fechada - TML", await getLatestSnapshotDate("O.S Fechada - TML")),
+    fetchAllRows("Abastecimento - TML", await getLatestSnapshotDate("Abastecimento - TML")),
+  ]);
+
+  const osAberta = abertaRows.filter(function(r){ return r.OS; }).map(function(r){
+    const tempoM = /Dias:\s*(\d+)/i.exec(r.Tempo || "");
+    const diasGrupo = parseLenientDate(r.Data_Grupo);
+    return {
+      raw: r,
+      veiculo: vehicleKey(r.Veiculo),
+      diasOpen: tempoM ? parseInt(tempoM[1],10) : (diasGrupo ? daysSince(diasGrupo) : null),
+      dataAbertura: diasGrupo,
+      texto: (r.Observacao || "") + " " + (r.Tipo_de_OS || ""),
+      aberta: true,
+    };
+  }).filter(function(r){ return r.veiculo; });
+
+  const osFechada = fechadaRows.filter(function(r){ return r.OS; }).map(function(r){
+    const diasGrupo = parseLenientDate(r.Data_Grupo) || parseLenientDate(r.Abertura);
+    return {
+      raw: r,
+      veiculo: vehicleKey(r.Veiculo),
+      dataAbertura: diasGrupo,
+      texto: (r.Observacao || "") + " " + (r.Tipo_de_OS || ""),
+      aberta: false,
+    };
+  }).filter(function(r){ return r.veiculo; });
+
+  // filter out non-data / header leftover rows in Abastecimento (Data must look like a real date)
+  const abastValid = abastRows.filter(function(r){ return /^\d{1,2}\/\d{1,2}\/\d{4}$/.test((r.Data||"").trim()); }).map(function(r){
+    return { veiculo: vehicleKey(r.Veiculo), data: parseLenientDate(r.Data), raw: r };
+  }).filter(function(r){ return r.veiculo && r.data; });
+
+  const osAbertaByVeh = {}, osFechadaByVeh = {}, abastByVeh = {};
+  osAberta.forEach(function(r){ (osAbertaByVeh[r.veiculo] = osAbertaByVeh[r.veiculo] || []).push(r); });
+  osFechada.forEach(function(r){ (osFechadaByVeh[r.veiculo] = osFechadaByVeh[r.veiculo] || []).push(r); });
+  abastValid.forEach(function(r){ (abastByVeh[r.veiculo] = abastByVeh[r.veiculo] || []).push(r); });
+
+  const vehicles = baseRows.filter(function(r){ return r.Carro; }).map(function(r){
+    const key = vehicleKey(r.Carro);
+    const ultimaCom = parseLenientDate(r["Dt. Última Comunicação"]);
+    const diasSemCom = daysSince(ultimaCom);
+    const abertas = osAbertaByVeh[key] || [];
+    const fechadas = osFechadaByVeh[key] || [];
+    const qtdOs = abertas.length;
+    const diasMaxOs = abertas.reduce(function(mx,r){ return (r.diasOpen != null && r.diasOpen > mx) ? r.diasOpen : mx; }, 0);
+    const osTelemetria = abertas.concat(fechadas).filter(function(r){
+      return isTelemetriaOS(r.texto) && r.dataAbertura && r.dataAbertura >= TELEMETRIA_CUTOFF;
+    });
+    let abastecimentos = (abastByVeh[key] || []).slice();
+    if(ultimaCom) abastecimentos = abastecimentos.filter(function(a){ return a.data >= ultimaCom; });
+    abastecimentos.sort(function(a,b){ return b.data - a.data; });
+    abastecimentos = abastecimentos.slice(0,3);
+    const contradicao = (r["Observação"] || "").toLowerCase().indexOf("comunicando") !== -1;
+    let classe = "ok";
+    if(qtdOs > 0) classe = "critico";
+    else if(diasSemCom != null && diasSemCom > 30) classe = "alerta";
+    return {
+      carro: r.Carro, unidade: r.Unidade || "Sem unidade", ultimaCom: ultimaCom, diasSemCom: diasSemCom,
+      qtdOs: qtdOs, diasMaxOs: diasMaxOs, qtdOsTelemetria: osTelemetria.length, abastecimentos: abastecimentos,
+      contradicao: contradicao, classe: classe,
+    };
+  });
+
+  return { vehicles: vehicles, snapDates: {
+    base: snap,
+  }};
+}
+
+function classBadge(classe){
+  if(classe === "critico") return '<span class="badge b-critical">crítico</span>';
+  if(classe === "alerta") return '<span class="badge b-warning">alerta</span>';
+  return '<span class="badge b-good">ok</span>';
+}
+
+async function renderTelemetria(force){
+  const el = document.getElementById("telemetria-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de telemetria...</div>';
+  try{
+    if(!telemetriaCache || force) telemetriaCache = await buildTelemetriaData();
+    const data = telemetriaCache;
+    const vehicles = data.vehicles;
+    const total = vehicles.length;
+    const criticos = vehicles.filter(function(v){ return v.classe === "critico"; }).length;
+    const totalOs = vehicles.reduce(function(s,v){ return s + v.qtdOs; }, 0);
+    const mais60 = vehicles.filter(function(v){ return v.diasSemCom != null && v.diasSemCom > 60; }).length;
+    const comValores = vehicles.filter(function(v){ return v.diasSemCom != null; });
+    const media = comValores.length ? Math.round(comValores.reduce(function(s,v){ return s+v.diasSemCom; },0) / comValores.length) : 0;
+    const comAbast = vehicles.filter(function(v){ return v.abastecimentos.length > 0; }).length;
+    const recorrentes = vehicles.filter(function(v){ return v.qtdOsTelemetria >= 2; }).sort(function(a,b){ return b.qtdOsTelemetria - a.qtdOsTelemetria; });
+
+    const byUnidade = {};
+    vehicles.forEach(function(v){ (byUnidade[v.unidade] = byUnidade[v.unidade] || []).push(v); });
+    const unidades = Object.keys(byUnidade).sort();
+
+    let html = '<div class="kpi-grid">'
+      + kpiCard("Total de carros", fmtNum(total), "info")
+      + kpiCard("Críticos (c/ O.S.)", fmtNum(criticos), criticos>0?"critical":"good")
+      + kpiCard("Total de O.S. abertas", fmtNum(totalOs), totalOs>0?"warning":"good")
+      + kpiCard("+60 dias sem comunicação", fmtNum(mais60), mais60>0?"critical":"good")
+      + kpiCard("Média dias sem comunicação", fmtNum(media), "info")
+      + kpiCard("Com abastecimento recente", fmtNum(comAbast), "info")
+      + '</div>' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML");
+
+    if(recorrentes.length){
+      html += '<div class="subsection"><h3>Veículos recorrentes em O.S. de telemetria (≥2 desde 19/05/2026)</h3><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Unidade</th><th>Qtd O.S. Telemetria</th><th>Dias sem com.</th></tr></thead><tbody>'
+        + recorrentes.map(function(v){
+          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+escapeHtml(v.unidade)+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td></tr>';
+        }).join("") + '</tbody></table></div></div>';
+    }
+
+    html += '<div class="subsection"><h3>Detalhamento por unidade</h3>';
+    unidades.forEach(function(u){
+      const list = byUnidade[u].slice().sort(function(a,b){ return b.qtdOs - a.qtdOs || (b.diasSemCom||0) - (a.diasSemCom||0); });
+      const critCount = list.filter(function(v){ return v.classe==="critico"; }).length;
+      html += '<details class="vgroup"><summary><span>' + escapeHtml(u) + ' (' + list.length + ' carros)</span><span>' + (critCount ? '<span class="badge b-critical">' + critCount + ' crítico(s)</span>' : '<span class="badge b-good">ok</span>') + '</span></summary><div class="vgroup-body"><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Última com.</th><th>Dias sem com.</th><th>O.S. abertas</th><th>Dias máx. O.S.</th><th>O.S. telemetria</th><th>Abastecimentos recentes</th><th>Status</th></tr></thead><tbody>'
+        + list.map(function(v){
+          const abastStr = v.abastecimentos.length ? v.abastecimentos.map(function(a){ return a.data.toLocaleDateString("pt-BR"); }).join(", ") : "—";
+          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+(v.ultimaCom?v.ultimaCom.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td><td>'+v.qtdOs+'</td><td>'+(v.diasMaxOs||"—")+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+abastStr+'</td><td>'+classBadge(v.classe)+(v.contradicao?' <span class="badge b-warning" title="Observação menciona \'comunicando\' apesar de sem comunicação">contradição</span>':'')+'</td></tr>';
+        }).join("") + '</tbody></table></div></div></details>';
+    });
+    html += '</div>';
+
+    el.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS
+// =====================================================================
+const AXLE_PAIRS = [["DD","DE"],["TDE","TDI"],["TEE","TEI"],["TKDE","TKDI"],["TKEE","TKEI"],["TTDE","TTDI"],["TTEE","TTEI"]];
+
+let pneusCache = null;
+
+async function buildPneusData(){
+  const [rpvRows, veicRows, prvRows] = await Promise.all([
+    fetchAllRows("Dados RPV - Pneus", await getLatestSnapshotDate("Dados RPV - Pneus")),
+    fetchAllRows("Base de Veiculos - Pneus", await getLatestSnapshotDate("Base de Veiculos - Pneus")),
+    fetchAllRows("Manutencao - PRV", await getLatestSnapshotDate("Manutencao - PRV")),
+  ]);
+
+  const companyByCode = {};
+  veicRows.forEach(function(r){
+    const emp = r.Empresa || "";
+    const m = /^0*(\d+)\s*-\s*(.+)$/.exec(emp);
+    if(m) companyByCode[m[1]] = m[2].trim();
+  });
+
+  const veicByKey = {};
+  veicRows.forEach(function(r){
+    const key = vehicleKey(r["Nº Ordem"]);
+    if(key) veicByKey[key] = { placa: r.Placa, local: r.Local, empresa: r.Empresa };
+  });
+
+  const prevKmMap = {};
+  prvRows.forEach(function(r){
+    if(r.Plano_de_Manutencao !== "110-COLETA MILIMETRAGEM SULCO PNEUS") return;
+    const key = vehicleKey(r.Veiculo);
+    if(key) prevKmMap[key] = num(r.Km_Rodado);
+  });
+
+  const tires = rpvRows.map(function(r){
+    const veiculo = r.Veiculo || "";
+    const isAgreg = /^AGREG/i.test(veiculo.trim());
+    const key = vehicleKey(veiculo);
+    const info = key ? veicByKey[key] : null;
+    return {
+      raw: r,
+      veiculoRaw: veiculo,
+      veiculoKey: key,
+      isAgreg: isAgreg,
+      empresaCode: r.Empresa,
+      empresaNome: info ? (info.empresa || "") : (companyByCode[r.Empresa] || (r.Empresa === "SEM" ? "Sem empresa / frota agregada" : ("Empresa " + (r.Empresa||"?")))),
+      placa: info ? info.placa : null,
+      local: info ? info.local : null,
+      posicao: r.Posicao,
+      pneu: r.Pneu,
+      situacao: (r.Situacao||"").trim(),
+      desenho: r.Desenho, marca: r.Marca, medida: r.Medida,
+      sulco: num(r.Ult_Media_Ap),
+      dtSulco: parseLenientDate(r.Dt_Media_Ap) || parseLenientDate(r.Data),
+    };
+  }).filter(function(t){ return t.veiculoKey || t.pneu === "S/PNEU"; });
+
+  const byVeh = {};
+  tires.forEach(function(t){
+    const k = t.veiculoKey || ("__" + t.veiculoRaw);
+    (byVeh[k] = byVeh[k] || []).push(t);
+  });
+
+  const alerts = { reform: [], critico: [], atencao: [], rodizio: [], coleta: [], sucata: [], sempneu: [] };
+  const vehiclesWithAlert = new Set();
+
+  Object.keys(byVeh).forEach(function(k){
+    const list = byVeh[k];
+    const byPos = {};
+    list.forEach(function(t){ byPos[t.posicao] = t; });
+    list.forEach(function(t){
+      if(t.pneu === "S/PNEU"){
+        alerts.sempneu.push(t); vehiclesWithAlert.add(k); return;
+      }
+      if(["DD","DE"].indexOf(t.posicao) !== -1 && (/REC/i.test(t.situacao) || t.situacao === "RF")){
+        alerts.reform.push(t); vehiclesWithAlert.add(k);
+      }
+      if(t.situacao === "SUC"){
+        alerts.sucata.push(t); vehiclesWithAlert.add(k);
+      }
+      if(!isNaN(t.sulco)){
+        if(t.sulco <= 3){ alerts.critico.push(t); vehiclesWithAlert.add(k); }
+        else if(t.sulco <= 5){ alerts.atencao.push(t); vehiclesWithAlert.add(k); }
+      }
+    });
+    AXLE_PAIRS.forEach(function(pair){
+      const a = byPos[pair[0]], b = byPos[pair[1]];
+      if(a && b && !isNaN(a.sulco) && !isNaN(b.sulco) && Math.abs(a.sulco - b.sulco) > 2){
+        alerts.rodizio.push({ veiculoRaw:a.veiculoRaw, empresaNome:a.empresaNome, placa:a.placa, local:a.local, posA:pair[0], sulcoA:a.sulco, posB:pair[1], sulcoB:b.sulco, diff: Math.abs(a.sulco-b.sulco) });
+        vehiclesWithAlert.add(k);
+      }
+    });
+    const km = prevKmMap[k];
+    if(km != null && !isNaN(km) && km > 3000){
+      alerts.coleta.push({ veiculoRaw:list[0].veiculoRaw, empresaNome:list[0].empresaNome, placa:list[0].placa, local:list[0].local, km:km });
+      vehiclesWithAlert.add(k);
+    }
+  });
+
+  const totalVeiculos = Object.keys(byVeh).length;
+  const totalPneus = tires.filter(function(t){ return t.pneu && t.pneu !== "S/PNEU"; }).length;
+
+  // ranking by empresa/garagem
+  const rankMap = {};
+  function bump(name, field){ rankMap[name] = rankMap[name] || { nome:name, veiculos:new Set(), pneus:0, reform:0, critico:0, atencao:0, rodizio:0, coleta:0, sucata:0, sempneu:0 }; rankMap[name][field]++; }
+  tires.forEach(function(t){
+    const nome = t.local || t.empresaNome || "Não identificado";
+    rankMap[nome] = rankMap[nome] || { nome:nome, veiculos:new Set(), pneus:0, reform:0, critico:0, atencao:0, rodizio:0, coleta:0, sucata:0, sempneu:0 };
+    if(t.veiculoKey) rankMap[nome].veiculos.add(t.veiculoKey);
+    if(t.pneu && t.pneu !== "S/PNEU") rankMap[nome].pneus++;
+  });
+  alerts.reform.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","reform"); });
+  alerts.critico.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","critico"); });
+  alerts.atencao.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","atencao"); });
+  alerts.sucata.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","sucata"); });
+  alerts.sempneu.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","sempneu"); });
+  alerts.rodizio.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","rodizio"); });
+  alerts.coleta.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","coleta"); });
+  const ranking = Object.values(rankMap).map(function(r){
+    r.score = r.reform*10 + r.critico*5 + r.atencao*2 + r.rodizio*1 + r.sucata*8 + r.sempneu*6;
+    r.veiculosCount = r.veiculos.size;
+    return r;
+  }).sort(function(a,b){ return b.score - a.score; });
+
+  return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size };
+}
+
+function sulcoBadge(t){
+  if(isNaN(t.sulco)) return "—";
+  if(t.sulco <= 3) return '<span class="badge b-critical">' + t.sulco + ' mm</span>';
+  if(t.sulco <= 5) return '<span class="badge b-warning">' + t.sulco + ' mm</span>';
+  return '<span class="badge b-good">' + t.sulco + ' mm</span>';
+}
+function tireTable(list, cols){
+  const head = cols.map(function(c){ return "<th>"+escapeHtml(c.label)+"</th>"; }).join("");
+  const body = list.slice(0,300).map(function(t){
+    return "<tr>" + cols.map(function(c){ return "<td>" + c.render(t) + "</td>"; }).join("") + "</tr>";
+  }).join("");
+  const more = list.length > 300 ? '<p class="hint">Mostrando 300 de ' + list.length + ' registros.</p>' : '';
+  return '<div class="table-wrap"><table><thead><tr>'+head+'</tr></thead><tbody>'+(body || '<tr><td>Nenhum registro.</td></tr>')+'</tbody></table></div>' + more;
+}
+
+async function renderPneus(force){
+  const el = document.getElementById("pneus-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de pneus...</div>';
+  try{
+    if(!pneusCache || force) pneusCache = await buildPneusData();
+    const d = pneusCache;
+    let html = '<div class="kpi-grid">'
+      + kpiCard("Veículos analisados", fmtNum(d.totalVeiculos), "info")
+      + kpiCard("Pneus analisados", fmtNum(d.totalPneus), "info")
+      + kpiCard("Reforma (DD/DE)", fmtNum(d.alerts.reform.length), d.alerts.reform.length?"critical":"good")
+      + kpiCard("Sulco crítico (≤3mm)", fmtNum(d.alerts.critico.length), d.alerts.critico.length?"critical":"good")
+      + kpiCard("Sulco atenção (4-5mm)", fmtNum(d.alerts.atencao.length), d.alerts.atencao.length?"warning":"good")
+      + kpiCard("Rodízio necessário", fmtNum(d.alerts.rodizio.length), d.alerts.rodizio.length?"warning":"good")
+      + kpiCard("Pendente de coleta", fmtNum(d.alerts.coleta.length), d.alerts.coleta.length?"warning":"good")
+      + kpiCard("Sucata", fmtNum(d.alerts.sucata.length), d.alerts.sucata.length?"critical":"good")
+      + kpiCard("Sem pneu", fmtNum(d.alerts.sempneu.length), d.alerts.sempneu.length?"critical":"good")
+      + '</div>' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV");
+
+    html += '<div class="subsection"><h3>Ranking por garagem / empresa</h3><div class="table-wrap"><table><thead><tr><th>Garagem / Empresa</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
+      + d.ranking.map(function(r){
+        return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+r.critico+'</td><td>'+r.atencao+'</td><td>'+r.rodizio+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+
+    const tireCols = [
+      { label:"Empresa/Garagem", render:function(t){ return escapeHtml(t.local || t.empresaNome); } },
+      { label:"Veículo", render:function(t){ return escapeHtml(t.veiculoRaw); } },
+      { label:"Placa", render:function(t){ return escapeHtml(t.placa || "—"); } },
+      { label:"Posição", render:function(t){ return escapeHtml(t.posicao); } },
+      { label:"Pneu", render:function(t){ return escapeHtml(t.pneu); } },
+      { label:"Situação", render:function(t){ return escapeHtml(t.situacao); } },
+      { label:"Marca", render:function(t){ return escapeHtml(t.marca); } },
+      { label:"Desenho", render:function(t){ return escapeHtml(t.desenho); } },
+      { label:"Medida", render:function(t){ return escapeHtml(t.medida); } },
+      { label:"Sulco", render:sulcoBadge },
+      { label:"Dt.Sulco", render:function(t){ return t.dtSulco ? t.dtSulco.toLocaleDateString("pt-BR") : "—"; } },
+    ];
+
+    html += '<div class="subsection"><h3>Reforma (posição DD/DE)</h3>' + tireTable(d.alerts.reform, tireCols) + '</div>';
+    html += '<div class="subsection"><h3>Sulco crítico (≤3mm)</h3>' + tireTable(d.alerts.critico, tireCols) + '</div>';
+    html += '<div class="subsection"><h3>Sulco em atenção (4-5mm)</h3>' + tireTable(d.alerts.atencao, tireCols) + '</div>';
+
+    html += '<div class="subsection"><h3>Rodízio recomendado (diferença de sulco &gt;2mm no eixo)</h3><div class="table-wrap"><table><thead><tr><th>Empresa/Garagem</th><th>Veículo</th><th>Par</th><th>Pos.A</th><th>Sulco A</th><th>Pos.B</th><th>Sulco B</th><th>Diferença</th></tr></thead><tbody>'
+      + d.alerts.rodizio.slice(0,300).map(function(r){
+        return '<tr><td>'+escapeHtml(r.local||r.empresaNome)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+r.posA+'/'+r.posB+'</td><td>'+r.posA+'</td><td>'+r.sulcoA+' mm</td><td>'+r.posB+'</td><td>'+r.sulcoB+' mm</td><td><b>'+r.diff.toFixed(1)+' mm</b></td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Pendência de coleta (&gt;3000km rodados desde a última medição)</h3><div class="table-wrap"><table><thead><tr><th>Empresa/Garagem</th><th>Veículo</th><th>Placa</th><th>Km rodado</th></tr></thead><tbody>'
+      + d.alerts.coleta.slice(0,300).map(function(r){
+        return '<tr><td>'+escapeHtml(r.local||r.empresaNome)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.placa||"—")+'</td><td><b>'+fmtNum(r.km)+' km</b></td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
+    html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
+
+    el.innerHTML = html;
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// HOME
+// =====================================================================
+async function renderHome(){
+  const el = document.getElementById("home-body");
+  el.innerHTML = '<div class="spinner">Carregando...</div>';
+  try{
+    const tasks = [];
+    if(!telemetriaCache) tasks.push(buildTelemetriaData().then(function(r){ telemetriaCache = r; }));
+    if(!pneusCache) tasks.push(buildPneusData().then(function(r){ pneusCache = r; }));
+    if(tasks.length) await Promise.all(tasks);
+    const t = telemetriaCache, p = pneusCache;
+    const totalCarros = t.vehicles.length;
+    const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
+    const totalOs = t.vehicles.reduce(function(s,v){ return s+v.qtdOs; },0);
+    const totalAlertaPneus = p.vehiclesWithAlertCount;
+
+    let html = '<div class="subsection"><h3>📡 Telemetria</h3><div class="kpi-grid">'
+      + kpiCard("Total de carros", fmtNum(totalCarros), "info")
+      + kpiCard("Críticos (c/ O.S.)", fmtNum(criticosT), criticosT?"critical":"good")
+      + kpiCard("Total de O.S. abertas", fmtNum(totalOs), totalOs?"warning":"good")
+      + '</div></div>';
+
+    html += '<div class="subsection"><h3>🛞 Pneus</h3><div class="kpi-grid">'
+      + kpiCard("Veículos analisados", fmtNum(p.totalVeiculos), "info")
+      + kpiCard("Veículos c/ alerta", fmtNum(totalAlertaPneus), totalAlertaPneus?"warning":"good")
+      + kpiCard("Sulco crítico", fmtNum(p.alerts.critico.length), p.alerts.critico.length?"critical":"good")
+      + kpiCard("Sucata", fmtNum(p.alerts.sucata.length), p.alerts.sucata.length?"critical":"good")
+      + '</div></div>';
+
+    html += '<p class="hint">Para detalhamento completo, acesse as seções Telemetria e Pneus no menu lateral. Para status de sincronização e exportação de dados brutos, acesse "Dados e Visão Geral".</p>';
+    el.innerHTML = html;
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// DADOS E VISÃO GERAL (gated)
+// =====================================================================
+async function renderDadosGeral(){
+  const el = document.getElementById("dados-body");
+  el.innerHTML = '<div class="subsection"><h3>Status de sincronização</h3><div id="sync-overview"><div class="spinner">Carregando...</div></div></div>'
+    + '<div class="subsection"><h3>Calendário de extração (últimos 14 dias)</h3><div id="sync-calendar"><div class="spinner">Carregando...</div></div></div>'
+    + '<div class="subsection"><h3>Extração de dados (CSV)</h3><div class="filters"><select id="tab-name-select"><option value="">Selecione uma planilha...</option></select><select id="snapshot-date-select" disabled></select><input id="search-box" class="grow" placeholder="Buscar na tabela carregada..." disabled /><button id="export-btn" disabled>Exportar CSV</button></div><div id="data-table-area"><p class="hint">Escolha uma planilha para visualizar os dados.</p></div></div>';
+  await renderSyncOverview();
+  await renderSyncCalendar();
+  await initDataTab();
+}
+
 function statusFor(lastSyncedAt){
   if(!lastSyncedAt) return { cls: "critical", label: "nunca sincronizado" };
   const hours = (Date.now() - new Date(lastSyncedAt).getTime()) / 3600000;
@@ -298,9 +948,8 @@ function statusFor(lastSyncedAt){
   return { cls: "critical", label: "crítico" };
 }
 
-async function renderOverview(){
-  const el = document.getElementById("tab-overview");
-  el.innerHTML = '<div class="spinner">Carregando...</div>';
+async function renderSyncOverview(){
+  const el = document.getElementById("sync-overview");
   try{
     const resp = await rest("source_sheets?select=*&order=domain,tab_name");
     const rows = await resp.json();
@@ -322,21 +971,38 @@ async function renderOverview(){
   }
 }
 
-function escapeHtml(s){
-  if(s === null || s === undefined) s = "";
-  return String(s).replace(/[&<>"']/g, function(c){
-    return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c];
-  });
+async function renderSyncCalendar(){
+  const el = document.getElementById("sync-calendar");
+  try{
+    const resp = await rest("snapshot_dates?select=tab_name,snapshot_date&order=snapshot_date.desc&limit=2000");
+    const rows = await resp.json();
+    const tabs = Array.from(new Set(rows.map(function(r){ return r.tab_name; }))).sort();
+    const dates = [];
+    const today = new Date();
+    for(let i=13; i>=0; i--){
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      dates.push(d.toISOString().slice(0,10));
+    }
+    const have = {};
+    rows.forEach(function(r){ have[r.tab_name + "|" + r.snapshot_date] = true; });
+    const head = '<th>Planilha</th>' + dates.map(function(d){ return '<th>' + d.slice(8,10)+'/'+d.slice(5,7) + '</th>'; }).join("");
+    const body = tabs.map(function(t){
+      return '<tr><td>' + escapeHtml(t) + '</td>' + dates.map(function(d){
+        return have[t+"|"+d] ? '<td class="cal-yes">✓</td>' : '<td class="cal-no">✗</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    el.innerHTML = '<div class="table-wrap"><table class="cal-table"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>';
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar calendário: ' + escapeHtml(err.message) + '</p>';
+  }
 }
 
-// ---------- data browser ----------
+// ---------- data browser (relocated) ----------
 let dataInitDone = false;
 let dataState = { tabName: null, snapshotDate: null, rows: [], columns: [], nextOffset: 0, pageSize: 1000, total: null, loading: false };
 
 async function initDataTab(){
-  dataInitDone = true;
-  const el = document.getElementById("tab-data");
-  el.innerHTML = '<div class="filters"><select id="tab-name-select"><option value="">Selecione uma planilha...</option></select><select id="snapshot-date-select" disabled></select><input id="search-box" class="grow" placeholder="Buscar na tabela carregada..." disabled /><button id="export-btn" disabled>Exportar CSV</button></div><div id="data-table-area"><p class="hint">Escolha uma planilha para visualizar os dados.</p></div>';
+  const el = document.getElementById("data-table-area");
   try{
     const resp = await rest("source_sheets?select=tab_name,domain&order=domain,tab_name");
     const rows = await resp.json();
@@ -348,9 +1014,9 @@ async function initDataTab(){
     });
     sel.addEventListener("change", function(){ onTabNameChange(sel.value); });
   }catch(err){
-    document.getElementById("data-table-area").innerHTML = '<p>Erro: ' + escapeHtml(err.message) + '</p>';
+    el.innerHTML = '<p>Erro: ' + escapeHtml(err.message) + '</p>';
   }
-  document.getElementById("search-box").addEventListener("input", renderTable);
+  document.getElementById("search-box").addEventListener("input", renderDataTable);
   document.getElementById("export-btn").addEventListener("click", exportCsv);
 }
 
@@ -409,7 +1075,7 @@ async function loadMoreRows(){
     }
     document.getElementById("search-box").disabled = false;
     document.getElementById("export-btn").disabled = false;
-    renderTable();
+    renderDataTable();
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar dados: ' + escapeHtml(err.message) + '</p>';
   }finally{
@@ -417,13 +1083,7 @@ async function loadMoreRows(){
   }
 }
 
-function isHashPlaceholder(v){
-  if(typeof v !== "string") return false;
-  const t = v.trim();
-  return t.length >= 3 && /^#+$/.test(t);
-}
-
-function renderTable(){
+function renderDataTable(){
   const area = document.getElementById("data-table-area");
   const term = (document.getElementById("search-box").value || "").toLowerCase().trim();
   let rows = dataState.rows;
