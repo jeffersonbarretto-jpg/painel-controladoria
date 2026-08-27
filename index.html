@@ -112,6 +112,12 @@
   .badge.b-critical{ color:var(--critical); background:color-mix(in srgb, var(--critical) 15%, transparent); }
   .badge.b-info{ color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
   .empty-hint{ font-size:13px; color:var(--text-muted); padding:14px 0; }
+  .os-link{ border:none; background:none; padding:0; color:var(--accent); font-weight:700; font-size:inherit; cursor:pointer; text-decoration:underline; }
+  .os-link:hover{ opacity:.75; }
+  .os-link .os-caret{ display:inline-block; margin-left:2px; font-size:10px; transition:transform .15s ease; text-decoration:none; }
+  .os-link.open .os-caret{ transform:rotate(180deg); }
+  tr.os-detail-row td{ background:var(--surface-1); padding:10px 14px 16px; }
+  tr.os-detail-row .table-wrap{ margin:0; }
   .src-note{ font-size:11px; color:var(--text-muted); margin-top:4px; }
   .section-footer{ margin-top:32px; padding-top:16px; border-top:1px solid var(--gridline); }
   .section-footer .src-note{ margin-top:6px; }
@@ -856,7 +862,7 @@ async function buildTelemetriaData(asOfDate){
       carro: r.Carro, unidade: r.Unidade || "Sem unidade", ultimaCom: ultimaCom, diasSemCom: diasSemCom,
       dataVerificacao: dataVerificacao, observacaoBase: observacaoBase,
       qtdOs: qtdOs, diasMaxOs: diasMaxOs, qtdOsTelemetria: osTelemetria.length, abastecimentos: abastecimentos,
-      contradicao: contradicao, classe: classe,
+      contradicao: contradicao, classe: classe, abertasDetalhe: abertas,
     };
   });
 
@@ -874,6 +880,24 @@ function classBadge(classe){
   if(classe === "irregular") return '<span class="badge b-warning">Irregular</span>';
   if(classe === "conforme") return '<span class="badge b-good">Conforme</span>';
   return '<span class="badge b-good">ok</span>';
+}
+
+// Tabela de detalhe das O.S. abertas de um carro (usada no painel expansível da "Detalhamento por unidade").
+function osAbertaDetailTable(v){
+  const list = v.abertasDetalhe || [];
+  if(!list.length) return '<p class="empty-hint">Nenhuma O.S. aberta para este carro.</p>';
+  return '<div class="table-wrap"><table><thead><tr><th>O.S.</th><th>Tipo</th><th>Data abertura</th><th>Tempo aberto</th><th>Oficina</th><th>Observação</th></tr></thead><tbody>'
+    + list.map(function(o){
+      const raw = o.raw || {};
+      return '<tr>'
+        + '<td>' + escapeHtml(raw.OS || "—") + '</td>'
+        + '<td>' + escapeHtml(raw.Tipo_de_OS || "—") + '</td>'
+        + '<td>' + (o.dataAbertura ? o.dataAbertura.toLocaleDateString("pt-BR") : "—") + '</td>'
+        + '<td>' + (o.diasOpen != null ? o.diasOpen + " dia(s)" : escapeHtml(raw.Tempo || "—")) + '</td>'
+        + '<td>' + escapeHtml(raw.Oficina || "—") + '</td>'
+        + '<td>' + escapeHtml(raw.Observacao || "—") + '</td>'
+        + '</tr>';
+    }).join("") + '</tbody></table></div>';
 }
 
 let telemetriaAsOf = null;
@@ -921,6 +945,7 @@ async function renderTelemetria(newAsOf){
     }
 
     html += '<div class="subsection"><h3>Detalhamento por unidade</h3>';
+    let osIdxCounter = 0;
     unidades.forEach(function(u){
       const list = byUnidade[u].slice().sort(function(a,b){ return b.qtdOs - a.qtdOs || (b.diasSemCom||0) - (a.diasSemCom||0); });
       const critCount = list.filter(function(v){ return v.classe==="critico"; }).length;
@@ -930,7 +955,15 @@ async function renderTelemetria(newAsOf){
       html += '<details class="vgroup"><summary><span>' + escapeHtml(u) + ' (' + list.length + ' carros)</span><span>' + summaryBadge + '</span></summary><div class="vgroup-body"><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Dt. Verificação</th><th>Última com.</th><th>Dias sem com.</th><th>O.S. abertas</th><th>Dias máx. O.S.</th><th>O.S. telemetria</th><th>Abastecimentos recentes</th><th>Observação</th><th>Status</th></tr></thead><tbody>'
         + list.map(function(v){
           const abastStr = v.abastecimentos.length ? v.abastecimentos.map(function(a){ return a.data.toLocaleDateString("pt-BR"); }).join(", ") : "—";
-          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+(v.dataVerificacao?v.dataVerificacao.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.ultimaCom?v.ultimaCom.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td><td>'+v.qtdOs+'</td><td>'+(v.diasMaxOs||"—")+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+abastStr+'</td><td>'+(v.observacaoBase?escapeHtml(v.observacaoBase):"—")+'</td><td>'+classBadge(v.classe)+(v.contradicao?' <span class="badge b-warning" title="Observação menciona \'comunicando\' apesar de sem comunicação">contradição</span>':'')+'</td></tr>';
+          let osCell, detailRow = "";
+          if(v.qtdOs > 0){
+            const idx = osIdxCounter++;
+            osCell = '<button type="button" class="os-link" data-os-idx="' + idx + '" title="Ver detalhes da(s) O.S. aberta(s)">' + v.qtdOs + '<span class="os-caret">▾</span></button>';
+            detailRow = '<tr class="os-detail-row" data-os-detail="' + idx + '" style="display:none;"><td colspan="10">' + osAbertaDetailTable(v) + '</td></tr>';
+          } else {
+            osCell = String(v.qtdOs);
+          }
+          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+(v.dataVerificacao?v.dataVerificacao.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.ultimaCom?v.ultimaCom.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td><td>'+osCell+'</td><td>'+(v.diasMaxOs||"—")+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+abastStr+'</td><td>'+(v.observacaoBase?escapeHtml(v.observacaoBase):"—")+'</td><td>'+classBadge(v.classe)+(v.contradicao?' <span class="badge b-warning" title="Observação menciona \'comunicando\' apesar de sem comunicação">contradição</span>':'')+'</td></tr>' + detailRow;
         }).join("") + '</tbody></table></div></div></details>';
     });
     html += '</div>';
@@ -939,6 +972,15 @@ async function renderTelemetria(newAsOf){
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
     fitAllKpiValues(area);
+    area.querySelectorAll(".os-link").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const row = area.querySelector('.os-detail-row[data-os-detail="' + btn.dataset.osIdx + '"]');
+        if(!row) return;
+        const showing = row.style.display !== "none";
+        row.style.display = showing ? "none" : "table-row";
+        btn.classList.toggle("open", !showing);
+      });
+    });
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
   }
