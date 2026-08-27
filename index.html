@@ -530,9 +530,10 @@ function parseLenientDate(s){
   if(isNaN(d.getTime())) return null;
   return d;
 }
-function daysSince(date){
+function daysSince(date, refDate){
   if(!date) return null;
-  return Math.floor((Date.now() - date.getTime()) / 86400000);
+  const ref = refDate || new Date();
+  return Math.floor((ref.getTime() - date.getTime()) / 86400000);
 }
 // Extracts the vehicle number from mixed formats like "001 - 882636", "001/882545", "0110 PA", "AGREG00006", "881563"
 // by taking the longest digit run in the string (vehicle numbers are longer than company/site prefixes).
@@ -805,10 +806,15 @@ async function buildTelemetriaData(asOfDate){
   osFechada.forEach(function(r){ (osFechadaByVeh[r.veiculo] = osFechadaByVeh[r.veiculo] || []).push(r); });
   abastValid.forEach(function(r){ (abastByVeh[r.veiculo] = abastByVeh[r.veiculo] || []).push(r); });
 
+  // "Dias sem comunicação" é sempre calculado em relação à data de verificação (a data do
+  // snapshot sincronizado usado), e não em relação à data real de hoje — assim, ao consultar
+  // um período histórico, o indicador reflete a situação "como estava" naquela data.
+  const refDate = baseSnap ? new Date(baseSnap + "T00:00:00") : new Date();
+
   const vehicles = baseRows.filter(function(r){ return r.Carro; }).map(function(r){
     const key = vehicleKey(r.Carro);
     const ultimaCom = parseLenientDate(r["Dt. Última Comunicação"]);
-    const diasSemCom = daysSince(ultimaCom);
+    const diasSemCom = daysSince(ultimaCom, refDate);
     const abertas = osAbertaByVeh[key] || [];
     const fechadas = osFechadaByVeh[key] || [];
     const qtdOs = abertas.length;
@@ -824,14 +830,19 @@ async function buildTelemetriaData(asOfDate){
     let classe = "ok";
     if(qtdOs > 0) classe = "critico";
     else if(diasSemCom != null && diasSemCom > 30) classe = "alerta";
+    const semComunicacao = diasSemCom === null || diasSemCom > 0;
     return {
       carro: r.Carro, unidade: r.Unidade || "Sem unidade", ultimaCom: ultimaCom, diasSemCom: diasSemCom,
       qtdOs: qtdOs, diasMaxOs: diasMaxOs, qtdOsTelemetria: osTelemetria.length, abastecimentos: abastecimentos,
-      contradicao: contradicao, classe: classe,
+      contradicao: contradicao, classe: classe, semComunicacao: semComunicacao,
     };
   });
 
-  return { vehicles: vehicles, resolvedDates: {
+  // Com um período específico selecionado, mostramos apenas os carros sem comunicação naquela
+  // data (é para isso que serve o filtro de período aqui); sem data selecionada, mostra a frota toda.
+  const vehiclesFiltered = asOfDate ? vehicles.filter(function(v){ return v.semComunicacao; }) : vehicles;
+
+  return { vehicles: vehiclesFiltered, totalFrota: vehicles.length, filtroSemComunicacao: !!asOfDate, resolvedDates: {
     "Base - TML": baseSnap, "O.S Aberta - TML": abertaSnap, "O.S Fechada - TML": fechadaSnap, "Abastecimento - TML": abastSnap,
   }};
 }
@@ -865,8 +876,13 @@ async function renderTelemetria(newAsOf){
     vehicles.forEach(function(v){ (byUnidade[v.unidade] = byUnidade[v.unidade] || []).push(v); });
     const unidades = Object.keys(byUnidade).sort();
 
-    let html = '<div class="kpi-grid">'
-      + kpiCard("Total de carros", fmtNum(total), "info")
+    let html = "";
+    if(data.filtroSemComunicacao){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — mostrando apenas os <b>' + fmtNum(total) + '</b> carro(s) sem comunicação na data selecionada, de um total de <b>' + fmtNum(data.totalFrota) + '</b> carro(s) na frota. Remova a data (botão "Mais recente") para ver a frota completa.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard(data.filtroSemComunicacao ? "Carros sem comunicação" : "Total de carros", fmtNum(total), "info")
       + kpiCard("Críticos (c/ O.S.)", fmtNum(criticos), criticos>0?"critical":"good")
       + kpiCard("Total de O.S. abertas", fmtNum(totalOs), totalOs>0?"warning":"good")
       + kpiCard("+60 dias sem comunicação", fmtNum(mais60), mais60>0?"critical":"good")
@@ -1290,8 +1306,12 @@ async function renderHome(newAsOf){
     const totalOs = t.vehicles.reduce(function(s,v){ return s+v.qtdOs; },0);
     const totalAlertaPneus = p.vehiclesWithAlertCount;
 
-    let html = '<div class="subsection"><h3>📡 Telemetria</h3><div class="kpi-grid">'
-      + kpiCard("Total de carros", fmtNum(totalCarros), "info")
+    let html = '<div class="subsection"><h3>📡 Telemetria</h3>';
+    if(t.filtroSemComunicacao){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — carros sem comunicação na data selecionada, de um total de <b>' + fmtNum(t.totalFrota) + '</b> na frota.</p>';
+    }
+    html += '<div class="kpi-grid">'
+      + kpiCard(t.filtroSemComunicacao ? "Carros sem comunicação" : "Total de carros", fmtNum(totalCarros), "info")
       + kpiCard("Críticos (c/ O.S.)", fmtNum(criticosT), criticosT?"critical":"good")
       + kpiCard("Total de O.S. abertas", fmtNum(totalOs), totalOs?"warning":"good")
       + '</div></div>';
