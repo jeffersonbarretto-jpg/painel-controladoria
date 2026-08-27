@@ -200,6 +200,15 @@
   .filters{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
   .filters.filters-right{ justify-content:flex-end; }
   .filters .grow{ flex:1; min-width:180px; }
+  .legend-box{ background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:12px 16px; margin:6px 0 18px; }
+  .legend-box .legend-title{ font-weight:700; color:var(--text-primary); margin-bottom:6px; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .legend-box ul{ margin:0; padding-left:18px; }
+  .legend-box li{ margin-bottom:5px; font-size:12.5px; color:var(--text-secondary); line-height:1.4; }
+  .legend-box li b, .legend-box li strong{ color:var(--text-primary); }
+  th.sortable{ cursor:pointer; white-space:nowrap; user-select:none; }
+  th.sortable:hover{ color:var(--accent); }
+  th .sort-arrow{ font-size:10px; margin-left:5px; opacity:.4; display:inline-block; }
+  th .sort-arrow.active{ opacity:1; color:var(--accent); font-weight:700; }
   table{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }
   th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--gridline); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
   th{ color:var(--text-secondary); font-weight:600; position:sticky; top:0; background:var(--card); }
@@ -487,6 +496,95 @@ function wirePeriodToolbar(id, onChange){
     onChange(null);
   });
 }
+// Renders a dropdown listing all units for a module, placed right below the period toolbar.
+// "" (Todas as unidades) means no filter — the module keeps showing everything, exactly as before.
+function unidadeFilterHtml(id, unidades, current){
+  const opts = '<option value="">Todas as unidades</option>' + unidades.map(function(u){
+    return '<option value="' + escapeHtml(u) + '"' + (u === current ? " selected" : "") + '>' + escapeHtml(u) + '</option>';
+  }).join("");
+  return '<div class="filters filters-right" style="margin-top:-4px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Unidade:</label>'
+    + '<select id="' + id + '-unidade">' + opts + '</select>'
+    + '</div>';
+}
+function wireUnidadeFilter(id, onChange){
+  document.getElementById(id + "-unidade").addEventListener("change", function(e){ onChange(e.target.value || null); });
+}
+
+// Renders a small explanatory box listing what each status/badge/critério means, so someone
+// reading the panel without context understands the classification. items: [{label, desc}].
+function legendBox(title, items){
+  return '<div class="legend-box"><div class="legend-title">' + escapeHtml(title) + '</div><ul>'
+    + items.map(function(it){ return '<li><b>' + escapeHtml(it.label) + '</b> — ' + it.desc + '</li>'; }).join("")
+    + '</ul></div>';
+}
+
+// ---------- sortable tables (genérico, aplicado a todas as tabelas de um container) ----------
+// Adiciona uma seta clicável (▲/▼) a cada cabeçalho de tabela dentro de root, ordenando as
+// linhas já renderizadas pelo conteúdo da coluna clicada (numérico quando a maioria das linhas
+// tiver número na célula, alfabético/pt-BR caso contrário). Não depende dos dados originais —
+// funciona em cima do HTML já montado, então serve pra qualquer tabela do painel sem precisar
+// reescrever cada render.
+function enableSortableTables(root){
+  root.querySelectorAll("table").forEach(function(table){
+    const thead = table.querySelector("thead");
+    const tbody = table.querySelector("tbody");
+    if(!thead || !tbody) return;
+    thead.querySelectorAll("th").forEach(function(th, colIndex){
+      if(th.classList.contains("sortable")) return;
+      th.classList.add("sortable");
+      const label = th.textContent;
+      th.innerHTML = escapeHtml(label) + ' <span class="sort-arrow">⇅</span>';
+      th.addEventListener("click", function(){ sortTableByColumn(table, colIndex, th); });
+    });
+  });
+}
+function sortTableByColumn(table, colIndex, th){
+  const tbody = table.querySelector("tbody");
+  const rows = Array.from(tbody.querySelectorAll("tr")).filter(function(r){ return !r.classList.contains("os-detail-row"); });
+  if(rows.length < 2) return;
+  const arrowEl = th.querySelector(".sort-arrow");
+  const newDir = arrowEl.dataset.dir === "asc" ? "desc" : "asc";
+  table.querySelectorAll("thead .sort-arrow").forEach(function(a){ a.classList.remove("active"); a.dataset.dir=""; a.textContent="⇅"; });
+  arrowEl.dataset.dir = newDir;
+  arrowEl.classList.add("active");
+  arrowEl.textContent = newDir === "asc" ? "▲" : "▼";
+
+  function cellText(row){
+    const cell = row.children[colIndex];
+    return cell ? cell.textContent.replace(/\s+/g," ").trim() : "";
+  }
+  function numOf(s){
+    const m = s.replace(/\./g,"").replace(",", ".").match(/-?\d+(\.\d+)?/);
+    return m ? parseFloat(m[0]) : null;
+  }
+  let numericCount = 0;
+  rows.forEach(function(r){ if(numOf(cellText(r)) !== null) numericCount++; });
+  const isNumeric = numericCount >= rows.length * 0.7;
+
+  // Mantém cada linha de detalhe (ex.: O.S. expandida) grudada na linha que ela pertence,
+  // reordenando os pares juntos em vez de deixar a linha de detalhe pra trás.
+  const groups = [];
+  rows.forEach(function(r){
+    const group = [r];
+    let next = r.nextElementSibling;
+    while(next && next.classList.contains("os-detail-row")){ group.push(next); next = next.nextElementSibling; }
+    groups.push(group);
+  });
+  groups.sort(function(ga, gb){
+    const va = cellText(ga[0]), vb = cellText(gb[0]);
+    let cmp;
+    if(isNumeric){
+      const na = numOf(va), nb = numOf(vb);
+      cmp = (na===null?-Infinity:na) - (nb===null?-Infinity:nb);
+    } else {
+      cmp = va.localeCompare(vb, "pt-BR", { sensitivity:"base" });
+    }
+    return newDir === "asc" ? cmp : -cmp;
+  });
+  groups.forEach(function(g){ g.forEach(function(r){ tbody.appendChild(r); }); });
+}
+
 function resolvedDatesNote(resolvedDates){
   const parts = Object.keys(resolvedDates).map(function(k){
     return escapeHtml(k) + ": <b>" + fmtDateBR(resolvedDates[k]) + "</b>";
@@ -957,6 +1055,7 @@ function osAbertaDetailTable(v){
 }
 
 let telemetriaAsOf = null;
+let telemetriaUnidadeFiltro = null;
 async function renderTelemetria(newAsOf){
   if(newAsOf !== undefined) telemetriaAsOf = newAsOf;
   const el = document.getElementById("telemetria-body");
@@ -965,7 +1064,10 @@ async function renderTelemetria(newAsOf){
   const area = document.getElementById("telemetria-data-area");
   try{
     const data = await getTelemetriaData(telemetriaAsOf, newAsOf !== undefined);
-    const vehicles = data.vehicles;
+    const unidadesTodas = Array.from(new Set(data.vehicles.map(function(v){ return v.unidade; }))).sort();
+    if(telemetriaUnidadeFiltro && unidadesTodas.indexOf(telemetriaUnidadeFiltro) === -1) telemetriaUnidadeFiltro = null;
+
+    const vehicles = telemetriaUnidadeFiltro ? data.vehicles.filter(function(v){ return v.unidade === telemetriaUnidadeFiltro; }) : data.vehicles;
     const total = vehicles.length;
     const conformes = vehicles.filter(function(v){ return v.classe === "conforme"; }).length;
     const irregulares = vehicles.filter(function(v){ return v.classe === "irregular"; }).length;
@@ -979,9 +1081,19 @@ async function renderTelemetria(newAsOf){
     vehicles.forEach(function(v){ (byUnidade[v.unidade] = byUnidade[v.unidade] || []).push(v); });
     const unidades = Object.keys(byUnidade).sort();
 
-    let html = "";
+    let html = unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro);
+
+    html += legendBox("O que significa cada status", [
+      { label:"Conforme", desc:'<span class="badge b-good">verde</span> — o veículo já tem uma O.S. de telemetria aberta, ou a observação da base já menciona o assunto: o caso já está sendo tratado.' },
+      { label:"Crítico", desc:'<span class="badge b-critical">vermelho</span> — sem comunicação do rastreador, mas com abastecimento registrado depois da última comunicação: indício de que o veículo está rodando sem rastreamento e sem nenhum registro sobre isso.' },
+      { label:"Irregular", desc:'<span class="badge b-warning">laranja</span> — sem comunicação do rastreador e sem abastecimento registrado depois da última comunicação: sem indício de uso recente e também sem tratamento.' },
+    ]);
+
     if(data.filtroData){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — mostrando os <b>' + fmtNum(total) + '</b> carro(s) cuja "Dt. Verificação" é a data selecionada, de um total de <b>' + fmtNum(data.totalFrota) + '</b> carro(s) na base. Remova a data (botão "Mais recente") para ver a base completa.</p>';
+    }
+    if(telemetriaUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(telemetriaUnidadeFiltro) + '</b>.</p>';
     }
 
     html += '<div class="kpi-grid">'
@@ -1028,6 +1140,8 @@ async function renderTelemetria(newAsOf){
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
     fitAllKpiValues(area);
+    enableSortableTables(area);
+    wireUnidadeFilter("telemetria", function(v){ telemetriaUnidadeFiltro = v; renderTelemetria(); });
     area.querySelectorAll(".os-link").forEach(function(btn){
       btn.addEventListener("click", function(){
         const row = area.querySelector('.os-detail-row[data-os-detail="' + btn.dataset.osIdx + '"]');
@@ -1123,6 +1237,18 @@ async function buildPneusData(asOfDate){
     };
   }).filter(function(t){ return t.veiculoKey || t.pneu === "S/PNEU"; });
 
+  return Object.assign(computePneusAggregates(tires, prevKmMap), {
+    tiresAll: tires, prevKmMap: prevKmMap,
+    resolvedDates: {
+      "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
+    },
+  });
+}
+
+// Recalcula todos os agregados (alertas, ranking, vinculação de unidade) a partir de uma lista de
+// pneus já resolvida — usado tanto para o painel completo quanto para a visão filtrada por unidade
+// (mesma lógica, só que rodando em cima de um subconjunto de "tires").
+function computePneusAggregates(tires, prevKmMap){
   const byVeh = {};
   tires.forEach(function(t){
     const k = t.veiculoKey || ("__" + t.veiculoRaw);
@@ -1201,10 +1327,7 @@ async function buildPneusData(asOfDate){
   }).sort(function(a,b){ return b.score - a.score; });
 
   return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size,
-    vinculadosUnidade: vinculadosUnidade, semUnidade: semUnidadeList, semUnidadeCount: semUnidadeList.length,
-    resolvedDates: {
-    "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
-  }};
+    vinculadosUnidade: vinculadosUnidade, semUnidade: semUnidadeList, semUnidadeCount: semUnidadeList.length };
 }
 
 function sulcoBadge(t){
@@ -1223,6 +1346,7 @@ function tireTable(list, cols){
 }
 
 let pneusAsOf = null;
+let pneusUnidadeFiltro = null;
 async function renderPneus(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
   const el = document.getElementById("pneus-body");
@@ -1230,8 +1354,30 @@ async function renderPneus(newAsOf){
   wirePeriodToolbar("pneus", function(v){ renderPneus(v); });
   const area = document.getElementById("pneus-data-area");
   try{
-    const d = await getPneusData(pneusAsOf, newAsOf !== undefined);
-    let html = '<div class="kpi-grid">'
+    const full = await getPneusData(pneusAsOf, newAsOf !== undefined);
+    const unidadesTodas = Array.from(new Set(full.tiresAll.map(function(t){ return t.local || "Sem unidade"; }))).sort();
+    if(pneusUnidadeFiltro && unidadesTodas.indexOf(pneusUnidadeFiltro) === -1) pneusUnidadeFiltro = null;
+    const d = pneusUnidadeFiltro
+      ? Object.assign(computePneusAggregates(full.tiresAll.filter(function(t){ return (t.local || "Sem unidade") === pneusUnidadeFiltro; }), full.prevKmMap), { resolvedDates: full.resolvedDates })
+      : full;
+
+    let html = unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro);
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Reforma (DD/DE)", desc:"pneu de posição dianteira (DD/DE) com situação de recapagem em andamento (REC) ou pronto pra reforma (RF)." },
+      { label:"Sulco crítico", desc:'<span class="badge b-critical">≤3mm</span> — profundidade do sulco na última medição; risco de rodar fora do limite legal.' },
+      { label:"Sulco em atenção", desc:'<span class="badge b-warning">4–5mm</span> — já perto do limite, mas ainda não crítico.' },
+      { label:"Rodízio necessário", desc:"diferença de sulco maior que 2mm entre os dois pneus do mesmo eixo (par DD/DE, TDE/TDI, etc.)." },
+      { label:"Pendente de coleta", desc:"mais de 3.000km rodados desde a última medição de sulco registrada no plano de manutenção." },
+      { label:"Sucata", desc:"pneu marcado com situação SUC — troca imediata." },
+      { label:"Sem pneu", desc:"posição do veículo sem nenhum pneu cadastrado (vaga)." },
+      { label:"Vinculados à unidade / Sem unidade", desc:"se o veículo tem uma Unidade/Local identificado na base cadastral (Base de Veículos - Pneus ou, como reserva, a Base - TML)." },
+    ]);
+    if(pneusUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
       + kpiCard("Veículos analisados", fmtNum(d.totalVeiculos), "info")
       + kpiCard("Pneus analisados", fmtNum(d.totalPneus), "info")
       + kpiCard("Reforma (DD/DE)", fmtNum(d.alerts.reform.length), d.alerts.reform.length?"critical":"good")
@@ -1291,6 +1437,8 @@ async function renderPneus(newAsOf){
 
     area.innerHTML = html;
     fitAllKpiValues(area);
+    enableSortableTables(area);
+    wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1413,6 +1561,21 @@ async function buildRetencaoData(asOfDate){
   const rawRows = await fetchAllRows(RETENCAO_TAB, snap);
   const rows = rawRows.map(parseRetencaoRow);
 
+  // Histórico de prazo: olha os últimos N snapshots diários já sincronizados dessa mesma planilha
+  // e, pra cada O.S., detecta quando o valor de prazo extraído da observação mudou de um dia pro
+  // outro — sem precisar de nenhuma anotação manual, é só comparar o que já está sincronizado.
+  // Fica anexado em cada linha porque independe de qualquer filtro de unidade aplicado depois.
+  const prazoHistPorOs = await buildPrazoHistory(snap);
+  rows.forEach(function(r){ r.prazoHistorico = prazoHistPorOs[r.os] || []; });
+
+  return Object.assign(computeRetencaoAggregates(rows), {
+    rowsAll: rows, resolvedDates: { [RETENCAO_TAB]: snap },
+  });
+}
+
+// Recalcula todos os agregados (KPIs, ranking, terceiros, top10) a partir de uma lista de O.S. já
+// resolvida — usado tanto para o painel completo quanto pra visão filtrada por unidade.
+function computeRetencaoAggregates(rows){
   const total = rows.length;
   const criticos = rows.filter(function(r){ return r.dias !== null && r.dias >= 90; });
   const semObs = rows.filter(function(r){ return r.semObs; });
@@ -1438,23 +1601,13 @@ async function buildRetencaoData(asOfDate){
   const ranking = Object.values(rankMap).sort(function(a,b){ return b.total - a.total; });
 
   const top10 = rows.slice().sort(function(a,b){ return (b.dias||0) - (a.dias||0); }).slice(0, 10);
-
-  // Histórico de prazo: olha os últimos N snapshots diários já sincronizados dessa mesma planilha
-  // e, pra cada O.S., detecta quando o valor de prazo extraído da observação mudou de um dia pro
-  // outro — sem precisar de nenhuma anotação manual, é só comparar o que já está sincronizado.
-  const prazoHistPorOs = await buildPrazoHistory(snap);
-  rows.forEach(function(r){
-    const h = prazoHistPorOs[r.os];
-    r.prazoHistorico = h || [];
-  });
-  const prazoAlterados = rows.filter(function(r){ return r.prazoHistorico.length > 0; });
+  const prazoAlterados = rows.filter(function(r){ return r.prazoHistorico && r.prazoHistorico.length > 0; });
 
   return {
     rows: rows, total: total, criticos: criticos, semObs: semObs, impeditivas: impeditivas,
     preventivas: preventivas, corretivas: corretivas, motorCaixa: motorCaixa,
     terceiros: terceiros, terceirosVencidos: terceirosVencidos, terceirosProximos: terceirosProximos,
     ranking: ranking, top10: top10, prazoAlterados: prazoAlterados,
-    resolvedDates: { [RETENCAO_TAB]: snap },
   };
 }
 
@@ -1503,7 +1656,28 @@ function diasBadgeRetencao(dias){
   return '<span class="badge ' + cls + '">' + dias + 'd</span>';
 }
 
+// Painel expansível com os dados completos de uma O.S. — usado no clique da tabela de Alerta Terceiros.
+function retencaoOsDetailTable(r){
+  const histTxt = (r.prazoHistorico && r.prazoHistorico.length)
+    ? r.prazoHistorico.map(function(h){ return escapeHtml(h.data) + ": " + (h.de?fmtDateBR(h.de):"sem prazo") + " → " + (h.para?fmtDateBR(h.para):"removido"); }).join("<br/>")
+    : "Nenhuma mudança de prazo detectada.";
+  return '<div class="table-wrap"><table><tbody>'
+    + '<tr><td style="font-weight:700;width:160px;">Veículo</td><td>' + escapeHtml(r.veiculoRaw) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Oficina</td><td>' + escapeHtml(r.oficina) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">O.S.</td><td style="font-family:monospace">' + escapeHtml(r.os) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Tipo</td><td>' + escapeHtml(r.tipo.label) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Abertura</td><td>' + escapeHtml(r.aberturaStr) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Dias / horas em aberto</td><td>' + (r.dias!=null?r.dias+" dia(s)":"—") + (r.horas!=null?" ("+r.horas+"h)":"") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Status SLA 72h</td><td>' + slaBadge(r.slaStatus) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Prazo atual</td><td>' + (r.prazo?fmtDateBR(r.prazo):"—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Histórico de prazo</td><td style="font-size:11.5px">' + histTxt + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Impeditiva</td><td>' + (r.impeditiva ? '<span class="badge b-critical">Sim</span>' : '<span class="badge b-good">Não</span>') + '</td></tr>'
+    + '<tr><td style="font-weight:700;vertical-align:top;">Observação completa</td><td style="white-space:pre-wrap;">' + escapeHtml(r.observacao || "—") + '</td></tr>'
+    + '</tbody></table></div>';
+}
+
 let retencaoAsOf = null;
+let retencaoUnidadeFiltro = null;
 async function renderRetencao(newAsOf){
   if(newAsOf !== undefined) retencaoAsOf = newAsOf;
   const el = document.getElementById("retencao-body");
@@ -1511,9 +1685,28 @@ async function renderRetencao(newAsOf){
   wirePeriodToolbar("retencao", function(v){ renderRetencao(v); });
   const area = document.getElementById("retencao-data-area");
   try{
-    const d = await getRetencaoData(retencaoAsOf, newAsOf !== undefined);
+    const full = await getRetencaoData(retencaoAsOf, newAsOf !== undefined);
+    const unidadesTodas = Array.from(new Set(full.rowsAll.map(function(r){ return r.oficina; }))).sort();
+    if(retencaoUnidadeFiltro && unidadesTodas.indexOf(retencaoUnidadeFiltro) === -1) retencaoUnidadeFiltro = null;
+    const d = retencaoUnidadeFiltro
+      ? Object.assign(computeRetencaoAggregates(full.rowsAll.filter(function(r){ return r.oficina === retencaoUnidadeFiltro; })), { resolvedDates: full.resolvedDates })
+      : full;
 
-    let html = '<div class="kpi-grid">'
+    let html = unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Críticos +90d", desc:"O.S. aberta há 90 dias ou mais, contando a partir da coluna \"Tempo\" da própria planilha." },
+      { label:"Sem observação", desc:'campo de observação vazio ou preenchido só com "-".' },
+      { label:"Impeditivas (auto)", desc:'detectado automaticamente quando a palavra "impeditiva"/"impeditivo" aparece na observação — não é uma classificação manual.' },
+      { label:"Motor / Caixa", desc:'observação menciona "motor" ou "caixa de marcha".' },
+      { label:"Terceiros — SLA 72h", desc:'<span class="badge b-critical">Vencido</span> = 72h ou mais desde a abertura; <span class="badge b-warning">Próximo</span> = entre 48h e 72h; <span class="badge b-good">OK</span> = menos de 48h. Vale só para O.S. de oficina terceirizada (nome começando com "Terceiros").' },
+      { label:"Prazo alterado", desc:'o prazo de entrega/liberação citado na observação (ex.: "PRAZO DE ENTREGA 25/08") mudou entre um snapshot diário e outro, nos últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias.' },
+    ]);
+    if(retencaoUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(retencaoUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
       + kpiCard("Total O.S. abertas", fmtNum(d.total), "info")
       + kpiCard("Corretivas", fmtNum(d.corretivas.length), "info")
       + kpiCard("Preventivas", fmtNum(d.preventivas.length), "info")
@@ -1527,9 +1720,13 @@ async function renderRetencao(newAsOf){
       + kpiCard("Prazo alterado (histórico)", fmtNum(d.prazoAlterados.length), "info")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Alerta Terceiros — SLA 72h (' + d.terceiros.length + ' O.S. em ' + Array.from(new Set(d.terceiros.map(function(r){return r.oficina;}))).length + ' oficina(s) terceirizada(s))</h3><div class="table-wrap"><table><thead><tr><th>Status</th><th>Oficina</th><th>Veículo</th><th>O.S.</th><th>Tipo</th><th>Horas abertas</th><th>Abertura</th></tr></thead><tbody>'
+    let terceirosIdxCounter = 0;
+    html += '<div class="subsection"><h3>Alerta Terceiros — SLA 72h (' + d.terceiros.length + ' O.S. em ' + Array.from(new Set(d.terceiros.map(function(r){return r.oficina;}))).length + ' oficina(s) terceirizada(s))</h3><p class="hint">Clique na O.S. para ver os dados completos dela.</p><div class="table-wrap"><table><thead><tr><th>Status</th><th>Oficina</th><th>Veículo</th><th>O.S.</th><th>Tipo</th><th>Horas abertas</th><th>Abertura</th></tr></thead><tbody>'
       + (d.terceiros.length ? d.terceiros.slice().sort(function(a,b){ return (b.horas||0)-(a.horas||0); }).map(function(r){
-          return '<tr><td>'+slaBadge(r.slaStatus)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+(r.horas===null?"—":r.horas+"h")+'</td><td>'+escapeHtml(r.aberturaStr)+'</td></tr>';
+          const idx = terceirosIdxCounter++;
+          const osCell = '<button type="button" class="os-link" data-ret-os-idx="' + idx + '" title="Ver dados completos da O.S.">' + escapeHtml(r.os) + '<span class="os-caret">▾</span></button>';
+          const detailRow = '<tr class="os-detail-row" data-ret-os-detail="' + idx + '" style="display:none;"><td colspan="7">' + retencaoOsDetailTable(r) + '</td></tr>';
+          return '<tr><td>'+slaBadge(r.slaStatus)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+osCell+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+(r.horas===null?"—":r.horas+"h")+'</td><td>'+escapeHtml(r.aberturaStr)+'</td></tr>' + detailRow;
         }).join("") : '<tr><td colspan="7">Nenhuma O.S. em oficina terceirizada no momento.</td></tr>')
       + '</tbody></table></div></div>';
 
@@ -1570,6 +1767,17 @@ async function renderRetencao(newAsOf){
 
     area.innerHTML = html;
     fitAllKpiValues(area);
+    enableSortableTables(area);
+    wireUnidadeFilter("retencao", function(v){ retencaoUnidadeFiltro = v; renderRetencao(); });
+    area.querySelectorAll(".os-link[data-ret-os-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const row = area.querySelector('.os-detail-row[data-ret-os-detail="' + btn.dataset.retOsIdx + '"]');
+        if(!row) return;
+        const showing = row.style.display !== "none";
+        row.style.display = showing ? "none" : "table-row";
+        btn.classList.toggle("open", !showing);
+      });
+    });
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Retenção: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1667,6 +1875,11 @@ function renderInventarioBody(data){
     + '<button class="ghost" id="inventario-refresh">Atualizar dados</button>'
     + '</div>';
 
+  html += legendBox("O que significa cada critério", [
+    { label:"% ajuste em destaque", desc:'<span class="badge b-critical">vermelho</span> — almoxarifado com ajuste acima de 15% do valor do inventário.' },
+    { label:"Tendência Alta / Baixa", desc:"variação da unidade em relação ao semestre base de comparação (não necessariamente o semestre anterior)." },
+  ]);
+
   html += '<div class="kpi-grid">'
     + kpiCard("Inventário geral", total ? invBRL(total.inventario_geral) : "—", "info")
     + kpiCard("Ajuste total", total ? invBRL(total.ajuste_total) : "—", (total && total.ajuste_total > 0) ? "warning" : "good")
@@ -1714,6 +1927,7 @@ function renderInventarioBody(data){
 
   el.innerHTML = html;
   fitAllKpiValues(el);
+  enableSortableTables(el);
 
   document.getElementById("inventario-sem-select").addEventListener("change", function(e){
     inventarioSemestreSel = e.target.value;
