@@ -115,7 +115,7 @@
   .preview-card .pc-top{ display:flex; align-items:center; gap:8px; }
   .preview-card .pc-icon{ font-size:17px; }
   .preview-card .pc-title{ font-weight:700; font-size:14px; flex:1; color:var(--text-primary); }
-  .preview-card .pc-kpis{ display:flex; gap:20px; }
+  .preview-card .pc-kpis{ display:flex; flex-wrap:wrap; gap:10px 20px; }
   .preview-card .pc-kpi .n{ font-size:21px; font-weight:700; line-height:1.15; white-space:nowrap; overflow:hidden; }
   .preview-card .pc-kpi .l{ font-size:10px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.03em; }
   .preview-card .pc-empty{ font-size:12px; color:var(--text-muted); }
@@ -254,7 +254,7 @@
         <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
         <button class="nav-btn" data-section="pneus"><span class="ico">🛞</span> Pneus</button>
         <button class="nav-btn" data-section="inventario"><span class="ico">🗃️</span> Inventário</button>
-        <button class="nav-btn soon" data-soon="Retenção"><span class="ico">🔁</span> Retenção <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn" data-section="retencao"><span class="ico">🔁</span> Retenção</button>
         <button class="nav-btn soon" data-soon="Preventiva"><span class="ico">🛠️</span> Preventiva <span class="soon-tag">em breve</span></button>
         <button class="nav-btn soon" data-soon="Abastecimento"><span class="ico">⛽</span> Abastecimento <span class="soon-tag">em breve</span></button>
         <button class="nav-btn soon" data-soon="Suprimentos"><span class="ico">📦</span> Suprimentos <span class="soon-tag">em breve</span></button>
@@ -307,6 +307,14 @@
             <p>Ciclo de inventário por semestre — alimentação semestral (a cada 6 meses, com a chegada de um novo levantamento).</p>
           </div>
           <div id="inventario-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-retencao">
+          <div class="section-head">
+            <h2>Retenção</h2>
+            <p>O.S. em aberto por oficina — corretivas, preventivas, impeditivas e acompanhamento de prazo. Fonte: "O.S Aberta - TML".</p>
+          </div>
+          <div id="retencao-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dados">
@@ -732,9 +740,10 @@ const SECTION_TITLES = {
   telemetria: "Telemetria",
   pneus: "Pneus",
   inventario: "Inventário",
+  retencao: "Retenção",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, dados:false };
+const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, retencao:false, dados:false };
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -761,6 +770,7 @@ function activateSection(section){
     if(section === "telemetria") renderTelemetria();
     if(section === "pneus") renderPneus();
     if(section === "inventario") renderInventario();
+    if(section === "retencao") renderRetencao();
     if(section === "dados") renderDadosGeral();
   }
 }
@@ -1287,6 +1297,285 @@ async function renderPneus(newAsOf){
 }
 
 // =====================================================================
+// RETENÇÃO (O.S. em aberto — fonte: "O.S Aberta - TML")
+// =====================================================================
+const RETENCAO_TAB = "O.S Aberta - TML";
+const RETENCAO_SLA_TERCEIROS_H = 72;      // limite de vencimento para O.S. de oficina terceirizada
+const RETENCAO_SLA_PROXIMO_H = 48;        // a partir daqui até o limite = "próximo a vencer" (janela de 24h)
+const RETENCAO_HISTORY_LOOKBACK_DAYS = 30; // quantos snapshots diários olhar pra montar o histórico de prazo
+
+// Remove o prefixo redundante "OFICINA " que vem da planilha (ex.: "OFICINA ARACAJU" -> "ARACAJU",
+// "OFICINA TERCEIROS PALMAS" -> "TERCEIROS PALMAS").
+function cleanOficina(raw){
+  return String(raw||"").replace(/^\s*oficina\s+/i, "").trim().toUpperCase();
+}
+// Categoriza a oficina pelo nome: unidade própria, terceirizada (SLA de 72h) ou reforma.
+function categoriaOficina(nomeLimpo){
+  const u = String(nomeLimpo||"").toUpperCase();
+  if(u.indexOf("TERCEIROS") === 0) return "terceiros";
+  if(u.indexOf("REFORMA") === 0) return "reforma";
+  return "unidade";
+}
+// Classifica o "Tipo de O.S." em categorias legíveis (mesma lógica do boletim de referência usado como base).
+function classificaTipoOS(tipo){
+  const t = String(tipo||"").toUpperCase();
+  if(t.indexOf("TELEMETRIA") !== -1) return { label:"Corretiva — Telemetria", key:"TELEMETRIA" };
+  if(t.indexOf("SOCORRO") !== -1)     return { label:"Corretiva — Socorro", key:"SOCORRO" };
+  if(t.indexOf("RETORNO") !== -1)     return { label:"Corretiva — Retorno", key:"RETORNO" };
+  if(t.indexOf("RECLAMAC") !== -1)    return { label:"Corretiva — Reclamação", key:"RECLAMACAO" };
+  if(t.indexOf("DOCUMENT") !== -1)    return { label:"Documentação", key:"DOC" };
+  if(t.indexOf("REFORMA") !== -1)     return { label:"Reforma Geral", key:"REFORMA" };
+  if(t.indexOf("AVARIA") !== -1)      return { label:"Corretiva — Avarias", key:"AVARIAS" };
+  if(t.indexOf("TCO") !== -1)         return { label:"Corretiva — TCO", key:"TCO" };
+  if(t.indexOf("PREVEN") !== -1)      return { label:"Preventiva", key:"PREVENTIVA" };
+  return { label:"Outros", key:"OUTROS" };
+}
+function isMotorCaixaObs(obs){
+  const o = String(obs||"").toUpperCase();
+  return o.indexOf("MOTOR") !== -1 || o.indexOf("CAIXA DE MARCHA") !== -1 || o.indexOf("CAIXA MARCHA") !== -1;
+}
+function isSemObsRetencao(obs){
+  const t = String(obs||"").trim();
+  return !t || t === "-";
+}
+// Detecta O.S. impeditiva automaticamente pela palavra-chave na observação — sem classificação manual.
+function isImpeditivaObs(obs){
+  return /impeditiv[ao]/i.test(obs || "");
+}
+// Extrai dias/horas em aberto a partir do texto da coluna "Tempo" (ex.: "Dias: 11 ou horas: 260h:45m").
+function parseTempoAberto(tempo){
+  const t = String(tempo||"");
+  const md = t.match(/Dias:\s*(\d+)/i);
+  const mh = t.match(/horas:\s*(\d+)h/i);
+  return { dias: md ? parseInt(md[1],10) : null, horas: mh ? parseInt(mh[1],10) : null };
+}
+// Extrai a última data de "prazo de entrega/liberação" citada no texto livre da observação.
+// Cobre as variações reais encontradas na base: "PRAZO DE ENTREGA", "PREVISÃO DE ENTREGA",
+// "NOVO PRAZO (PARA) ENTREGA", "PREVISÃO DE LIBERAÇÃO" — com ou sem ano, com ou sem espaço na barra.
+// Pega sempre a ÚLTIMA ocorrência: a observação cresce por acréscimo cronológico, então a nota mais
+// recente vem por último no texto.
+const PRAZO_RE = /(?:PRAZO|PREVIS[AÃ]O)\s*(?:DE|PARA)?\s*(?:ENTREGA|LIBERA[CÇ][AÃ]O)[^\d]{0,15}(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?/gi;
+function extrairPrazo(obs, anoRef){
+  const t = String(obs||"");
+  let m, last = null;
+  PRAZO_RE.lastIndex = 0;
+  while((m = PRAZO_RE.exec(t)) !== null){ last = m; }
+  if(!last) return null;
+  const dia = parseInt(last[1],10), mes = parseInt(last[2],10);
+  if(dia < 1 || dia > 31 || mes < 1 || mes > 12) return null;
+  let ano = last[3] ? parseInt(last[3],10) : anoRef;
+  if(ano < 100) ano += 2000;
+  return ano + "-" + String(mes).padStart(2,"0") + "-" + String(dia).padStart(2,"0");
+}
+
+function parseRetencaoRow(row){
+  const oficina = cleanOficina(row.Oficina);
+  const categoria = categoriaOficina(oficina);
+  const tipo = classificaTipoOS(row.Tipo_de_OS);
+  const observacao = String(row.Observacao||"").trim();
+  const aberturaDt = parseLenientDate(row.Abertura);
+  const anoRef = aberturaDt ? aberturaDt.getFullYear() : new Date().getFullYear();
+  const tempo = parseTempoAberto(row.Tempo);
+  return {
+    oficina: oficina, categoria: categoria,
+    veiculoRaw: row.Veiculo || "", key: vehicleKey(row.Veiculo),
+    os: String(row.OS||"").trim(),
+    tipo: tipo, observacao: observacao,
+    abertura: aberturaDt, aberturaStr: row.Abertura || "",
+    dias: tempo.dias, horas: tempo.horas,
+    semObs: isSemObsRetencao(observacao),
+    impeditiva: isImpeditivaObs(observacao),
+    motorCaixa: isMotorCaixaObs(observacao),
+    prazo: extrairPrazo(observacao, anoRef),
+  };
+}
+
+// Status de SLA das 72h, aplicável às O.S. de oficina terceirizada — calculado sobre as horas
+// em aberto já extraídas da coluna "Tempo" (mesma métrica que a planilha mostra pro usuário).
+function slaTerceirosStatus(horas){
+  if(horas === null || horas === undefined) return null;
+  if(horas >= RETENCAO_SLA_TERCEIROS_H) return "vencido";
+  if(horas >= RETENCAO_SLA_PROXIMO_H) return "proximo";
+  return "ok";
+}
+
+const retencaoCacheByDate = {};
+async function getRetencaoData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !retencaoCacheByDate[key]){
+    retencaoCacheByDate[key] = buildRetencaoData(asOfDate).catch(function(err){ delete retencaoCacheByDate[key]; throw err; });
+  }
+  return retencaoCacheByDate[key];
+}
+
+async function buildRetencaoData(asOfDate){
+  const snap = await resolveSnapshotDate(RETENCAO_TAB, asOfDate);
+  const rawRows = await fetchAllRows(RETENCAO_TAB, snap);
+  const rows = rawRows.map(parseRetencaoRow);
+
+  const total = rows.length;
+  const criticos = rows.filter(function(r){ return r.dias !== null && r.dias >= 90; });
+  const semObs = rows.filter(function(r){ return r.semObs; });
+  const impeditivas = rows.filter(function(r){ return r.impeditiva; });
+  const preventivas = rows.filter(function(r){ return r.tipo.key === "PREVENTIVA"; });
+  const corretivas = rows.filter(function(r){ return r.tipo.key !== "PREVENTIVA"; });
+  const motorCaixa = rows.filter(function(r){ return r.motorCaixa; });
+
+  const terceiros = rows.filter(function(r){ return r.categoria === "terceiros"; });
+  terceiros.forEach(function(r){ r.slaStatus = slaTerceirosStatus(r.horas); });
+  const terceirosVencidos = terceiros.filter(function(r){ return r.slaStatus === "vencido"; });
+  const terceirosProximos = terceiros.filter(function(r){ return r.slaStatus === "proximo"; });
+
+  // Ranking por unidade própria (exclui terceiros e reforma, que já têm suas próprias visões).
+  const rankMap = {};
+  rows.forEach(function(r){
+    if(r.categoria !== "unidade") return;
+    const k = r.oficina || "Não identificado";
+    if(!rankMap[k]) rankMap[k] = { nome:k, total:0, criticos:0 };
+    rankMap[k].total++;
+    if(r.dias !== null && r.dias >= 90) rankMap[k].criticos++;
+  });
+  const ranking = Object.values(rankMap).sort(function(a,b){ return b.total - a.total; });
+
+  const top10 = rows.slice().sort(function(a,b){ return (b.dias||0) - (a.dias||0); }).slice(0, 10);
+
+  // Histórico de prazo: olha os últimos N snapshots diários já sincronizados dessa mesma planilha
+  // e, pra cada O.S., detecta quando o valor de prazo extraído da observação mudou de um dia pro
+  // outro — sem precisar de nenhuma anotação manual, é só comparar o que já está sincronizado.
+  const prazoHistPorOs = await buildPrazoHistory(snap);
+  rows.forEach(function(r){
+    const h = prazoHistPorOs[r.os];
+    r.prazoHistorico = h || [];
+  });
+  const prazoAlterados = rows.filter(function(r){ return r.prazoHistorico.length > 0; });
+
+  return {
+    rows: rows, total: total, criticos: criticos, semObs: semObs, impeditivas: impeditivas,
+    preventivas: preventivas, corretivas: corretivas, motorCaixa: motorCaixa,
+    terceiros: terceiros, terceirosVencidos: terceirosVencidos, terceirosProximos: terceirosProximos,
+    ranking: ranking, top10: top10, prazoAlterados: prazoAlterados,
+    resolvedDates: { [RETENCAO_TAB]: snap },
+  };
+}
+
+// Monta o histórico de mudança de prazo por O.S. varrendo os últimos snapshots diários já
+// sincronizados (a planilha "O.S Aberta - TML" mantém histórico, um snapshot por dia).
+async function buildPrazoHistory(uptoSnapshot){
+  const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(RETENCAO_TAB) + "&snapshot_date=lte." + encodeURIComponent(uptoSnapshot) + "&select=snapshot_date&order=snapshot_date.desc&limit=" + RETENCAO_HISTORY_LOOKBACK_DAYS);
+  const dateRows = await resp.json();
+  const dates = dateRows.map(function(r){ return r.snapshot_date; }).sort(); // ascendente
+
+  const byOs = {}; // os -> [{date, prazo}]
+  for(const d of dates){
+    const raw = await fetchAllRows(RETENCAO_TAB, d);
+    raw.forEach(function(row){
+      const os = String(row.OS||"").trim();
+      if(!os) return;
+      const aberturaDt = parseLenientDate(row.Abertura);
+      const anoRef = aberturaDt ? aberturaDt.getFullYear() : new Date().getFullYear();
+      const prazo = extrairPrazo(row.Observacao, anoRef);
+      if(!byOs[os]) byOs[os] = [];
+      byOs[os].push({ date: d, prazo: prazo });
+    });
+  }
+  const histPorOs = {};
+  Object.keys(byOs).forEach(function(os){
+    const seq = byOs[os];
+    const changes = [];
+    for(let i=1; i<seq.length; i++){
+      if(seq[i].prazo !== seq[i-1].prazo && (seq[i].prazo || seq[i-1].prazo)){
+        changes.push({ de: seq[i-1].prazo, para: seq[i].prazo, data: seq[i].date });
+      }
+    }
+    if(changes.length) histPorOs[os] = changes;
+  });
+  return histPorOs;
+}
+
+function slaBadge(status){
+  if(status === "vencido") return '<span class="badge b-critical">Vencido (≥72h)</span>';
+  if(status === "proximo") return '<span class="badge b-warning">Próximo (48–72h)</span>';
+  return '<span class="badge b-good">OK</span>';
+}
+function diasBadgeRetencao(dias){
+  if(dias === null || dias === undefined) return "—";
+  const cls = dias >= 90 ? "b-critical" : dias >= 30 ? "b-warning" : "b-good";
+  return '<span class="badge ' + cls + '">' + dias + 'd</span>';
+}
+
+let retencaoAsOf = null;
+async function renderRetencao(newAsOf){
+  if(newAsOf !== undefined) retencaoAsOf = newAsOf;
+  const el = document.getElementById("retencao-body");
+  el.innerHTML = periodToolbarHtml("retencao", retencaoAsOf, "Data de abertura (snapshot):") + '<div id="retencao-data-area"><div class="spinner">Carregando dados de retenção...</div></div>';
+  wirePeriodToolbar("retencao", function(v){ renderRetencao(v); });
+  const area = document.getElementById("retencao-data-area");
+  try{
+    const d = await getRetencaoData(retencaoAsOf, newAsOf !== undefined);
+
+    let html = '<div class="kpi-grid">'
+      + kpiCard("Total O.S. abertas", fmtNum(d.total), "info")
+      + kpiCard("Corretivas", fmtNum(d.corretivas.length), "info")
+      + kpiCard("Preventivas", fmtNum(d.preventivas.length), "info")
+      + kpiCard("Críticos +90d", fmtNum(d.criticos.length), d.criticos.length?"critical":"good")
+      + kpiCard("Sem observação", fmtNum(d.semObs.length), d.semObs.length?"warning":"good")
+      + kpiCard("Impeditivas (auto)", fmtNum(d.impeditivas.length), d.impeditivas.length?"critical":"good")
+      + kpiCard("Motor / Caixa", fmtNum(d.motorCaixa.length), d.motorCaixa.length?"warning":"good")
+      + kpiCard("Terceiros — total", fmtNum(d.terceiros.length), "info")
+      + kpiCard("Terceiros — vencidas (≥72h)", fmtNum(d.terceirosVencidos.length), d.terceirosVencidos.length?"critical":"good")
+      + kpiCard("Terceiros — próx. vencimento", fmtNum(d.terceirosProximos.length), d.terceirosProximos.length?"warning":"good")
+      + kpiCard("Prazo alterado (histórico)", fmtNum(d.prazoAlterados.length), "info")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Alerta Terceiros — SLA 72h (' + d.terceiros.length + ' O.S. em ' + Array.from(new Set(d.terceiros.map(function(r){return r.oficina;}))).length + ' oficina(s) terceirizada(s))</h3><div class="table-wrap"><table><thead><tr><th>Status</th><th>Oficina</th><th>Veículo</th><th>O.S.</th><th>Tipo</th><th>Horas abertas</th><th>Abertura</th></tr></thead><tbody>'
+      + (d.terceiros.length ? d.terceiros.slice().sort(function(a,b){ return (b.horas||0)-(a.horas||0); }).map(function(r){
+          return '<tr><td>'+slaBadge(r.slaStatus)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+(r.horas===null?"—":r.horas+"h")+'</td><td>'+escapeHtml(r.aberturaStr)+'</td></tr>';
+        }).join("") : '<tr><td colspan="7">Nenhuma O.S. em oficina terceirizada no momento.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Ranking por unidade — O.S. abertas</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>O.S. abertas</th><th>Críticos +90d</th></tr></thead><tbody>'
+      + (d.ranking.length ? d.ranking.map(function(r){
+          return '<tr><td>'+escapeHtml(r.nome)+'</td><td><b>'+r.total+'</b></td><td>'+(r.criticos?('<span class="badge b-critical">'+r.criticos+'</span>'):'0')+'</td></tr>';
+        }).join("") : '<tr><td colspan="3">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Top 10 — O.S. aberta há mais tempo</h3><div class="table-wrap"><table><thead><tr><th>#</th><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
+      + d.top10.map(function(r, i){
+          return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
+        }).join("") + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Impeditivas — detectadas automaticamente (' + d.impeditivas.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th><th>Observação</th></tr></thead><tbody>'
+      + (d.impeditivas.length ? d.impeditivas.slice().sort(function(a,b){ return (b.dias||0)-(a.dias||0); }).map(function(r){
+          const obsShort = r.observacao.length > 90 ? r.observacao.slice(0,90)+"…" : r.observacao;
+          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td><td>'+escapeHtml(obsShort)+'</td></tr>';
+        }).join("") : '<tr><td colspan="6">Nenhuma O.S. impeditiva detectada no momento.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Sem observação (' + d.semObs.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
+      + (d.semObs.length ? d.semObs.map(function(r){
+          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
+        }).join("") : '<tr><td colspan="5">Todas as O.S. possuem observação registrada.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Prazo — alterações detectadas automaticamente (últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias, ' + d.prazoAlterados.length + ' O.S.)</h3><p class="hint">O prazo é lido direto do texto da observação (ex.: "PRAZO DE ENTREGA 25/08/2026") e comparado entre os snapshots diários já sincronizados — nenhum campo é preenchido manualmente.</p><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>O.S.</th><th>Oficina</th><th>Prazo atual</th><th>Histórico de mudanças</th></tr></thead><tbody>'
+      + (d.prazoAlterados.length ? d.prazoAlterados.map(function(r){
+          const histTxt = r.prazoHistorico.map(function(h){
+            return escapeHtml(h.data) + ": " + (h.de?fmtDateBR(h.de):"sem prazo") + " → " + (h.para?fmtDateBR(h.para):"removido");
+          }).join("<br/>");
+          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+(r.prazo?fmtDateBR(r.prazo):"—")+'</td><td style="font-size:11.5px">'+histTxt+'</td></tr>';
+        }).join("") : '<tr><td colspan="5">Nenhuma mudança de prazo detectada no período.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="section-footer">' + srcNote(RETENCAO_TAB + " — Tipo de O.S., Observação (Impeditiva/Prazo detectados por palavra-chave) e Tempo em aberto") + resolvedDatesNote(d.resolvedDates) + '</div>';
+
+    area.innerHTML = html;
+    fitAllKpiValues(area);
+  }catch(err){
+    area.innerHTML = '<p>Erro ao carregar Retenção: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
 // INVENTÁRIO (alimentação semestral)
 // =====================================================================
 function invBRL(n){
@@ -1436,21 +1725,21 @@ function renderInventarioBody(data){
 // =====================================================================
 // HOME
 // =====================================================================
-let homeAsOf = null;
-async function renderHome(newAsOf){
-  if(newAsOf !== undefined) homeAsOf = newAsOf;
+// A Home sempre mostra o snapshot mais recente sincronizado (o "hoje" de cada planilha) — sem
+// seletor de data. Quem precisar de uma data anterior busca diretamente na aba do módulo, que
+// mantém seu próprio seletor de período.
+async function renderHome(){
   const el = document.getElementById("home-body");
-  el.innerHTML = periodToolbarHtml("home", homeAsOf) + '<div id="home-data-area"><div class="spinner">Carregando...</div></div>';
-  wirePeriodToolbar("home", function(v){ renderHome(v); });
+  el.innerHTML = '<div id="home-data-area"><div class="spinner">Carregando...</div></div>';
   const area = document.getElementById("home-data-area");
   try{
-    const force = newAsOf !== undefined;
-    const [t, p, inv] = await Promise.all([
-      getTelemetriaData(homeAsOf, force),
-      getPneusData(homeAsOf, force),
-      getInventarioData(force).catch(function(){ return null; }),
+    const [t, p, inv, ret] = await Promise.all([
+      getTelemetriaData(null, false),
+      getPneusData(null, false),
+      getInventarioData(false).catch(function(){ return null; }),
+      getRetencaoData(null, false).catch(function(){ return null; }),
     ]);
-    const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates);
+    const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates, ret ? ret.resolvedDates : {});
     const totalCarros = t.vehicles.length;
     const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
     const irregularesT = t.vehicles.filter(function(v){ return v.classe==="irregular"; }).length;
@@ -1492,7 +1781,15 @@ async function renderHome(newAsOf){
           badge: invBadge,
           kpis: invKpis,
         })
-      + previewCardSoon("🔁","Retenção","Retenção")
+      + (ret ? previewCard({
+          icon:"🔁", title:"Retenção", section:"retencao",
+          badge: ret.terceirosVencidos.length ? { text: fmtNum(ret.terceirosVencidos.length) + " terceiros vencidas", tone:"critical" } : { text:"terceiros em dia", tone:"good" },
+          kpis: [
+            { n: fmtNum(ret.total), l:"O.S. abertas" },
+            { n: fmtNum(ret.criticos.length), l:"críticos +90d" },
+            { n: fmtNum(ret.terceiros.length), l:"terceirizadas" },
+          ],
+        }) : previewCardSoon("🔁","Retenção","Retenção"))
       + previewCardSoon("🛠️","Preventiva","Preventiva")
       + previewCardSoon("⛽","Abastecimento","Abastecimento")
       + previewCardSoon("📦","Suprimentos","Suprimentos")
