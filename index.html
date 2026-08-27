@@ -104,6 +104,22 @@
   .kpi-card.k-warning{ border-left-color:var(--warning); }
   .kpi-card.k-critical{ border-left-color:var(--critical); }
   .kpi-card.k-info{ border-left-color:var(--accent); }
+
+  /* Home: cartões de prévia por módulo */
+  .preview-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:14px; margin-bottom:30px; }
+  .preview-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:flex; flex-direction:column; gap:12px; text-align:left; cursor:pointer; transition:border-color .15s, transform .1s; }
+  .preview-card:hover{ border-color:var(--accent); transform:translateY(-1px); }
+  .preview-card:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .preview-card.soon{ opacity:.55; cursor:default; }
+  .preview-card.soon:hover{ border-color:var(--border); transform:none; }
+  .preview-card .pc-top{ display:flex; align-items:center; gap:8px; }
+  .preview-card .pc-icon{ font-size:17px; }
+  .preview-card .pc-title{ font-weight:700; font-size:14px; flex:1; color:var(--text-primary); }
+  .preview-card .pc-kpis{ display:flex; gap:20px; }
+  .preview-card .pc-kpi .n{ font-size:21px; font-weight:700; line-height:1.15; white-space:nowrap; overflow:hidden; }
+  .preview-card .pc-kpi .l{ font-size:10px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.03em; }
+  .preview-card .pc-empty{ font-size:12px; color:var(--text-muted); }
+  .preview-card .pc-link{ font-size:12px; color:var(--accent); font-weight:600; margin-top:auto; }
   .subsection{ margin:28px 0 14px; }
   .subsection h3{ font-size:14px; margin:0 0 10px; }
   .badge{ font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; display:inline-block; }
@@ -575,6 +591,28 @@ function fmtNum(n){
 function kpiCard(label, value, tone){
   return '<div class="kpi-card k-' + (tone||"info") + '"><div class="kpi-label">' + escapeHtml(label) + '</div><div class="kpi-value">' + escapeHtml(value) + '</div></div>';
 }
+// Cartão de prévia da Home para um módulo já com dados ao vivo.
+// opts: { icon, title, section, badge:{text,tone}, kpis:[{n,l}, ...] }
+function previewCard(opts){
+  const badge = opts.badge ? '<span class="badge b-' + opts.badge.tone + '">' + escapeHtml(opts.badge.text) + '</span>' : "";
+  const kpisHtml = (opts.kpis && opts.kpis.length)
+    ? '<div class="pc-kpis">' + opts.kpis.map(function(k){
+        return '<div class="pc-kpi"><div class="n">' + escapeHtml(k.n) + '</div><div class="l">' + escapeHtml(k.l) + '</div></div>';
+      }).join("") + '</div>'
+    : '<p class="pc-empty">Sem dados sincronizados ainda.</p>';
+  return '<div class="preview-card" data-section="' + opts.section + '" tabindex="0" role="button">'
+    + '<div class="pc-top"><span class="pc-icon">' + opts.icon + '</span><span class="pc-title">' + escapeHtml(opts.title) + '</span>' + badge + '</div>'
+    + kpisHtml
+    + '<div class="pc-link">Ver detalhes →</div>'
+    + '</div>';
+}
+// Cartão de prévia da Home para um módulo ainda não alimentado (mesma lista de "em breve" do menu lateral).
+function previewCardSoon(icon, title, moduleName){
+  return '<div class="preview-card soon" data-soon="' + escapeHtml(moduleName) + '" tabindex="0" role="button">'
+    + '<div class="pc-top"><span class="pc-icon">' + icon + '</span><span class="pc-title">' + escapeHtml(title) + '</span><span class="badge b-info">em breve</span></div>'
+    + '<p class="pc-empty">Prévia entra quando o módulo tiver dados.</p>'
+    + '</div>';
+}
 function srcNote(text){
   return '<p class="src-note">Fonte: ' + escapeHtml(text) + '</p>';
 }
@@ -633,6 +671,9 @@ function fitOneLine(el, maxSize, minSize){
 function fitAllKpiValues(root){
   root.querySelectorAll(".kpi-value").forEach(function(el){
     fitOneLine(el, 22, 13);
+  });
+  root.querySelectorAll(".pc-kpi .n").forEach(function(el){
+    fitOneLine(el, 21, 12);
   });
 }
 
@@ -1404,38 +1445,75 @@ async function renderHome(newAsOf){
   const area = document.getElementById("home-data-area");
   try{
     const force = newAsOf !== undefined;
-    const [t, p] = await Promise.all([ getTelemetriaData(homeAsOf, force), getPneusData(homeAsOf, force) ]);
+    const [t, p, inv] = await Promise.all([
+      getTelemetriaData(homeAsOf, force),
+      getPneusData(homeAsOf, force),
+      getInventarioData(force).catch(function(){ return null; }),
+    ]);
     const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates);
     const totalCarros = t.vehicles.length;
     const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
     const irregularesT = t.vehicles.filter(function(v){ return v.classe==="irregular"; }).length;
-    const totalOs = t.vehicles.reduce(function(s,v){ return s+v.qtdOs; },0);
     const totalAlertaPneus = p.vehiclesWithAlertCount;
 
-    let html = '<div class="subsection"><h3>📡 Telemetria</h3>';
-    if(t.filtroData){
-      html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — carros com "Dt. Verificação" na data selecionada, de um total de <b>' + fmtNum(t.totalFrota) + '</b> na base.</p>';
+    let invBadge = { text:"sem dados", tone:"critical" };
+    let invKpis = null;
+    if(inv && inv.semestres.length){
+      const semAtual = inv.semestres[inv.semestres.length - 1];
+      const rowsSem = inv.resumo.filter(function(r){ return r.semestre === semAtual; });
+      const totalRow = rowsSem.find(function(r){ return r.almoxarifado === "TOTAL"; });
+      const qtdUnidades = rowsSem.filter(function(r){ return r.almoxarifado !== "TOTAL"; }).length;
+      invBadge = { text: semAtual, tone:"info" };
+      invKpis = [
+        { n: fmtNum(qtdUnidades), l:"unidades" },
+        { n: totalRow ? invPctFmt(totalRow.pct_ajustes) : "—", l:"ajuste s/ inventário" },
+      ];
     }
-    html += '<div class="kpi-grid">'
-      + kpiCard(t.filtroData ? "Carros verificados nesta data" : "Total de carros", fmtNum(totalCarros), "info")
-      + kpiCard("Irregulares", fmtNum(irregularesT), irregularesT?"warning":"good")
-      + kpiCard("Críticos", fmtNum(criticosT), criticosT?"critical":"good")
-      + kpiCard("Total de O.S. abertas", fmtNum(totalOs), totalOs?"warning":"good")
-      + '</div></div>';
 
-    html += '<div class="subsection"><h3>🛞 Pneus</h3><div class="kpi-grid">'
-      + kpiCard("Veículos analisados", fmtNum(p.totalVeiculos), "info")
-      + kpiCard("Veículos c/ alerta", fmtNum(totalAlertaPneus), totalAlertaPneus?"warning":"good")
-      + kpiCard("Sulco crítico", fmtNum(p.alerts.critico.length), p.alerts.critico.length?"critical":"good")
-      + kpiCard("Sucata", fmtNum(p.alerts.sucata.length), p.alerts.sucata.length?"critical":"good")
-      + '</div></div>';
+    let html = '<div class="preview-grid">'
+      + previewCard({
+          icon:"📡", title:"Telemetria", section:"telemetria",
+          badge: irregularesT ? { text: fmtNum(irregularesT) + " irregulares", tone:"warning" } : { text:"tudo conforme", tone:"good" },
+          kpis: [
+            { n: fmtNum(totalCarros), l: t.filtroData ? "verificados na data" : "total de carros" },
+            { n: fmtNum(criticosT), l:"críticos" },
+          ],
+        })
+      + previewCard({
+          icon:"🛞", title:"Pneus", section:"pneus",
+          badge: p.semUnidadeCount ? { text: fmtNum(p.semUnidadeCount) + " sem unidade", tone:"critical" } : { text:"tudo vinculado", tone:"good" },
+          kpis: [
+            { n: fmtNum(p.totalVeiculos), l:"veículos analisados" },
+            { n: fmtNum(totalAlertaPneus), l:"com alerta" },
+          ],
+        })
+      + previewCard({
+          icon:"🗃️", title:"Inventário", section:"inventario",
+          badge: invBadge,
+          kpis: invKpis,
+        })
+      + previewCardSoon("🔁","Retenção","Retenção")
+      + previewCardSoon("🛠️","Preventiva","Preventiva")
+      + previewCardSoon("⛽","Abastecimento","Abastecimento")
+      + previewCardSoon("📦","Suprimentos","Suprimentos")
+      + previewCardSoon("📊","Dashboard","Dashboard")
+      + '</div>';
 
-    html += '<p class="hint">Para detalhamento completo, acesse as seções Telemetria e Pneus no menu lateral. Para status de sincronização e exportação de dados brutos, acesse "Base de Dados".</p>';
+    html += '<p class="hint">Clique em um cartão para abrir o módulo. Para status de sincronização e exportação de dados brutos, acesse "Base de Dados".</p>';
 
     html += '<div class="section-footer">' + resolvedDatesNote(resolved) + '</div>';
 
     area.innerHTML = html;
     fitAllKpiValues(area);
+
+    area.querySelectorAll(".preview-card[data-section]").forEach(function(card){
+      card.addEventListener("click", function(){ activateSection(card.dataset.section); });
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activateSection(card.dataset.section); } });
+    });
+    area.querySelectorAll(".preview-card[data-soon]").forEach(function(card){
+      card.addEventListener("click", function(){ activatePlaceholder(card.dataset.soon); });
+      card.addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activatePlaceholder(card.dataset.soon); } });
+    });
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
   }
