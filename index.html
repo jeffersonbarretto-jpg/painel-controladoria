@@ -501,8 +501,13 @@ async function fetchAllRows(tabName, snapshotDate){
     rows.forEach(function(r){ out.push(r.row_data || {}); });
     offset += rows.length;
     if(rows.length === 0) break;
-    if(total !== null && offset >= total) break;
-    if(rows.length < pageSize) break;
+    // O Supabase/PostgREST pode aplicar um limite de linhas por requisição (ex.: 1000) menor
+    // que o pageSize pedido no Range. Nesse caso uma pagina "cheia" (limite do servidor) ainda
+    // retorna rows.length < pageSize, e parar aqui truncaria a busca. Só paramos quando o
+    // total (Content-Range) confirma que não ha mais linhas, ou quando o total é desconhecido
+    // e a pagina realmente veio menor que o pedido.
+    if(total !== null){ if(offset >= total) break; }
+    else if(rows.length < pageSize){ break; }
   }
   return out;
 }
