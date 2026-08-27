@@ -1001,15 +1001,17 @@ async function getPneusData(asOfDate, force){
 }
 
 async function buildPneusData(asOfDate){
-  const [rpvSnap, veicSnap, prvSnap] = await Promise.all([
+  const [rpvSnap, veicSnap, prvSnap, tmlSnap] = await Promise.all([
     resolveSnapshotDate("Dados RPV - Pneus", asOfDate),
     resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
     resolveSnapshotDate("Manutencao - PRV", asOfDate),
+    resolveSnapshotDate("Base - TML", asOfDate),
   ]);
-  const [rpvRows, veicRows, prvRows] = await Promise.all([
+  const [rpvRows, veicRows, prvRows, tmlRows] = await Promise.all([
     fetchAllRows("Dados RPV - Pneus", rpvSnap),
     fetchAllRows("Base de Veiculos - Pneus", veicSnap),
     fetchAllRows("Manutencao - PRV", prvSnap),
+    fetchAllRows("Base - TML", tmlSnap),
   ]);
 
   const companyByCode = {};
@@ -1019,10 +1021,19 @@ async function buildPneusData(asOfDate){
     if(m) companyByCode[m[1]] = m[2].trim();
   });
 
+  // Unidade por veiculo, direto da nova Base de Veiculos - Pneus (fonte principal)
   const veicByKey = {};
   veicRows.forEach(function(r){
-    const key = vehicleKey(r["Nº Ordem"]);
-    if(key) veicByKey[key] = { placa: r.Placa, local: r.Local, empresa: r.Empresa };
+    const key = vehicleKey(r["Nº de Ordem"]);
+    if(key) veicByKey[key] = { placa: r.Placa, local: (r.Unidade||"").trim() || null, empresa: r.Empresa };
+  });
+
+  // Fallback: Unidade ja usada na Telemetria (Base - TML), para conciliar veiculos que a base de Pneus nao cobre
+  const unidadeTmlByKey = {};
+  tmlRows.forEach(function(r){
+    const key = vehicleKey(r.Carro);
+    const u = (r.Unidade||"").trim();
+    if(key && u) unidadeTmlByKey[key] = u;
   });
 
   const prevKmMap = {};
@@ -1037,6 +1048,7 @@ async function buildPneusData(asOfDate){
     const isAgreg = /^AGREG/i.test(veiculo.trim());
     const key = vehicleKey(veiculo);
     const info = key ? veicByKey[key] : null;
+    const localResolvido = info && info.local ? info.local : (key ? (unidadeTmlByKey[key] || null) : null);
     return {
       raw: r,
       veiculoRaw: veiculo,
@@ -1045,7 +1057,7 @@ async function buildPneusData(asOfDate){
       empresaCode: r.Empresa,
       empresaNome: info ? (info.empresa || "") : (companyByCode[r.Empresa] || (r.Empresa === "SEM" ? "Sem empresa / frota agregada" : ("Empresa " + (r.Empresa||"?")))),
       placa: info ? info.placa : null,
-      local: info ? info.local : null,
+      local: localResolvido,
       posicao: r.Posicao,
       pneu: r.Pneu,
       situacao: (r.Situacao||"").trim(),
@@ -1100,30 +1112,42 @@ async function buildPneusData(asOfDate){
   const totalVeiculos = Object.keys(byVeh).length;
   const totalPneus = tires.filter(function(t){ return t.pneu && t.pneu !== "S/PNEU"; }).length;
 
-  // ranking by empresa/garagem
+  // Conciliacao por unidade: um veiculo so conta 1x aqui, mesmo tendo varios pneus
+  const semUnidadeList = [];
+  let vinculadosUnidade = 0;
+  Object.keys(byVeh).forEach(function(k){
+    const t0 = byVeh[k][0];
+    if(t0.local){ vinculadosUnidade++; }
+    else { semUnidadeList.push({ veiculoRaw:t0.veiculoRaw, placa:t0.placa, empresaNome:t0.empresaNome }); }
+  });
+  semUnidadeList.sort(function(a,b){ return (a.empresaNome||"").localeCompare(b.empresaNome||""); });
+
+  // ranking por unidade (associa apenas pela Unidade, nunca pela Empresa)
   const rankMap = {};
   function bump(name, field){ rankMap[name] = rankMap[name] || { nome:name, veiculos:new Set(), pneus:0, reform:0, critico:0, atencao:0, rodizio:0, coleta:0, sucata:0, sempneu:0 }; rankMap[name][field]++; }
   tires.forEach(function(t){
-    const nome = t.local || t.empresaNome || "Não identificado";
+    const nome = t.local || "Sem unidade";
     rankMap[nome] = rankMap[nome] || { nome:nome, veiculos:new Set(), pneus:0, reform:0, critico:0, atencao:0, rodizio:0, coleta:0, sucata:0, sempneu:0 };
     if(t.veiculoKey) rankMap[nome].veiculos.add(t.veiculoKey);
     if(t.pneu && t.pneu !== "S/PNEU") rankMap[nome].pneus++;
   });
-  alerts.reform.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","reform"); });
-  alerts.critico.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","critico"); });
-  alerts.atencao.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","atencao"); });
-  alerts.sucata.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","sucata"); });
-  alerts.sempneu.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","sempneu"); });
-  alerts.rodizio.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","rodizio"); });
-  alerts.coleta.forEach(function(t){ bump(t.local || t.empresaNome || "Não identificado","coleta"); });
+  alerts.reform.forEach(function(t){ bump(t.local || "Sem unidade","reform"); });
+  alerts.critico.forEach(function(t){ bump(t.local || "Sem unidade","critico"); });
+  alerts.atencao.forEach(function(t){ bump(t.local || "Sem unidade","atencao"); });
+  alerts.sucata.forEach(function(t){ bump(t.local || "Sem unidade","sucata"); });
+  alerts.sempneu.forEach(function(t){ bump(t.local || "Sem unidade","sempneu"); });
+  alerts.rodizio.forEach(function(t){ bump(t.local || "Sem unidade","rodizio"); });
+  alerts.coleta.forEach(function(t){ bump(t.local || "Sem unidade","coleta"); });
   const ranking = Object.values(rankMap).map(function(r){
     r.score = r.reform*10 + r.critico*5 + r.atencao*2 + r.rodizio*1 + r.sucata*8 + r.sempneu*6;
     r.veiculosCount = r.veiculos.size;
     return r;
   }).sort(function(a,b){ return b.score - a.score; });
 
-  return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size, resolvedDates: {
-    "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap,
+  return { tires: tires, alerts: alerts, ranking: ranking, totalVeiculos: totalVeiculos, totalPneus: totalPneus, vehiclesWithAlertCount: vehiclesWithAlert.size,
+    vinculadosUnidade: vinculadosUnidade, semUnidade: semUnidadeList, semUnidadeCount: semUnidadeList.length,
+    resolvedDates: {
+    "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
   }};
 }
 
@@ -1161,15 +1185,23 @@ async function renderPneus(newAsOf){
       + kpiCard("Pendente de coleta", fmtNum(d.alerts.coleta.length), d.alerts.coleta.length?"warning":"good")
       + kpiCard("Sucata", fmtNum(d.alerts.sucata.length), d.alerts.sucata.length?"critical":"good")
       + kpiCard("Sem pneu", fmtNum(d.alerts.sempneu.length), d.alerts.sempneu.length?"critical":"good")
+      + kpiCard("Vinculados à unidade", fmtNum(d.vinculadosUnidade), "good")
+      + kpiCard("Sem unidade", fmtNum(d.semUnidadeCount), d.semUnidadeCount?"critical":"good")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Ranking por garagem / empresa</h3><div class="table-wrap"><table><thead><tr><th>Garagem / Empresa</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
+    html += '<div class="subsection"><h3>Ranking por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
       + d.ranking.map(function(r){
         return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+r.critico+'</td><td>'+r.atencao+'</td><td>'+r.rodizio+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
       }).join("") + '</tbody></table></div></div>';
 
+    html += '<div class="subsection"><h3>Veículos sem unidade (' + d.semUnidadeCount + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Placa</th><th>Empresa</th></tr></thead><tbody>'
+      + (d.semUnidade.length ? d.semUnidade.map(function(v){
+        return '<tr><td>'+escapeHtml(v.veiculoRaw)+'</td><td>'+escapeHtml(v.placa||"—")+'</td><td>'+escapeHtml(v.empresaNome||"—")+'</td></tr>';
+      }).join("") : '<tr><td colspan="3">Nenhum veículo sem unidade — tudo conciliado.</td></tr>')
+      + '</tbody></table></div></div>';
+
     const tireCols = [
-      { label:"Empresa/Garagem", render:function(t){ return escapeHtml(t.local || t.empresaNome); } },
+      { label:"Unidade", render:function(t){ return escapeHtml(t.local || "Sem unidade"); } },
       { label:"Veículo", render:function(t){ return escapeHtml(t.veiculoRaw); } },
       { label:"Placa", render:function(t){ return escapeHtml(t.placa || "—"); } },
       { label:"Posição", render:function(t){ return escapeHtml(t.posicao); } },
@@ -1186,20 +1218,20 @@ async function renderPneus(newAsOf){
     html += '<div class="subsection"><h3>Sulco crítico (≤3mm)</h3>' + tireTable(d.alerts.critico, tireCols) + '</div>';
     html += '<div class="subsection"><h3>Sulco em atenção (4-5mm)</h3>' + tireTable(d.alerts.atencao, tireCols) + '</div>';
 
-    html += '<div class="subsection"><h3>Rodízio recomendado (diferença de sulco &gt;2mm no eixo)</h3><div class="table-wrap"><table><thead><tr><th>Empresa/Garagem</th><th>Veículo</th><th>Par</th><th>Pos.A</th><th>Sulco A</th><th>Pos.B</th><th>Sulco B</th><th>Diferença</th></tr></thead><tbody>'
+    html += '<div class="subsection"><h3>Rodízio recomendado (diferença de sulco &gt;2mm no eixo)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Par</th><th>Pos.A</th><th>Sulco A</th><th>Pos.B</th><th>Sulco B</th><th>Diferença</th></tr></thead><tbody>'
       + d.alerts.rodizio.slice(0,300).map(function(r){
-        return '<tr><td>'+escapeHtml(r.local||r.empresaNome)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+r.posA+'/'+r.posB+'</td><td>'+r.posA+'</td><td>'+r.sulcoA+' mm</td><td>'+r.posB+'</td><td>'+r.sulcoB+' mm</td><td><b>'+r.diff.toFixed(1)+' mm</b></td></tr>';
+        return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+r.posA+'/'+r.posB+'</td><td>'+r.posA+'</td><td>'+r.sulcoA+' mm</td><td>'+r.posB+'</td><td>'+r.sulcoB+' mm</td><td><b>'+r.diff.toFixed(1)+' mm</b></td></tr>';
       }).join("") + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Pendência de coleta (&gt;3000km rodados desde a última medição)</h3><div class="table-wrap"><table><thead><tr><th>Empresa/Garagem</th><th>Veículo</th><th>Placa</th><th>Km rodado</th></tr></thead><tbody>'
+    html += '<div class="subsection"><h3>Pendência de coleta (&gt;3000km rodados desde a última medição)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Placa</th><th>Km rodado</th></tr></thead><tbody>'
       + d.alerts.coleta.slice(0,300).map(function(r){
-        return '<tr><td>'+escapeHtml(r.local||r.empresaNome)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.placa||"—")+'</td><td><b>'+fmtNum(r.km)+' km</b></td></tr>';
+        return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.placa||"—")+'</td><td><b>'+fmtNum(r.km)+' km</b></td></tr>';
       }).join("") + '</tbody></table></div></div>';
 
     html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
     html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
 
-    html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV") + resolvedDatesNote(d.resolvedDates) + '</div>';
+    html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV, Base - TML (conciliação de unidade)") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
     fitAllKpiValues(area);
