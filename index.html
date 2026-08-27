@@ -99,7 +99,7 @@
   .kpi-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(155px,1fr)); gap:10px; margin-bottom:22px; }
   .kpi-card{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px 14px; border-left:3px solid var(--gridline); }
   .kpi-card .kpi-label{ font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--text-muted); margin-bottom:6px; }
-  .kpi-card .kpi-value{ font-size:22px; font-weight:700; line-height:1.1; }
+  .kpi-card .kpi-value{ font-size:22px; font-weight:700; line-height:1.1; white-space:nowrap; overflow:hidden; }
   .kpi-card.k-good{ border-left-color:var(--good); }
   .kpi-card.k-warning{ border-left-color:var(--warning); }
   .kpi-card.k-critical{ border-left-color:var(--critical); }
@@ -176,6 +176,7 @@
 
   /* Data browser */
   .filters{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; }
+  .filters.filters-right{ justify-content:flex-end; }
   .filters .grow{ flex:1; min-width:180px; }
   table{ width:100%; border-collapse:collapse; font-size:13px; background:var(--card); }
   th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--gridline); white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
@@ -434,7 +435,7 @@ function fmtDateBR(iso){
 }
 // Renders a small "period" toolbar (date input + apply/reset) reusable across sections.
 function periodToolbarHtml(id, currentValue){
-  return '<div class="filters" style="margin-bottom:18px;">'
+  return '<div class="filters filters-right" style="margin-bottom:18px;">'
     + '<label style="font-size:12px;color:var(--text-secondary);">Período (dados até a data selecionada):</label>'
     + '<input type="date" id="' + id + '-asof" min="' + MIN_PERIOD_DATE + '" max="' + todayStr() + '" value="' + (currentValue || "") + '" />'
     + '<button class="primary" id="' + id + '-apply">Aplicar</button>'
@@ -609,6 +610,13 @@ function fitOneLine(el, maxSize, minSize){
     size -= 0.5;
     el.style.fontSize = size + "px";
   }
+}
+
+// Shrinks every KPI value inside `root` just enough to show it complete on one line (no wrap/cut-off).
+function fitAllKpiValues(root){
+  root.querySelectorAll(".kpi-value").forEach(function(el){
+    fitOneLine(el, 22, 13);
+  });
 }
 
 async function showApp(){
@@ -888,6 +896,7 @@ async function renderTelemetria(newAsOf){
     html += '<div class="section-footer">' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML") + resolvedDatesNote(data.resolvedDates) + '</div>';
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
+    fitAllKpiValues(area);
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1109,6 +1118,7 @@ async function renderPneus(newAsOf){
     html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
+    fitAllKpiValues(area);
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1119,7 +1129,7 @@ async function renderPneus(newAsOf){
 // =====================================================================
 function invBRL(n){
   if(n === null || n === undefined || isNaN(n)) return "—";
-  return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits:0, maximumFractionDigits:0 });
+  return "R$ " + Number(n).toLocaleString("pt-BR", { minimumFractionDigits:0, maximumFractionDigits:0 });
 }
 function invPctFmt(n){
   if(n === null || n === undefined || isNaN(n)) return "—";
@@ -1198,7 +1208,7 @@ function renderInventarioBody(data){
   const unidades = rowsSem.filter(function(r){ return r.almoxarifado !== "TOTAL"; })
     .sort(function(a,b){ return b.pct_ajustes - a.pct_ajustes; });
 
-  let html = '<div class="filters" style="margin-bottom:18px;">'
+  let html = '<div class="filters filters-right" style="margin-bottom:18px;">'
     + '<label style="font-size:12px;color:var(--text-secondary);">Semestre:</label>'
     + '<select id="inventario-sem-select">'
     + data.semestres.map(function(s){ return '<option value="' + escapeHtml(s) + '"' + (s === sem ? " selected" : "") + '>' + escapeHtml(s) + '</option>'; }).join("")
@@ -1252,6 +1262,7 @@ function renderInventarioBody(data){
     + '</div>';
 
   el.innerHTML = html;
+  fitAllKpiValues(el);
 
   document.getElementById("inventario-sem-select").addEventListener("change", function(e){
     inventarioSemestreSel = e.target.value;
@@ -1297,6 +1308,7 @@ async function renderHome(newAsOf){
     html += '<div class="section-footer">' + resolvedDatesNote(resolved) + '</div>';
 
     area.innerHTML = html;
+    fitAllKpiValues(area);
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar resumo: ' + escapeHtml(err.message) + '</p>';
   }
