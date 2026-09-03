@@ -2259,7 +2259,10 @@ async function renderHome(){
       getInventarioData(false).catch(function(){ return null; }),
       getRetencaoData(null, false).catch(function(){ return null; }),
       loadAbastecimentoFromSupabase().then(function(){
-        return { total: STATE.globalAllList.length, fora: STATE.globalForaList.length, resolvedDates: STATE.resolvedDates };
+        return Object.assign(
+          { total: STATE.globalAllList.length, fora: STATE.globalForaList.length, resolvedDates: STATE.resolvedDates },
+          computeHomeAbastecimentoSummary()
+        );
       }).catch(function(){ return null; }),
     ]);
     const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates, ret ? ret.resolvedDates : {}, abast ? abast.resolvedDates : {});
@@ -2317,10 +2320,11 @@ async function renderHome(){
       + previewCard({
           icon:"⛽", title:"Abastecimento", section:"abastecimento",
           badge: !abast ? { text:"sem dados", tone:"critical" }
-            : (abast.fora ? { text: fmtNum(abast.fora) + " fora da meta", tone:"critical" } : { text:"tudo dentro da meta", tone:"good" }),
+            : (abast.unidadesForaMeta ? { text: fmtNum(abast.unidadesForaMeta) + " unidades fora da meta", tone:"critical" } : { text:"unidades dentro da meta", tone:"good" }),
           kpis: abast ? [
-            { n: fmtNum(abast.total), l:"combinações veículo-mês" },
-            { n: fmtNum(abast.fora), l:"fora da meta" },
+            { n: fmtNum(abast.setoresMapaAberto), l:"unidades c/ mapa aberto (mês)" },
+            { n: fmtNum(abast.unidadesForaMeta), l:"unidades fora da meta" },
+            { n: fmtBRL(abast.custoMesAtual), l:"custo total (mês atual)" },
           ] : null,
         })
       + previewCardSoon("📦","Suprimentos","Suprimentos")
@@ -3068,6 +3072,30 @@ function computeUnitRankingForMonth(mk){
     return { unidade:u, dentro:s.dentro, fora:s.fora, total, pctDentro: total ? s.dentro/total*100 : 0, pctFora: total ? s.fora/total*100 : 0 };
   }).filter(u => u.total >= MIN_SAMPLE_RANKING);
   return list;
+}
+
+function fmtBRL(n){
+  if(n === null || n === undefined || isNaN(n)) return "—";
+  return "R$ " + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Resumo usado só no cartão de prévia da Home (ver renderHome no script principal).
+// "Mês atual" = mês corrente de verdade (new Date()), não o mês mais recente com dado —
+// se setembro ainda não tiver nenhum registro sincronizado, os 3 números vêm zerados
+// (é a diferença certa entre "não aconteceu ainda" e "não estou olhando o mês certo").
+function computeHomeAbastecimentoSummary(){
+  const currentMk = monthKey(new Date());
+  const setoresMapaAberto = new Set(
+    STATE.expRows.filter(function(r){ return r.situacao === 'Aberto' && r.data && monthKey(r.data) === currentMk; }).map(function(r){ return r.setor; })
+  ).size;
+  // "Unidade fora da meta" aqui = unidade cuja maioria das combinações veículo-mês do mês
+  // atual não bateu a meta de Km/Lt (pctFora > 50%), entre as unidades com amostra mínima
+  // suficiente (mesmo critério do Ranking de Unidades, MIN_SAMPLE_RANKING).
+  const unidadesForaMeta = computeUnitRankingForMonth(currentMk).filter(function(u){ return u.pctFora > 50; }).length;
+  const custoMesAtual = STATE.filteredRecords
+    .filter(function(r){ return r.data && monthKey(r.data) === currentMk; })
+    .reduce(function(sum, r){ return sum + (r.valor || 0); }, 0);
+  return { currentMk: currentMk, setoresMapaAberto: setoresMapaAberto, unidadesForaMeta: unidadesForaMeta, custoMesAtual: custoMesAtual };
 }
 
 function renderRanking(mk){
