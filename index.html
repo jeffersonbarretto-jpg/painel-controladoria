@@ -599,6 +599,7 @@
 
     <!-- TAB 3: EXP. ABST -->
     <div class="tab-panel" id="tab-exp">
+      <div id="exp-toolbar"></div>
       <div class="hint-banner">Abastecimentos exportados do Tr@nsnet, restritos aos 15 setores de abastecimento monitorados, com status de abertura/fechamento e exportação. Clique num setor para ver o detalhamento dos abastecimentos em aberto.</div>
       <div class="kpi-row" id="expKpiRow" style="grid-template-columns:repeat(4,1fr);"></div>
       <div class="table-wrap">
@@ -2597,6 +2598,14 @@ const STATE = {
   drill: { month: null, unit: null, status: null }
 };
 
+// Estado da aba "Exportação de Abastecimento" — independente das outras 3
+// abas: tem seu próprio seletor de data (snapshot de "Exp. Abst") e um
+// filtro de unidade (setor de abastecimento), no mesmo padrão usado em
+// Telemetria/Pneus/Retenção.
+let expAsOf = null;
+let expSetorFiltro = null;
+let expRowsAllTarget = [];
+
 // ---------------------------------------------------------------------
 // Data loading — Supabase (dados sincronizados; substitui a antiga importação
 // manual de planilha .xlsx). As 3 abas necessárias já chegam com campos
@@ -2627,6 +2636,8 @@ async function loadAbastecimentoFromSupabase(){
   STATE.globalForaList = [];
   STATE.globalAllList = [];
   STATE.expRows = [];
+  expAsOf = null;
+  expSetorFiltro = null;
 
   parsePneusBase(pneusRows);
   parseAbastecimento(abastRows);
@@ -2656,6 +2667,7 @@ function parsePneusBase(rows){
 }
 
 function parseAbastecimento(rows){
+  const todayIso = todayStr();
   rows.forEach(function(r){
     const code = (r.Veiculo || '').toString().trim();
     if(!code) return;
@@ -2664,11 +2676,18 @@ function parseAbastecimento(rows){
     const comb = num(r.Comb);
     if(!comb || comb <= 0) return; // linhas só de hodômetro (checkpoint), sem abastecimento real
 
+    const data = parseLenientDate(r.Data);
+    // Parte da planilha usa "DD-MM-AAAA" e vem com dia/mês trocados em alguns lançamentos,
+    // gerando datas futuras (ex.: dezembro/2026 antes de o mês acontecer). Um abastecimento
+    // não pode ter ocorrido no futuro, então esses registros são descartados aqui — não é
+    // filtro de ano, é "data <= hoje".
+    if(data && isoDateOf(data) > todayIso) return;
+
     const rec = {
       vehicleCode: code,
       vehicleNum: vehNum,
       chassi: (info && info.tipoChassi) || '',
-      data: parseLenientDate(r.Data),
+      data: data,
       kmRod: num(r.Km_Rod) || 0,
       comb: comb,
       kmLt: num(r.Km_Lt) || 0,
@@ -2735,13 +2754,19 @@ function aggregateMonthly(){
 }
 
 function parseExpAbst(rows){
+  const todayIso = todayStr();
   const out = [];
   rows.forEach(function(r){
     const setor = r['Setor de Abastecimento'];
     if(setor == null || setor === '') return;
     if(!TARGET_NORM.has(normSector(setor))) return;
+    let data = parseLenientDate(r.Data);
+    // Mesmo problema de dia/mês trocado na fonte (ver parseAbastecimento) — aqui não
+    // descartamos a linha (Situação/Exportação continuam válidas), só a data, pra não
+    // exibir/ordenar por uma data futura que não é real.
+    if(data && isoDateOf(data) > todayIso) data = null;
     out.push({
-      data: parseLenientDate(r.Data),
+      data: data,
       turno: r.Turno,
       setor: setor,
       situacao: r['Situação'],
@@ -2762,11 +2787,17 @@ function renderAll(){
   renderUnitGrid(STATE.months[STATE.months.length-1] || null);
   renderGlobalFilters();
   renderGlobalTable();
-  renderExpTab();
+  expRowsAllTarget = STATE.expRows.slice();
+  renderExpToolbar();
+  applyExpFilter();
   renderCrumb();
   setupTabs();
   renderRankingMonthPills();
   renderRanking(STATE.months[STATE.months.length-1] || null);
+  updateFooterNote();
+}
+
+function updateFooterNote(){
   const datesTxt = STATE.resolvedDates ? Object.keys(STATE.resolvedDates).map(function(k){
     return k + ': ' + fmtDateBR(STATE.resolvedDates[k]);
   }).join(' · ') : '';
@@ -2774,6 +2805,48 @@ function renderAll(){
     'Setores considerados: ' + TARGET_SECTORS.length + ' · Registros de abastecimento filtrados: ' + fmtNum(STATE.filteredRecords.length) +
     ' · Combinações veículo-mês: ' + fmtNum(STATE.globalAllList.length) +
     (datesTxt ? ' · Dados sincronizados usados — ' + datesTxt : '');
+}
+
+// ---------------------------------------------------------------------
+// Filtros da aba "Exportação de Abastecimento" (data/snapshot + unidade)
+// ---------------------------------------------------------------------
+function renderExpToolbar(){
+  const el = document.getElementById('exp-toolbar');
+  if(!el) return;
+  const setores = Array.from(new Set(expRowsAllTarget.map(function(r){ return r.setor; }))).sort();
+  el.innerHTML = periodToolbarHtml('exp', expAsOf, 'Data de abertura (snapshot):') + unidadeFilterHtml('exp', setores, expSetorFiltro) + '<div id="exp-filter-hint"></div>';
+  wirePeriodToolbar('exp', function(v){ expAsOf = v; reloadExpTab(); });
+  wireUnidadeFilter('exp', function(v){ expSetorFiltro = v; applyExpFilter(); });
+}
+
+function applyExpFilter(){
+  const filtered = expSetorFiltro ? expRowsAllTarget.filter(function(r){ return r.setor === expSetorFiltro; }) : expRowsAllTarget;
+  const hintEl = document.getElementById('exp-filter-hint');
+  if(hintEl){
+    hintEl.innerHTML = expSetorFiltro
+      ? '<p class="hint" style="margin:0 0 14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(expSetorFiltro) + '</b>.</p>'
+      : '';
+  }
+  renderExpTab(filtered);
+}
+
+async function reloadExpTab(){
+  const table = document.getElementById('expTable');
+  if(table) table.innerHTML = '<tbody><tr><td class="hint" style="padding:14px;">Carregando...</td></tr></tbody>';
+  try{
+    const snap = await resolveSnapshotDate('Exp. Abst', expAsOf);
+    const rawRows = await fetchAllRows('Exp. Abst', snap);
+    parseExpAbst(rawRows);
+    expRowsAllTarget = STATE.expRows.slice();
+    STATE.resolvedDates = Object.assign({}, STATE.resolvedDates, { 'Exp. Abst': snap });
+    if(expSetorFiltro && !expRowsAllTarget.some(function(r){ return r.setor === expSetorFiltro; })) expSetorFiltro = null;
+    renderExpToolbar();
+    applyExpFilter();
+    updateFooterNote();
+  }catch(err){
+    console.error(err);
+    if(table) table.innerHTML = '<tbody><tr><td>Erro ao carregar Exp. Abst: ' + escapeHtml(err.message) + '</td></tr></tbody>';
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -3127,8 +3200,8 @@ function renderGlobalTable(){
 // ---------------------------------------------------------------------
 // Exp. Abst tab
 // ---------------------------------------------------------------------
-function renderExpTab(){
-  const rows = STATE.expRows;
+function renderExpTab(rows){
+  rows = rows || STATE.expRows;
   const aberto = rows.filter(r => r.situacao === 'Aberto').length;
   const fechado = rows.filter(r => r.situacao === 'Fechado').length;
   const exportado = rows.filter(r => r.situacaoExp === 'Exportado').length;
