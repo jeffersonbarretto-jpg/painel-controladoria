@@ -221,26 +221,30 @@
   .login-logo{ max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:12px; }
 </style>
 <style id="abast-styles">
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+/* Este bloco não define mais uma paleta/fonte própria — ele só remapeia as
+   variáveis que o restante das regras abaixo usa para os tokens reais do
+   site (cores, bordas, fonte do body), inclusive claro/escuro. Assim a aba
+   Abastecimento acompanha o tema do site em vez de ficar com um visual
+   escuro fixo próprio. */
 #abast-panel{ background:var(--bg); color:var(--text); font-family:var(--sans); border-radius:12px; }
 #abast-panel{
-  --bg: #0f1417;
-  --bg-panel: #161d22;
-  --bg-panel-2: #1c252b;
-  --line: #2a343b;
-  --line-soft: #212a30;
-  --text: #e7edf0;
-  --text-dim: #8fa0a8;
-  --text-faint: #5c6d75;
-  --amber: #e8a33d;
-  --amber-dim: #6b4f22;
-  --teal: #35c9a5;
-  --teal-dim: #1f4f45;
-  --red: #e2604f;
-  --red-dim: #5a2a24;
-  --blue: #5b9bd5;
-  --mono: 'IBM Plex Mono', 'Consolas', monospace;
-  --sans: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+  --bg: var(--page);
+  --bg-panel: var(--card);
+  --bg-panel-2: var(--surface-1);
+  --line: var(--border);
+  --line-soft: var(--gridline);
+  --text: var(--text-primary);
+  --text-dim: var(--text-secondary);
+  --text-faint: var(--text-muted);
+  --amber: var(--accent);
+  --amber-dim: color-mix(in srgb, var(--accent) 20%, transparent);
+  --teal: var(--good);
+  --teal-dim: color-mix(in srgb, var(--good) 15%, transparent);
+  --red: var(--critical);
+  --red-dim: color-mix(in srgb, var(--critical) 15%, transparent);
+  --blue: var(--accent);
+  --mono: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 #abast-panel.wrap{max-width:1360px;margin:0 auto;padding:20px 24px 40px;}
@@ -269,7 +273,7 @@
 #abast-panel .kpi.k-total::before{background:var(--blue);}
 #abast-panel .kpi.k-dentro::before{background:var(--teal);}
 #abast-panel .kpi.k-fora::before{background:var(--red);}
-#abast-panel .kpi.k-eventos::before{background:var(--amber);}
+#abast-panel .kpi.k-eventos::before{background:var(--warning);}
 #abast-panel .kpi.k-setores::before{background:var(--text-faint);}
 #abast-panel .kpi-label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin-bottom:8px; font-weight:600;}
 #abast-panel .kpi-value{font-family:var(--mono); font-size:24px; font-weight:600; line-height:1;}
@@ -411,7 +415,6 @@
 #abast-panel .rank-pct.bad{color:var(--red);}
 #abast-panel .rank-empty{color:var(--text-faint); font-size:13px; padding:20px 0;}
 
-#abast-panel footer{margin-top:30px; text-align:center; color:var(--text-faint); font-size:11.5px; font-family:var(--mono);}
 #abast-panel .hint-banner{
   background:var(--bg-panel-2); border:1px solid var(--line); border-left:3px solid var(--amber);
   border-radius:0 6px 6px 0; padding:12px 16px; font-size:12.5px; color:var(--text-dim); margin-bottom:18px; line-height:1.5;
@@ -531,7 +534,6 @@
 <div id="abast-panel" class="wrap">
 
   <div class="filters filters-right" style="margin-bottom:18px;">
-    <div class="file-status" id="fileStatus">Carregando dados sincronizados...</div>
     <button class="ghost" id="abastRefreshBtn">Atualizar dados</button>
   </div>
 
@@ -606,7 +608,7 @@
 
   </div>
 
-  <footer id="footerNote"></footer>
+  <div class="section-footer"><p class="hint" id="footerNote"></p></div>
 
   <!-- VEHICLE DETAIL MODAL -->
   <div class="modal-overlay" id="modalOverlay">
@@ -2781,27 +2783,17 @@ function renderAll(){
 async function renderAbastecimentoPanel(){
   const emptyState = document.getElementById('emptyState');
   const appContent = document.getElementById('appContent');
-  const fileStatus = document.getElementById('fileStatus');
   appContent.style.display = 'none';
   emptyState.style.display = 'flex';
   emptyState.innerHTML = '<div class="spinner">Carregando dados de abastecimento...</div>';
-  if(fileStatus){ fileStatus.textContent = 'Sincronizando...'; fileStatus.className = 'file-status'; }
   try{
     await loadAbastecimentoFromSupabase();
     renderAll();
     emptyState.style.display = 'none';
     appContent.style.display = 'block';
-    if(fileStatus){
-      const datesTxt = STATE.resolvedDates ? Object.keys(STATE.resolvedDates).map(function(k){
-        return k + ': ' + fmtDateBR(STATE.resolvedDates[k]);
-      }).join(' · ') : '';
-      fileStatus.textContent = 'Dados sincronizados' + (datesTxt ? ' — ' + datesTxt : '');
-      fileStatus.className = 'file-status ok';
-    }
   }catch(err){
     console.error(err);
-    emptyState.innerHTML = '<h3>Erro ao carregar dados</h3><p>' + escapeHtml(err.message) + '</p>';
-    if(fileStatus){ fileStatus.textContent = 'Erro ao sincronizar'; fileStatus.className = 'file-status err'; }
+    emptyState.innerHTML = '<p>Erro ao carregar Abastecimento: ' + escapeHtml(err.message) + '</p>';
   }
 }
 document.getElementById('abastRefreshBtn').addEventListener('click', function(){ renderAbastecimentoPanel(); });
