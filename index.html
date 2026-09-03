@@ -246,29 +246,6 @@
 #abast-panel.wrap{max-width:1360px;margin:0 auto;padding:20px 24px 40px;}
 
 /* ---------- Header ---------- */
-#abast-panel .topbar{
-  display:flex; align-items:flex-end; justify-content:space-between;
-  gap:20px; padding-bottom:18px; border-bottom:1px solid var(--line);
-  margin-bottom:20px; flex-wrap:wrap;
-}
-#abast-panel .brand-eyebrow{
-  font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--amber);
-  margin-bottom:6px;
-}
-#abast-panel .brand h1{margin:0; font-size:26px; font-weight:700; letter-spacing:-0.01em;}
-#abast-panel .brand p{margin:6px 0 0; color:var(--text-dim); font-size:13.5px; max-width:560px; line-height:1.5;}
-
-#abast-panel .upload-box{
-  display:flex; flex-direction:column; align-items:flex-end; gap:8px;
-}
-#abast-panel .upload-btn{
-  background:var(--bg-panel-2); border:1px solid var(--line); color:var(--text);
-  padding:10px 16px; border-radius:6px; font-size:13px; font-weight:600;
-  cursor:pointer; display:flex; align-items:center; gap:8px; font-family:var(--sans);
-  transition:border-color .15s, background .15s;
-}
-#abast-panel .upload-btn:hover{border-color:var(--amber); background:#20292f;}
-#abast-panel .upload-btn svg{width:15px;height:15px;flex-shrink:0;}
 #abast-panel .file-status{font-family:var(--mono); font-size:11px; color:var(--text-faint); text-align:right;}
 #abast-panel .file-status.ok{color:var(--teal);}
 #abast-panel .file-status.err{color:var(--red);}
@@ -553,19 +530,9 @@
           </div>
 <div id="abast-panel" class="wrap">
 
-  <div class="topbar">
-    <div class="brand">
-      <div class="brand-eyebrow">CONTROLADORIA · FROTA</div>
-      <h1>Meta de Abastecimento</h1>
-      <p>Conformidade de consumo (Km/Lt vs Meta) por veículo, mês e unidade — cruzando Abastecimento‑TML com a Base de Veículos.</p>
-    </div>
-    <div class="upload-box">
-      <button class="upload-btn" id="abastRefreshBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        Atualizar dados
-      </button>
-      <div class="file-status" id="fileStatus">Carregando dados sincronizados...</div>
-    </div>
+  <div class="filters filters-right" style="margin-bottom:18px;">
+    <div class="file-status" id="fileStatus">Carregando dados sincronizados...</div>
+    <button class="ghost" id="abastRefreshBtn">Atualizar dados</button>
   </div>
 
   <div id="emptyState" class="empty-state">
@@ -2283,13 +2250,16 @@ async function renderHome(){
   el.innerHTML = '<div id="home-data-area"><div class="spinner">Carregando...</div></div>';
   const area = document.getElementById("home-data-area");
   try{
-    const [t, p, inv, ret] = await Promise.all([
+    const [t, p, inv, ret, abast] = await Promise.all([
       getTelemetriaData(null, false),
       getPneusData(null, false),
       getInventarioData(false).catch(function(){ return null; }),
       getRetencaoData(null, false).catch(function(){ return null; }),
+      loadAbastecimentoFromSupabase().then(function(){
+        return { total: STATE.globalAllList.length, fora: STATE.globalForaList.length, resolvedDates: STATE.resolvedDates };
+      }).catch(function(){ return null; }),
     ]);
-    const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates, ret ? ret.resolvedDates : {});
+    const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates, ret ? ret.resolvedDates : {}, abast ? abast.resolvedDates : {});
     const totalCarros = t.vehicles.length;
     const criticosT = t.vehicles.filter(function(v){ return v.classe==="critico"; }).length;
     const irregularesT = t.vehicles.filter(function(v){ return v.classe==="irregular"; }).length;
@@ -2341,7 +2311,15 @@ async function renderHome(){
           ],
         }) : previewCardSoon("🔁","Retenção","Retenção"))
       + previewCardSoon("🛠️","Preventiva","Preventiva")
-      + previewCard({ icon:"⛽", title:"Abastecimento", section:"abastecimento" })
+      + previewCard({
+          icon:"⛽", title:"Abastecimento", section:"abastecimento",
+          badge: !abast ? { text:"sem dados", tone:"critical" }
+            : (abast.fora ? { text: fmtNum(abast.fora) + " fora da meta", tone:"critical" } : { text:"tudo dentro da meta", tone:"good" }),
+          kpis: abast ? [
+            { n: fmtNum(abast.total), l:"combinações veículo-mês" },
+            { n: fmtNum(abast.fora), l:"fora da meta" },
+          ] : null,
+        })
       + previewCardSoon("📦","Suprimentos","Suprimentos")
       + previewCardSoon("📊","Dashboard","Dashboard")
       + '</div>';
