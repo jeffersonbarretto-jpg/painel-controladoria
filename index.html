@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Painel Controladoria</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -270,7 +269,6 @@
 }
 #abast-panel .upload-btn:hover{border-color:var(--amber); background:#20292f;}
 #abast-panel .upload-btn svg{width:15px;height:15px;flex-shrink:0;}
-#abast-panel #fileInput{display:none;}
 #abast-panel .file-status{font-family:var(--mono); font-size:11px; color:var(--text-faint); text-align:right;}
 #abast-panel .file-status.ok{color:var(--teal);}
 #abast-panel .file-status.err{color:var(--red);}
@@ -551,7 +549,7 @@
         <div class="section" id="sec-abastecimento">
           <div class="section-head">
             <h2>Abastecimento</h2>
-            <p>Conformidade de consumo (Km/Lt vs Meta) por veículo, mês e unidade — cruzando Abastecimento-TML com a Base de Veículos. Importação manual da planilha (processamento local, no navegador).</p>
+            <p>Conformidade de consumo (Km/Lt vs Meta) por veículo, mês e unidade — cruzando Abastecimento-TML, Base de Veículos - Pneus e Exp. Abst. Fonte: dados sincronizados da base.</p>
           </div>
 <div id="abast-panel" class="wrap">
 
@@ -562,19 +560,16 @@
       <p>Conformidade de consumo (Km/Lt vs Meta) por veículo, mês e unidade — cruzando Abastecimento‑TML com a Base de Veículos.</p>
     </div>
     <div class="upload-box">
-      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
-        Importar planilha (.xlsx)
+      <button class="upload-btn" id="abastRefreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        Atualizar dados
       </button>
-      <input type="file" id="fileInput" accept=".xlsx,.xls">
-      <div class="file-status" id="fileStatus">Nenhum arquivo carregado</div>
+      <div class="file-status" id="fileStatus">Carregando dados sincronizados...</div>
     </div>
   </div>
 
   <div id="emptyState" class="empty-state">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>
-    <h3>Aguardando a planilha</h3>
-    <p>Importe o arquivo "Dash - Controladoria.xlsx" com as abas <b>Abastecimento - TML</b>, <b>Base de Veículos - Pneus</b> e <b>Exp. Abst</b>. O processamento acontece localmente no navegador.</p>
+    <div class="spinner">Carregando dados de abastecimento...</div>
   </div>
 
   <div id="appContent" style="display:none;">
@@ -1209,6 +1204,7 @@ function activateSection(section){
     if(section === "pneus") renderPneus();
     if(section === "inventario") renderInventario();
     if(section === "retencao") renderRetencao();
+    if(section === "abastecimento") renderAbastecimentoPanel();
     if(section === "dados") renderDadosGeral();
   }
 }
@@ -2596,10 +2592,6 @@ const TARGET_SECTORS = [
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MIN_SAMPLE_RANKING = 5; // combinações veículo-mês mínimas para uma unidade entrar no ranking
 
-const VEIC_RE = /^Veículo\s*:\s*(\S+)/;
-const TOTAL_RE = /^Total Veículo/;
-const CHASSI_RE = /Tipo de Chassi:\s*([^\t]+?)\s*Tipo de Motor/;
-
 function normSector(s){
   if(!s) return '';
   return s.toString().trim().toUpperCase()
@@ -2626,44 +2618,24 @@ const STATE = {
 };
 
 // ---------------------------------------------------------------------
-// File handling
+// Data loading — Supabase (dados sincronizados; substitui a antiga importação
+// manual de planilha .xlsx). As 3 abas necessárias já chegam com campos
+// nomeados (parse_mode "abastecimento"/"flat" no source_sheets), então aqui
+// só mapeamos os nomes de campo para a mesma forma que o restante do painel
+// (aggregateMonthly, renderAll, etc.) já espera — nada na camada de
+// renderização precisa mudar.
 // ---------------------------------------------------------------------
-document.getElementById('fileInput').addEventListener('change', function(e){
-  const file = e.target.files[0];
-  if(!file) return;
-  const statusEl = document.getElementById('fileStatus');
-  statusEl.textContent = 'Processando ' + file.name + '...';
-  statusEl.className = 'file-status';
-
-  const reader = new FileReader();
-  reader.onload = function(evt){
-    try{
-      const data = new Uint8Array(evt.target.result);
-      const wb = XLSX.read(data, {type:'array', cellDates:true});
-      processWorkbook(wb);
-      statusEl.textContent = 'Carregado: ' + file.name + ' — ' + new Date().toLocaleString('pt-BR');
-      statusEl.className = 'file-status ok';
-      document.getElementById('emptyState').style.display = 'none';
-      document.getElementById('appContent').style.display = 'block';
-    }catch(err){
-      console.error(err);
-      statusEl.textContent = 'Erro ao processar arquivo: ' + err.message;
-      statusEl.className = 'file-status err';
-    }
-  };
-  reader.onerror = function(){
-    statusEl.textContent = 'Erro ao ler o arquivo.';
-    statusEl.className = 'file-status err';
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-// ---------------------------------------------------------------------
-// Workbook processing
-// ---------------------------------------------------------------------
-function processWorkbook(wb){
-  const sheetNames = wb.SheetNames;
-  const findSheet = (name) => sheetNames.find(n => n.trim() === name) || sheetNames.find(n => n.toLowerCase().includes(name.toLowerCase().split(' ')[0]));
+async function loadAbastecimentoFromSupabase(){
+  const [abastSnap, pneusSnap, expSnap] = await Promise.all([
+    getLatestSnapshotDate('Abastecimento - TML'),
+    getLatestSnapshotDate('Base de Veiculos - Pneus'),
+    getLatestSnapshotDate('Exp. Abst'),
+  ]);
+  const [abastRows, pneusRows, expRowsRaw] = await Promise.all([
+    fetchAllRows('Abastecimento - TML', abastSnap),
+    fetchAllRows('Base de Veiculos - Pneus', pneusSnap),
+    fetchAllRows('Exp. Abst', expSnap),
+  ]);
 
   // Reset state
   STATE.vehicleInfo = {};
@@ -2676,87 +2648,62 @@ function processWorkbook(wb){
   STATE.globalAllList = [];
   STATE.expRows = [];
 
-  parsePneusBase(wb, findSheet('Base de Veículos - Pneus'));
-  parseAbastecimento(wb, findSheet('Abastecimento - TML'));
+  parsePneusBase(pneusRows);
+  parseAbastecimento(abastRows);
   aggregateMonthly();
-  parseExpAbst(wb, findSheet('Exp. Abst'));
+  parseExpAbst(expRowsRaw);
 
-  renderAll();
+  STATE.resolvedDates = {
+    'Abastecimento - TML': abastSnap,
+    'Base de Veículos - Pneus': pneusSnap,
+    'Exp. Abst': expSnap,
+  };
 }
 
-function parsePneusBase(wb, sheetName){
-  if(!sheetName || !wb.Sheets[sheetName]) return;
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true});
-  for(let i=1;i<rows.length;i++){
-    const r = rows[i];
-    if(!r || r[0]==null || r[0]==='') continue;
-    const key = String(r[0]).trim();
-    STATE.vehicleInfo[key] = {
-      unidade: r[1] || 'Não identificada',
-      empresa: r[2] || '',
-      tipoServico: r[3] || '',
-      tipoChassi: r[4] || '',
-      placa: r[5] || '',
-      tipoEquip: r[6] || ''
+function parsePneusBase(rows){
+  rows.forEach(function(r){
+    const key = r['Nº de Ordem'];
+    if(key == null || key === '') return;
+    STATE.vehicleInfo[String(key).trim()] = {
+      unidade: r['Unidade'] || 'Não identificada',
+      empresa: r['Empresa'] || '',
+      tipoServico: r['Tipo de Serviço'] || '',
+      tipoChassi: r['Tipo de Chassi (Motorização)'] || '',
+      placa: r['Placa'] || '',
+      tipoEquip: r['Tipo de Equipamento'] || ''
     };
-  }
+  });
 }
 
-function parseAbastecimento(wb, sheetName){
-  if(!sheetName || !wb.Sheets[sheetName]) return;
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true});
-
-  let currentVehicle = null;
-  let lastDate = null;
-  let skipNext = 0;
-
-  for(let i=0;i<rows.length;i++){
-    const r = rows[i];
-    if(skipNext > 0){ skipNext--; continue; }
-    if(!r || r.length === 0) continue;
-    const c0 = r[0];
-
-    if(typeof c0 === 'string' && VEIC_RE.test(c0)){
-      const m = c0.match(VEIC_RE);
-      const chassiM = c0.match(CHASSI_RE);
-      const code = m ? m[1] : null;
-      const num = code ? code.split('/').pop() : null;
-      currentVehicle = { code, num, chassi: chassiM ? chassiM[1].trim() : '' };
-      lastDate = null;
-      if(code && !STATE.allByVehicle[code]) STATE.allByVehicle[code] = [];
-      skipNext = 1; // skip column-header row
-      continue;
-    }
-    if(typeof c0 === 'string' && TOTAL_RE.test(c0)){
-      currentVehicle = null;
-      skipNext = 1; // skip totals row
-      continue;
-    }
-    if(!currentVehicle) continue;
-
-    const data = r[0], kmRod = r[3], comb = r[4], kmLt = r[5], meta = r[6], difPct = r[7], setor = r[14], turno = r[15], valor = r[16];
-    if(data instanceof Date) lastDate = data;
-    if(comb == null || Number(comb) <= 0) continue; // skip odometer-only checkpoint rows
+function parseAbastecimento(rows){
+  rows.forEach(function(r){
+    const code = (r.Veiculo || '').toString().trim();
+    if(!code) return;
+    const vehNum = code.split('/').pop();
+    const info = STATE.vehicleInfo[vehNum];
+    const comb = num(r.Comb);
+    if(!comb || comb <= 0) return; // linhas só de hodômetro (checkpoint), sem abastecimento real
 
     const rec = {
-      vehicleCode: currentVehicle.code,
-      vehicleNum: currentVehicle.num,
-      chassi: currentVehicle.chassi,
-      data: (data instanceof Date) ? data : lastDate,
-      kmRod: Number(kmRod) || 0,
-      comb: Number(comb) || 0,
-      kmLt: Number(kmLt) || 0,
-      meta: Number(meta) || 0,
-      difPct: Number(difPct) || 0,
-      setor: setor || '',
-      turno: turno,
-      valor: Number(valor) || 0
+      vehicleCode: code,
+      vehicleNum: vehNum,
+      chassi: (info && info.tipoChassi) || '',
+      data: parseLenientDate(r.Data),
+      kmRod: num(r.Km_Rod) || 0,
+      comb: comb,
+      kmLt: num(r.Km_Lt) || 0,
+      meta: num(r.Meta) || 0,
+      difPct: num(r.Dif_Pct) || 0,
+      setor: r.St_Abast || '',
+      turno: r.Tur,
+      valor: num(r.Vl_Ab) || 0
     };
-    STATE.allByVehicle[currentVehicle.code].push(rec);
-    if(TARGET_NORM.has(normSector(setor))){
+    if(!STATE.allByVehicle[code]) STATE.allByVehicle[code] = [];
+    STATE.allByVehicle[code].push(rec);
+    if(TARGET_NORM.has(normSector(rec.setor))){
       STATE.filteredRecords.push(rec);
     }
-  }
+  });
 }
 
 function monthKey(d){ return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
@@ -2807,22 +2754,20 @@ function aggregateMonthly(){
     .sort((a,b) => a.avgDif - b.avgDif); // worst first
 }
 
-function parseExpAbst(wb, sheetName){
-  if(!sheetName || !wb.Sheets[sheetName]) return;
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {header:1, raw:true});
+function parseExpAbst(rows){
   const out = [];
-  for(let i=1;i<rows.length;i++){
-    const r = rows[i];
-    if(!r || r[3] == null) continue;
-    if(!TARGET_NORM.has(normSector(r[3]))) continue;
+  rows.forEach(function(r){
+    const setor = r['Setor de Abastecimento'];
+    if(setor == null || setor === '') return;
+    if(!TARGET_NORM.has(normSector(setor))) return;
     out.push({
-      data: (r[1] instanceof Date) ? r[1] : null,
-      turno: r[2],
-      setor: r[3],
-      situacao: r[4],
-      situacaoExp: r[5]
+      data: parseLenientDate(r.Data),
+      turno: r.Turno,
+      setor: setor,
+      situacao: r['Situação'],
+      situacaoExp: r['Situação da Exportação']
     });
-  }
+  });
   STATE.expRows = out;
 }
 
@@ -2842,10 +2787,46 @@ function renderAll(){
   setupTabs();
   renderRankingMonthPills();
   renderRanking(STATE.months[STATE.months.length-1] || null);
+  const datesTxt = STATE.resolvedDates ? Object.keys(STATE.resolvedDates).map(function(k){
+    return k + ': ' + fmtDateBR(STATE.resolvedDates[k]);
+  }).join(' · ') : '';
   document.getElementById('footerNote').textContent =
     'Setores considerados: ' + TARGET_SECTORS.length + ' · Registros de abastecimento filtrados: ' + fmtNum(STATE.filteredRecords.length) +
-    ' · Combinações veículo-mês: ' + fmtNum(STATE.globalAllList.length);
+    ' · Combinações veículo-mês: ' + fmtNum(STATE.globalAllList.length) +
+    (datesTxt ? ' · Dados sincronizados usados — ' + datesTxt : '');
 }
+
+// ---------------------------------------------------------------------
+// Entrada da seção (chamada pelo activateSection) — busca os dados no
+// Supabase e renderiza; mostra spinner/erro em emptyState enquanto isso.
+// ---------------------------------------------------------------------
+async function renderAbastecimentoPanel(){
+  const emptyState = document.getElementById('emptyState');
+  const appContent = document.getElementById('appContent');
+  const fileStatus = document.getElementById('fileStatus');
+  appContent.style.display = 'none';
+  emptyState.style.display = 'flex';
+  emptyState.innerHTML = '<div class="spinner">Carregando dados de abastecimento...</div>';
+  if(fileStatus){ fileStatus.textContent = 'Sincronizando...'; fileStatus.className = 'file-status'; }
+  try{
+    await loadAbastecimentoFromSupabase();
+    renderAll();
+    emptyState.style.display = 'none';
+    appContent.style.display = 'block';
+    if(fileStatus){
+      const datesTxt = STATE.resolvedDates ? Object.keys(STATE.resolvedDates).map(function(k){
+        return k + ': ' + fmtDateBR(STATE.resolvedDates[k]);
+      }).join(' · ') : '';
+      fileStatus.textContent = 'Dados sincronizados' + (datesTxt ? ' — ' + datesTxt : '');
+      fileStatus.className = 'file-status ok';
+    }
+  }catch(err){
+    console.error(err);
+    emptyState.innerHTML = '<h3>Erro ao carregar dados</h3><p>' + escapeHtml(err.message) + '</p>';
+    if(fileStatus){ fileStatus.textContent = 'Erro ao sincronizar'; fileStatus.className = 'file-status err'; }
+  }
+}
+document.getElementById('abastRefreshBtn').addEventListener('click', function(){ renderAbastecimentoPanel(); });
 
 function renderKpis(){
   const total = STATE.globalAllList.length;
