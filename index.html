@@ -2549,10 +2549,16 @@ function exportCsv(){
 }
 
 // ---------- boot ----------
-(async function boot(){
+// A chamada real fica no fim do documento (depois do <script id="abast-script">),
+// não aqui: quando a sessão já está salva e válida, getValidSession() resolve na
+// hora (sem round-trip de rede), e o boot() corria antes do script de Abastecimento
+// terminar de carregar — showApp()/renderHome() chamava loadAbastecimentoFromSupabase
+// antes de ela existir ("loadAbastecimentoFromSupabase is not defined"). Definindo
+// boot() aqui mas só invocando depois de todos os <script> terem rodado evita a corrida.
+async function boot(){
   const session = await getValidSession();
   if(session){ currentSession = session; showApp(); }
-})();
+}
 </script>
 <script id="abast-script">
 // ==========================================================================
@@ -3375,7 +3381,12 @@ function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
 }
-
+</script>
+<script>
+// Só dispara o boot depois que TODOS os <script> da página (inclusive o de
+// Abastecimento, abaixo do anterior) já terminaram de rodar e registraram
+// suas funções — ver o comentário junto de "async function boot()" acima.
+boot();
 </script>
 </body>
 </html>
