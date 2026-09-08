@@ -1450,6 +1450,24 @@ function osAbertaDetailTable(v){
 
 let telemetriaAsOf = null;
 let telemetriaUnidadeFiltro = null;
+let telemetriaVizMode = VizModes.loadMode("telemetria");
+// Mesma lista `vehicles` já usada pelos KPIs e pela "Detalhamento por unidade" acima, remapeada
+// pros modos de visualização alternativos: identificador = carro, agrupamento = unidade,
+// severidade = dias sem comunicação (quanto maior, pior — mesma métrica já usada no KPI "Média
+// dias sem comunicação"). O detalhe reaproveita a mesma tabela de O.S. abertas da visão em tabela.
+function buildTelemetriaVizItems(vehicles){
+  return vehicles.map(function(v, i){
+    return {
+      id: v.carro || ("#" + i),
+      label: "Veículo " + (v.carro || "—") + " — " + (v.unidade || "Sem unidade"),
+      group: v.unidade || "Sem unidade",
+      group2: null,
+      context: v.classe === "critico" ? "Crítico" : v.classe === "irregular" ? "Irregular" : "Conforme",
+      severity: v.diasSemCom,
+      raw: v,
+    };
+  });
+}
 async function renderTelemetria(newAsOf){
   if(newAsOf !== undefined) telemetriaAsOf = newAsOf;
   const el = document.getElementById("telemetria-body");
@@ -1499,52 +1517,103 @@ async function renderTelemetria(newAsOf){
       + kpiCard("Média dias sem comunicação", fmtNum(media), "info")
       + '</div>';
 
-    if(recorrentes.length){
-      html += '<div class="subsection"><h3>Veículos recorrentes em O.S. de telemetria (≥2 desde 19/05/2026)</h3><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Unidade</th><th>Qtd O.S. Telemetria</th><th>Dias sem com.</th></tr></thead><tbody>'
-        + recorrentes.map(function(v){
-          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+escapeHtml(v.unidade)+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td></tr>';
-        }).join("") + '</tbody></table></div></div>';
-    }
+    const telVizItemsAll = buildTelemetriaVizItems(vehicles);
+    const telVizStoredThresh = VizModes.loadThresholds("telemetria");
+    const telVizAutoThresh = VizModes.computeDefaultThresholds(telVizItemsAll.map(function(it){ return it.severity; }));
+    let telVizActiveThresh = telVizStoredThresh || telVizAutoThresh;
 
-    html += '<div class="subsection"><h3>Detalhamento por unidade</h3>';
-    let osIdxCounter = 0;
-    unidades.forEach(function(u){
-      const list = byUnidade[u].slice().sort(function(a,b){ return b.qtdOs - a.qtdOs || (b.diasSemCom||0) - (a.diasSemCom||0); });
-      const critCount = list.filter(function(v){ return v.classe==="critico"; }).length;
-      const irregCount = list.filter(function(v){ return v.classe==="irregular"; }).length;
-      const summaryBadge = critCount ? '<span class="badge b-critical">' + critCount + ' crítico(s)</span>'
-        : (irregCount ? '<span class="badge b-warning">' + irregCount + ' irregular(es)</span>' : '<span class="badge b-good">conforme</span>');
-      html += '<details class="vgroup"><summary><span>' + escapeHtml(u) + ' (' + list.length + ' carros)</span><span>' + summaryBadge + '</span></summary><div class="vgroup-body"><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Dt. Verificação</th><th>Última com.</th><th>Dias sem com.</th><th>O.S. abertas</th><th>Dias máx. O.S.</th><th>O.S. telemetria</th><th>Abastecimentos recentes</th><th>Observação</th><th>Status</th></tr></thead><tbody>'
-        + list.map(function(v){
-          const abastStr = v.abastecimentos.length ? v.abastecimentos.map(function(a){ return a.data.toLocaleDateString("pt-BR"); }).join(", ") : "—";
-          let osCell, detailRow = "";
-          if(v.qtdOs > 0){
-            const idx = osIdxCounter++;
-            osCell = '<button type="button" class="os-link" data-os-idx="' + idx + '" title="Ver detalhes da(s) O.S. aberta(s)">' + v.qtdOs + '<span class="os-caret">▾</span></button>';
-            detailRow = '<tr class="os-detail-row" data-os-detail="' + idx + '" style="display:none;"><td colspan="10">' + osAbertaDetailTable(v) + '</td></tr>';
-          } else {
-            osCell = String(v.qtdOs);
-          }
-          return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+(v.dataVerificacao?v.dataVerificacao.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.ultimaCom?v.ultimaCom.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td><td>'+osCell+'</td><td>'+(v.diasMaxOs||"—")+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+abastStr+'</td><td>'+(v.observacaoBase?escapeHtml(v.observacaoBase):"—")+'</td><td>'+classBadge(v.classe)+(v.contradicao?' <span class="badge b-warning" title="Observação menciona \'comunicando\' apesar de sem comunicação">contradição</span>':'')+'</td></tr>' + detailRow;
-        }).join("") + '</tbody></table></div></div></details>';
-    });
-    html += '</div>';
+    html += VizModes.modeTabsHtml("telemetria", telemetriaVizMode);
+
+    if(telemetriaVizMode === "tabela"){
+      if(recorrentes.length){
+        html += '<div class="subsection"><h3>Veículos recorrentes em O.S. de telemetria (≥2 desde 19/05/2026)</h3><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Unidade</th><th>Qtd O.S. Telemetria</th><th>Dias sem com.</th></tr></thead><tbody>'
+          + recorrentes.map(function(v){
+            return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+escapeHtml(v.unidade)+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td></tr>';
+          }).join("") + '</tbody></table></div></div>';
+      }
+
+      html += '<div class="subsection"><h3>Detalhamento por unidade</h3>';
+      let osIdxCounter = 0;
+      unidades.forEach(function(u){
+        const list = byUnidade[u].slice().sort(function(a,b){ return b.qtdOs - a.qtdOs || (b.diasSemCom||0) - (a.diasSemCom||0); });
+        const critCount = list.filter(function(v){ return v.classe==="critico"; }).length;
+        const irregCount = list.filter(function(v){ return v.classe==="irregular"; }).length;
+        const summaryBadge = critCount ? '<span class="badge b-critical">' + critCount + ' crítico(s)</span>'
+          : (irregCount ? '<span class="badge b-warning">' + irregCount + ' irregular(es)</span>' : '<span class="badge b-good">conforme</span>');
+        html += '<details class="vgroup"><summary><span>' + escapeHtml(u) + ' (' + list.length + ' carros)</span><span>' + summaryBadge + '</span></summary><div class="vgroup-body"><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Dt. Verificação</th><th>Última com.</th><th>Dias sem com.</th><th>O.S. abertas</th><th>Dias máx. O.S.</th><th>O.S. telemetria</th><th>Abastecimentos recentes</th><th>Observação</th><th>Status</th></tr></thead><tbody>'
+          + list.map(function(v){
+            const abastStr = v.abastecimentos.length ? v.abastecimentos.map(function(a){ return a.data.toLocaleDateString("pt-BR"); }).join(", ") : "—";
+            let osCell, detailRow = "";
+            if(v.qtdOs > 0){
+              const idx = osIdxCounter++;
+              osCell = '<button type="button" class="os-link" data-os-idx="' + idx + '" title="Ver detalhes da(s) O.S. aberta(s)">' + v.qtdOs + '<span class="os-caret">▾</span></button>';
+              detailRow = '<tr class="os-detail-row" data-os-detail="' + idx + '" style="display:none;"><td colspan="10">' + osAbertaDetailTable(v) + '</td></tr>';
+            } else {
+              osCell = String(v.qtdOs);
+            }
+            return '<tr><td>'+escapeHtml(v.carro)+'</td><td>'+(v.dataVerificacao?v.dataVerificacao.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.ultimaCom?v.ultimaCom.toLocaleDateString("pt-BR"):"—")+'</td><td>'+(v.diasSemCom==null?"—":v.diasSemCom)+'</td><td>'+osCell+'</td><td>'+(v.diasMaxOs||"—")+'</td><td>'+v.qtdOsTelemetria+'</td><td>'+abastStr+'</td><td>'+(v.observacaoBase?escapeHtml(v.observacaoBase):"—")+'</td><td>'+classBadge(v.classe)+(v.contradicao?' <span class="badge b-warning" title="Observação menciona \'comunicando\' apesar de sem comunicação">contradição</span>':'')+'</td></tr>' + detailRow;
+          }).join("") + '</tbody></table></div></div></details>';
+      });
+      html += '</div>';
+    } else {
+      html += VizModes.thresholdControlsHtml("telemetria", telVizActiveThresh, !!telVizStoredThresh, "dias");
+      html += '<div id="telemetria-viz-mount"></div>';
+    }
 
     html += '<div class="section-footer">' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML") + resolvedDatesNote(data.resolvedDates) + '</div>';
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
     fitAllKpiValues(area);
-    enableSortableTables(area);
-    wireUnidadeFilter("telemetria", function(v){ telemetriaUnidadeFiltro = v; renderTelemetria(); });
-    area.querySelectorAll(".os-link").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const row = area.querySelector('.os-detail-row[data-os-detail="' + btn.dataset.osIdx + '"]');
-        if(!row) return;
-        const showing = row.style.display !== "none";
-        row.style.display = showing ? "none" : "table-row";
-        btn.classList.toggle("open", !showing);
+    VizModes.wireModeTabs(area, "telemetria", function(m){ telemetriaVizMode = m; renderTelemetria(); });
+
+    if(telemetriaVizMode === "tabela"){
+      enableSortableTables(area);
+      wireUnidadeFilter("telemetria", function(v){ telemetriaUnidadeFiltro = v; renderTelemetria(); });
+      area.querySelectorAll(".os-link").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          const row = area.querySelector('.os-detail-row[data-os-detail="' + btn.dataset.osIdx + '"]');
+          if(!row) return;
+          const showing = row.style.display !== "none";
+          row.style.display = showing ? "none" : "table-row";
+          btn.classList.toggle("open", !showing);
+        });
       });
-    });
+    } else {
+      wireUnidadeFilter("telemetria", function(v){ telemetriaUnidadeFiltro = v; renderTelemetria(); });
+
+      const telVizMount = document.getElementById("telemetria-viz-mount");
+      const telVizOpts = {
+        severityLabel: "dias sem comunicação", severityUnit: "d", groupLabel: "Unidade", idLabel: "Carro",
+        onItemClick: function(it){ VizModes.openDetailModal(it.label, osAbertaDetailTable(it.raw)); },
+        onGroupClick: function(groupName){
+          telemetriaUnidadeFiltro = groupName;
+          telemetriaVizMode = "tabela";
+          VizModes.saveMode("telemetria", "tabela");
+          renderTelemetria();
+        },
+      };
+      function drawTelVizMode(){
+        if(telemetriaVizMode === "cards") VizModes.renderCardGroups(telVizMount, telVizItemsAll, telVizActiveThresh, telVizOpts);
+        else if(telemetriaVizMode === "kanban") VizModes.renderKanban(telVizMount, telVizItemsAll, telVizActiveThresh, telVizOpts);
+        else if(telemetriaVizMode === "exec") VizModes.renderExecSummary(telVizMount, telVizItemsAll, telVizActiveThresh, Object.assign({ title:"Resumo executivo — Telemetria" }, telVizOpts), { updatedNote: "Dados de " + fmtDateBR(data.resolvedDates["Base - TML"]) + " · Gerado em " + fmtDateTime(new Date()) });
+      }
+      drawTelVizMode();
+
+      const telVizControlsEl = area.querySelector(".viz-controls");
+      if(telVizControlsEl){
+        VizModes.wireThresholdControls(telVizControlsEl, "telemetria", function(t){
+          telVizActiveThresh = t;
+          drawTelVizMode();
+          const noteEl = telVizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares ajustados manualmente.";
+        }, function(){
+          telVizActiveThresh = telVizAutoThresh;
+          drawTelVizMode();
+          const noteEl = telVizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis).";
+        });
+      }
+    }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Telemetria: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1739,8 +1808,50 @@ function tireTable(list, cols){
   return '<div class="table-wrap"><table><thead><tr>'+head+'</tr></thead><tbody>'+(body || '<tr><td>Nenhum registro.</td></tr>')+'</tbody></table></div>' + more;
 }
 
+// Painel expansível com os dados completos de um pneu — mesmo padrão do detalhe de O.S. usado
+// em Retenção/Telemetria, usado no clique de um item nos modos de visualização alternativos.
+function tireDetailTable(t){
+  return '<div class="table-wrap"><table><tbody>'
+    + '<tr><td style="font-weight:700;width:160px;">Veículo</td><td>' + escapeHtml(t.veiculoRaw) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Placa</td><td>' + escapeHtml(t.placa || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Unidade</td><td>' + escapeHtml(t.local || "Sem unidade") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Empresa</td><td>' + escapeHtml(t.empresaNome || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Posição</td><td>' + escapeHtml(t.posicao || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Pneu</td><td>' + escapeHtml(t.pneu || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Situação</td><td>' + escapeHtml(t.situacao || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Marca</td><td>' + escapeHtml(t.marca || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Desenho</td><td>' + escapeHtml(t.desenho || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Medida</td><td>' + escapeHtml(t.medida || "—") + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Sulco</td><td>' + sulcoBadge(t) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Data medição</td><td>' + (t.dtSulco ? t.dtSulco.toLocaleDateString("pt-BR") : "—") + '</td></tr>'
+    + '</tbody></table></div>';
+}
+const PNEUS_GROUP_FIELDS = [
+  { key:"local", label:"Unidade" },
+  { key:"empresa", label:"Empresa" },
+];
+// Mesma lista de pneus (com sulco medido) já usada nos alertas/ranking acima, remapeada pros
+// modos de visualização alternativos: identificador = veículo+posição (um veículo tem vários
+// pneus), agrupamento = Unidade ou Empresa, severidade = sulco em mm — quanto MENOR, pior, por
+// isso os limiares dessa métrica são calculados invertidos (ver VizModes.computeDefaultThresholds).
+function buildPneusVizItems(tires, groupFieldKey){
+  return tires.filter(function(t){ return t.pneu && t.pneu !== "S/PNEU"; }).map(function(t, i){
+    const groupVal = groupFieldKey === "empresa" ? (t.empresaNome || "Sem empresa") : (t.local || "Sem unidade");
+    return {
+      id: (t.veiculoRaw || ("#"+i)) + " · " + (t.posicao || "?"),
+      label: "Veículo " + (t.veiculoRaw || "—") + " — posição " + (t.posicao || "—"),
+      group: groupVal,
+      group2: null,
+      context: t.situacao || null,
+      severity: isNaN(t.sulco) ? null : t.sulco,
+      raw: t,
+    };
+  });
+}
 let pneusAsOf = null;
 let pneusUnidadeFiltro = null;
+let pneusVizMode = VizModes.loadMode("pneus");
+let pneusGroupField = VizModes.loadGroupField("pneus", PNEUS_GROUP_FIELDS.map(function(f){ return f.key; }), "local");
 async function renderPneus(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
   const el = document.getElementById("pneus-body");
@@ -1785,54 +1896,112 @@ async function renderPneus(newAsOf){
       + kpiCard("Sem unidade", fmtNum(d.semUnidadeCount), d.semUnidadeCount?"critical":"good")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Ranking por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
-      + d.ranking.map(function(r){
-        return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+r.critico+'</td><td>'+r.atencao+'</td><td>'+r.rodizio+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
-      }).join("") + '</tbody></table></div></div>';
+    const pneuVizItemsAll = buildPneusVizItems(d.tires, pneusGroupField);
+    const pneuVizStoredThresh = VizModes.loadThresholds("pneus");
+    const pneuVizAutoThresh = VizModes.computeDefaultThresholds(pneuVizItemsAll.map(function(it){ return it.severity; }), true);
+    let pneuVizActiveThresh = pneuVizStoredThresh || pneuVizAutoThresh;
 
-    html += '<div class="subsection"><h3>Veículos sem unidade (' + d.semUnidadeCount + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Placa</th><th>Empresa</th></tr></thead><tbody>'
-      + (d.semUnidade.length ? d.semUnidade.map(function(v){
-        return '<tr><td>'+escapeHtml(v.veiculoRaw)+'</td><td>'+escapeHtml(v.placa||"—")+'</td><td>'+escapeHtml(v.empresaNome||"—")+'</td></tr>';
-      }).join("") : '<tr><td colspan="3">Nenhum veículo sem unidade — tudo conciliado.</td></tr>')
-      + '</tbody></table></div></div>';
+    html += VizModes.modeTabsHtml("pneus", pneusVizMode);
 
-    const tireCols = [
-      { label:"Unidade", render:function(t){ return escapeHtml(t.local || "Sem unidade"); } },
-      { label:"Veículo", render:function(t){ return escapeHtml(t.veiculoRaw); } },
-      { label:"Placa", render:function(t){ return escapeHtml(t.placa || "—"); } },
-      { label:"Posição", render:function(t){ return escapeHtml(t.posicao); } },
-      { label:"Pneu", render:function(t){ return escapeHtml(t.pneu); } },
-      { label:"Situação", render:function(t){ return escapeHtml(t.situacao); } },
-      { label:"Marca", render:function(t){ return escapeHtml(t.marca); } },
-      { label:"Desenho", render:function(t){ return escapeHtml(t.desenho); } },
-      { label:"Medida", render:function(t){ return escapeHtml(t.medida); } },
-      { label:"Sulco", render:sulcoBadge },
-      { label:"Dt.Sulco", render:function(t){ return t.dtSulco ? t.dtSulco.toLocaleDateString("pt-BR") : "—"; } },
-    ];
+    if(pneusVizMode === "tabela"){
+      html += '<div class="subsection"><h3>Ranking por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
+        + d.ranking.map(function(r){
+          return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+r.critico+'</td><td>'+r.atencao+'</td><td>'+r.rodizio+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
+        }).join("") + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Reforma (posição DD/DE)</h3>' + tireTable(d.alerts.reform, tireCols) + '</div>';
-    html += '<div class="subsection"><h3>Sulco crítico (≤3mm)</h3>' + tireTable(d.alerts.critico, tireCols) + '</div>';
-    html += '<div class="subsection"><h3>Sulco em atenção (4-5mm)</h3>' + tireTable(d.alerts.atencao, tireCols) + '</div>';
+      html += '<div class="subsection"><h3>Veículos sem unidade (' + d.semUnidadeCount + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Placa</th><th>Empresa</th></tr></thead><tbody>'
+        + (d.semUnidade.length ? d.semUnidade.map(function(v){
+          return '<tr><td>'+escapeHtml(v.veiculoRaw)+'</td><td>'+escapeHtml(v.placa||"—")+'</td><td>'+escapeHtml(v.empresaNome||"—")+'</td></tr>';
+        }).join("") : '<tr><td colspan="3">Nenhum veículo sem unidade — tudo conciliado.</td></tr>')
+        + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Rodízio recomendado (diferença de sulco &gt;2mm no eixo)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Par</th><th>Pos.A</th><th>Sulco A</th><th>Pos.B</th><th>Sulco B</th><th>Diferença</th></tr></thead><tbody>'
-      + d.alerts.rodizio.slice(0,300).map(function(r){
-        return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+r.posA+'/'+r.posB+'</td><td>'+r.posA+'</td><td>'+r.sulcoA+' mm</td><td>'+r.posB+'</td><td>'+r.sulcoB+' mm</td><td><b>'+r.diff.toFixed(1)+' mm</b></td></tr>';
-      }).join("") + '</tbody></table></div></div>';
+      const tireCols = [
+        { label:"Unidade", render:function(t){ return escapeHtml(t.local || "Sem unidade"); } },
+        { label:"Veículo", render:function(t){ return escapeHtml(t.veiculoRaw); } },
+        { label:"Placa", render:function(t){ return escapeHtml(t.placa || "—"); } },
+        { label:"Posição", render:function(t){ return escapeHtml(t.posicao); } },
+        { label:"Pneu", render:function(t){ return escapeHtml(t.pneu); } },
+        { label:"Situação", render:function(t){ return escapeHtml(t.situacao); } },
+        { label:"Marca", render:function(t){ return escapeHtml(t.marca); } },
+        { label:"Desenho", render:function(t){ return escapeHtml(t.desenho); } },
+        { label:"Medida", render:function(t){ return escapeHtml(t.medida); } },
+        { label:"Sulco", render:sulcoBadge },
+        { label:"Dt.Sulco", render:function(t){ return t.dtSulco ? t.dtSulco.toLocaleDateString("pt-BR") : "—"; } },
+      ];
 
-    html += '<div class="subsection"><h3>Pendência de coleta (&gt;3000km rodados desde a última medição)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Placa</th><th>Km rodado</th></tr></thead><tbody>'
-      + d.alerts.coleta.slice(0,300).map(function(r){
-        return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.placa||"—")+'</td><td><b>'+fmtNum(r.km)+' km</b></td></tr>';
-      }).join("") + '</tbody></table></div></div>';
+      html += '<div class="subsection"><h3>Reforma (posição DD/DE)</h3>' + tireTable(d.alerts.reform, tireCols) + '</div>';
+      html += '<div class="subsection"><h3>Sulco crítico (≤3mm)</h3>' + tireTable(d.alerts.critico, tireCols) + '</div>';
+      html += '<div class="subsection"><h3>Sulco em atenção (4-5mm)</h3>' + tireTable(d.alerts.atencao, tireCols) + '</div>';
 
-    html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
-    html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
+      html += '<div class="subsection"><h3>Rodízio recomendado (diferença de sulco &gt;2mm no eixo)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Par</th><th>Pos.A</th><th>Sulco A</th><th>Pos.B</th><th>Sulco B</th><th>Diferença</th></tr></thead><tbody>'
+        + d.alerts.rodizio.slice(0,300).map(function(r){
+          return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+r.posA+'/'+r.posB+'</td><td>'+r.posA+'</td><td>'+r.sulcoA+' mm</td><td>'+r.posB+'</td><td>'+r.sulcoB+' mm</td><td><b>'+r.diff.toFixed(1)+' mm</b></td></tr>';
+        }).join("") + '</tbody></table></div></div>';
+
+      html += '<div class="subsection"><h3>Pendência de coleta (&gt;3000km rodados desde a última medição)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Placa</th><th>Km rodado</th></tr></thead><tbody>'
+        + d.alerts.coleta.slice(0,300).map(function(r){
+          return '<tr><td>'+escapeHtml(r.local||"Sem unidade")+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.placa||"—")+'</td><td><b>'+fmtNum(r.km)+' km</b></td></tr>';
+        }).join("") + '</tbody></table></div></div>';
+
+      html += '<div class="subsection"><h3>Sucata (troca imediata)</h3>' + tireTable(d.alerts.sucata, tireCols) + '</div>';
+      html += '<div class="subsection"><h3>Sem pneu (posição vaga)</h3>' + tireTable(d.alerts.sempneu, tireCols.filter(function(c){return c.label!=="Sulco" && c.label!=="Dt.Sulco";})) + '</div>';
+    } else {
+      html += VizModes.thresholdControlsHtml("pneus", pneuVizActiveThresh, !!pneuVizStoredThresh, "mm",
+        VizModes.groupSelectHtml("pneus", PNEUS_GROUP_FIELDS, pneusGroupField));
+      html += '<div id="pneus-viz-mount"></div>';
+    }
 
     html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV, Base - TML (conciliação de unidade)") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
     fitAllKpiValues(area);
-    enableSortableTables(area);
-    wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
+    VizModes.wireModeTabs(area, "pneus", function(m){ pneusVizMode = m; renderPneus(); });
+
+    if(pneusVizMode === "tabela"){
+      enableSortableTables(area);
+      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
+    } else {
+      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
+
+      const pneuVizMount = document.getElementById("pneus-viz-mount");
+      const pneuVizGroupMeta = PNEUS_GROUP_FIELDS.reduce(function(m,f){ m[f.key]=f.label; return m; }, {});
+      const pneuVizOpts = {
+        severityLabel: "sulco", severityUnit: "mm",
+        groupLabel: pneuVizGroupMeta[pneusGroupField],
+        idLabel: "Veículo · posição",
+        onItemClick: function(it){ VizModes.openDetailModal(it.label, tireDetailTable(it.raw)); },
+        onGroupClick: function(groupName){
+          if(pneusGroupField === "local"){
+            pneusUnidadeFiltro = groupName;
+            pneusVizMode = "tabela";
+            VizModes.saveMode("pneus", "tabela");
+            renderPneus();
+          }
+        },
+      };
+      function drawPneuVizMode(){
+        if(pneusVizMode === "cards") VizModes.renderCardGroups(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, pneuVizOpts);
+        else if(pneusVizMode === "kanban") VizModes.renderKanban(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, pneuVizOpts);
+        else if(pneusVizMode === "exec") VizModes.renderExecSummary(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, Object.assign({ title:"Resumo executivo — Pneus" }, pneuVizOpts), { updatedNote: "Dados de " + fmtDateBR(d.resolvedDates["Dados RPV - Pneus"]) + " · Gerado em " + fmtDateTime(new Date()) });
+      }
+      drawPneuVizMode();
+
+      const pneuVizControlsEl = area.querySelector(".viz-controls");
+      if(pneuVizControlsEl){
+        VizModes.wireThresholdControls(pneuVizControlsEl, "pneus", function(t){
+          pneuVizActiveThresh = t;
+          drawPneuVizMode();
+          const noteEl = pneuVizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares ajustados manualmente.";
+        }, function(){
+          pneuVizActiveThresh = pneuVizAutoThresh;
+          drawPneuVizMode();
+          const noteEl = pneuVizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis).";
+        }, true);
+        VizModes.wireGroupSelect(pneuVizControlsEl, "pneus", function(key){ pneusGroupField = key; renderPneus(); });
+      }
+    }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
@@ -1894,24 +2063,51 @@ const VizModes = (function(){
     if(lo === hi) return sortedAsc[lo];
     return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
   }
-  // Limiares default calculados pela distribuição real dos valores de severidade (percentis
-  // 50 e 85) — nunca fixos em código. O usuário pode sobrepor manualmente (persistido).
-  function computeDefaultThresholds(values){
+  // Limiares default calculados pela distribuição real dos valores de severidade — nunca fixos em
+  // código. `invert` cobre métricas onde valor BAIXO é que é pior (ex.: mm de sulco de pneu): nesse
+  // caso os limiares vêm dos percentis baixos (15/50) em vez dos altos (50/85), mas continuam
+  // representados como { low <= high } — só a comparação em bandOf() muda de sentido. O usuário
+  // pode sempre sobrepor os dois valores manualmente (persistido).
+  function computeDefaultThresholds(values, invert){
     const nums = values.filter(function(v){ return v !== null && v !== undefined && !isNaN(v); }).slice().sort(function(a,b){ return a-b; });
-    if(!nums.length) return { low:0, high:1 };
-    let low = Math.round(percentile(nums, 0.5) * 100) / 100;
-    let high = Math.round(percentile(nums, 0.85) * 100) / 100;
-    if(high <= low) high = low + 1;
-    return { low: low, high: high };
+    if(!nums.length) return { low:0, high:1, invert: !!invert };
+    let low, high;
+    if(invert){
+      low = Math.round(percentile(nums, 0.15) * 100) / 100;
+      high = Math.round(percentile(nums, 0.5) * 100) / 100;
+      if(low >= high) low = high - 1;
+    } else {
+      low = Math.round(percentile(nums, 0.5) * 100) / 100;
+      high = Math.round(percentile(nums, 0.85) * 100) / 100;
+      if(high <= low) high = low + 1;
+    }
+    return { low: low, high: high, invert: !!invert };
   }
   function bandOf(value, thresholds){
     if(value === null || value === undefined || isNaN(value)) return "unknown";
+    if(thresholds.invert){
+      if(value <= thresholds.low) return "critico";
+      if(value <= thresholds.high) return "atencao";
+      return "normal";
+    }
     if(value >= thresholds.high) return "critico";
     if(value >= thresholds.low) return "atencao";
     return "normal";
   }
   const BAND_LABEL = { critico:"Crítico", atencao:"Atenção", normal:"Normal", unknown:"Sem dado" };
   const BAND_BADGE_TONE = { critico:"critical", atencao:"warning", normal:"good", unknown:"info" };
+
+  // Ordena "pior primeiro", independente da métrica ser normal (maior = pior) ou invertida
+  // (menor = pior, ex.: mm de sulco de pneu) — usado em qualquer lista/ranking dos 3 modelos, pra
+  // que "pior primeiro" sempre signifique a mesma coisa visualmente. Itens sem valor vão pro fim.
+  function worstFirstCompare(a, b, invert){
+    const av = (a===null||a===undefined||isNaN(a)) ? null : a;
+    const bv = (b===null||b===undefined||isNaN(b)) ? null : b;
+    if(av === null && bv === null) return 0;
+    if(av === null) return 1;
+    if(bv === null) return -1;
+    return invert ? (av - bv) : (bv - av);
+  }
 
   function modeTabsHtml(vizKey, current){
     return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + VZ_MODES.map(function(m){
@@ -1941,17 +2137,20 @@ const VizModes = (function(){
   }
 
   // extraHtml (opcional): outro(s) campo(s) .vc-field pra colocar antes dos limiares (ex.: o
-  // seletor de dimensão de agrupamento do Modelo 1).
+  // seletor de dimensão de agrupamento do Modelo 1). Os rótulos dos dois campos se adaptam quando
+  // thresholds.invert é verdadeiro (métrica onde valor baixo é que é pior).
   function thresholdControlsHtml(vizKey, thresholds, isOverridden, unitLabel, extraHtml){
+    const lowLabel = thresholds.invert ? "Crítico até (" : "Atenção a partir de (";
+    const highLabel = thresholds.invert ? "Atenção até (" : "Crítico a partir de (";
     return '<div class="viz-controls">'
       + (extraHtml || "")
-      + '<div class="vc-field"><label for="' + vizKey + '-th-low">Atenção a partir de (' + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-low" value="' + thresholds.low + '" step="any" /></div>'
-      + '<div class="vc-field"><label for="' + vizKey + '-th-high">Crítico a partir de (' + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-high" value="' + thresholds.high + '" step="any" /></div>'
+      + '<div class="vc-field"><label for="' + vizKey + '-th-low">' + lowLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-low" value="' + thresholds.low + '" step="any" /></div>'
+      + '<div class="vc-field"><label for="' + vizKey + '-th-high">' + highLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-high" value="' + thresholds.high + '" step="any" /></div>'
       + '<button type="button" class="ghost vc-reset" id="' + vizKey + '-th-reset">Restaurar automático</button>'
-      + '<span class="vc-note">' + (isOverridden ? "Limiares ajustados manualmente." : "Limiares calculados automaticamente pela distribuição dos dados (percentis 50/85).") + '</span>'
+      + '<span class="vc-note">' + (isOverridden ? "Limiares ajustados manualmente." : "Limiares calculados automaticamente pela distribuição dos dados (percentis).") + '</span>'
       + '</div>';
   }
-  function wireThresholdControls(container, vizKey, onChange, onReset){
+  function wireThresholdControls(container, vizKey, onChange, onReset, invert){
     const lowEl = container.querySelector('#' + vizKey + '-th-low');
     const highEl = container.querySelector('#' + vizKey + '-th-high');
     const resetBtn = container.querySelector('#' + vizKey + '-th-reset');
@@ -1959,7 +2158,7 @@ const VizModes = (function(){
     function apply(){
       const low = parseFloat(lowEl.value), high = parseFloat(highEl.value);
       if(isNaN(low) || isNaN(high) || high <= low) return;
-      const t = { low:low, high:high };
+      const t = { low:low, high:high, invert: !!invert };
       saveThresholds(vizKey, t);
       onChange(t);
     }
@@ -2018,11 +2217,7 @@ const VizModes = (function(){
     });
     const groupNames = Object.keys(groupsMap).sort(function(a,b){ return groupsMap[b].length - groupsMap[a].length; });
     const groupRows = groupNames.map(function(g){
-      return groupsMap[g].slice().sort(function(a,b){
-        const av = (a.severity===null||a.severity===undefined||isNaN(a.severity))?-Infinity:a.severity;
-        const bv = (b.severity===null||b.severity===undefined||isNaN(b.severity))?-Infinity:b.severity;
-        return bv - av;
-      });
+      return groupsMap[g].slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
     });
     const topGroup = groupNames[0];
 
@@ -2096,7 +2291,7 @@ const VizModes = (function(){
     });
     const bandKeys = ["critico","atencao","normal"];
     bandKeys.forEach(function(b){
-      bandsObj[b].sort(function(a,c){ return (c.severity||0)-(a.severity||0); });
+      bandsObj[b].sort(function(a,c){ return worstFirstCompare(a.severity, c.severity, thresholds.invert); });
     });
     const totalKnown = bandsObj.critico.length + bandsObj.atencao.length + bandsObj.normal.length || 1;
 
@@ -2152,7 +2347,9 @@ const VizModes = (function(){
     const total = items.length;
     const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
     const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
-    const acimaAtencao = withSeverity.filter(function(it){ return it.severity >= thresholds.low; }).length;
+    // "Acima do limiar de atenção" = já em atenção ou pior — usa bandOf() em vez de comparar o
+    // valor bruto, pra funcionar igual em métricas normais e invertidas (menor = pior).
+    const acimaAtencao = withSeverity.filter(function(it){ const b = bandOf(it.severity, thresholds); return b === "atencao" || b === "critico"; }).length;
     const pctAtencao = withSeverity.length ? Math.round(acimaAtencao / withSeverity.length * 1000)/10 : 0;
 
     const groupCounts = {};
@@ -2162,11 +2359,7 @@ const VizModes = (function(){
     const topGroupPct = topGroup ? Math.round(groupCounts[topGroup]/total*1000)/10 : 0;
 
     const maxSeverity = withSeverity.length ? Math.max.apply(null, withSeverity.map(function(it){ return it.severity; })) : 0;
-    const sortedRows = items.slice().sort(function(a,b){
-      const av = (a.severity===null||a.severity===undefined||isNaN(a.severity))?-Infinity:a.severity;
-      const bv = (b.severity===null||b.severity===undefined||isNaN(b.severity))?-Infinity:b.severity;
-      return bv - av;
-    });
+    const sortedRows = items.slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
     const mostCritical = sortedRows[0];
 
     let html = '<div class="vz-exec">'
@@ -2182,7 +2375,9 @@ const VizModes = (function(){
       + sortedRows.map(function(it){
           const band = bandOf(it.severity, thresholds);
           const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? null : it.severity;
-          const pct = (val!==null && maxSeverity>0) ? Math.round(val/maxSeverity*100) : 0;
+          // A barra representa "quão severo", não o valor bruto — numa métrica invertida (menor é
+          // pior) ela fica cheia perto de zero, e não perto do maior valor da lista.
+          const pct = (val===null || maxSeverity<=0) ? 0 : (thresholds.invert ? Math.round((1 - val/maxSeverity) * 100) : Math.round(val/maxSeverity*100));
           const valTxt = val===null ? "—" : (val + (opts.severityUnit||""));
           return '<tr><td>' + escapeHtml(String(it.id)) + '</td><td>' + escapeHtml(it.group||"—") + '</td>'
             + '<td><div class="vz-progress-cell"><span class="vz-progress-track" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(valTxt) + '"><span class="vz-progress-fill' + (band==="critico"?" crit":"") + '" style="width:' + pct + '%"></span></span><span class="vz-progress-num">' + escapeHtml(valTxt) + '</span></div></td>'
@@ -2719,6 +2914,37 @@ async function renderInventario(force){
   }
 }
 
+// Painel expansível com os dados completos de uma unidade em destaque — mesmo padrão de detalhe
+// usado nos outros módulos, aberto ao clicar um item nos modos de visualização alternativos.
+function inventarioEvolDetailTable(u){
+  return '<div class="table-wrap"><table><tbody>'
+    + '<tr><td style="font-weight:700;width:180px;">Unidade</td><td>' + escapeHtml(u.unidade) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Tendência</td><td><span class="badge ' + (u.tendencia==="Alta"?"b-critical":"b-good") + '">' + escapeHtml(u.tendencia||"—") + '</span></td></tr>'
+    + '<tr><td style="font-weight:700;">Variação</td><td>' + invPctFmt(Math.abs(u.variacao_pct)) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Variação total</td><td>' + invBRL(u.variacao_total) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Movimentação total</td><td>' + invBRL(u.movimentacao_total) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Valor base</td><td>' + invBRL(u.valor_base) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Semestre base</td><td>' + escapeHtml(u.semestre_base || "—") + '</td></tr>'
+    + '</tbody></table></div>';
+}
+// Lista "Unidades em destaque" já usada na tabela abaixo, remapeada pros modos de visualização
+// alternativos: identificador = unidade, agrupamento = tendência (Alta/Baixa — único campo
+// categórico real disponível aqui), severidade = variação percentual absoluta frente ao semestre
+// base (quanto maior, mais a unidade se afastou do esperado, pra cima ou pra baixo).
+function buildInventarioVizItems(evolOrdenada){
+  return evolOrdenada.map(function(u, i){
+    return {
+      id: u.unidade || ("#"+i),
+      label: "Unidade " + (u.unidade || "—"),
+      group: u.tendencia || "Sem tendência",
+      group2: null,
+      context: u.semestre_base ? ("base: " + u.semestre_base) : null,
+      severity: isNaN(u.variacao_pct) ? null : Math.round(Math.abs(u.variacao_pct) * 1000) / 10,
+      raw: u,
+    };
+  });
+}
+let inventarioVizMode = VizModes.loadMode("inventario");
 function renderInventarioBody(data){
   const el = document.getElementById("inventario-body");
   const sem = inventarioSemestreSel;
@@ -2752,6 +2978,12 @@ function renderInventarioBody(data){
     + kpiCard("% de ajustes sobre o inventário", total ? invPctFmt(total.pct_ajustes) : "—", (total && total.pct_ajustes > 0.15) ? "critical" : "good")
     + '</div>';
 
+  const evolOrdenada = data.evolucao.slice().sort(function(a,b){ return Math.abs(b.variacao_pct) - Math.abs(a.variacao_pct); });
+  const invVizItemsAll = buildInventarioVizItems(evolOrdenada);
+  const invVizStoredThresh = VizModes.loadThresholds("inventario");
+  const invVizAutoThresh = VizModes.computeDefaultThresholds(invVizItemsAll.map(function(it){ return it.severity; }));
+  let invVizActiveThresh = invVizStoredThresh || invVizAutoThresh;
+
   html += '<div class="subsection"><h3>Ranking por almoxarifado — % de ajuste (' + escapeHtml(sem) + ')</h3>';
   html += unidades.length
     ? '<div class="table-wrap"><table><thead><tr><th>Almoxarifado</th><th>Inventário</th><th>Ajuste total</th><th>% ajuste</th></tr></thead><tbody>'
@@ -2775,15 +3007,20 @@ function renderInventarioBody(data){
     : '<p class="empty-hint">Sem dados para este semestre.</p>';
   html += '</div>';
 
-  const evolOrdenada = data.evolucao.slice().sort(function(a,b){ return Math.abs(b.variacao_pct) - Math.abs(a.variacao_pct); });
   html += '<div class="subsection"><h3>Unidades em destaque — variação vs. semestre base</h3>';
-  html += evolOrdenada.length
-    ? '<div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Tendência</th><th>Variação</th><th>Semestre base</th></tr></thead><tbody>'
-      + evolOrdenada.map(function(u){
-        const tone = u.tendencia === "Alta" ? "b-critical" : "b-good";
-        return '<tr><td>'+escapeHtml(u.unidade)+'</td><td><span class="badge '+tone+'">'+escapeHtml(u.tendencia||"—")+'</span></td><td>'+invPctFmt(Math.abs(u.variacao_pct))+'</td><td>'+escapeHtml(u.semestre_base||"—")+'</td></tr>';
-      }).join("") + '</tbody></table></div>'
-    : '<p class="empty-hint">Sem dados de evolução.</p>';
+  html += VizModes.modeTabsHtml("inventario", inventarioVizMode);
+  if(inventarioVizMode === "tabela"){
+    html += evolOrdenada.length
+      ? '<div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Tendência</th><th>Variação</th><th>Semestre base</th></tr></thead><tbody>'
+        + evolOrdenada.map(function(u){
+          const tone = u.tendencia === "Alta" ? "b-critical" : "b-good";
+          return '<tr><td>'+escapeHtml(u.unidade)+'</td><td><span class="badge '+tone+'">'+escapeHtml(u.tendencia||"—")+'</span></td><td>'+invPctFmt(Math.abs(u.variacao_pct))+'</td><td>'+escapeHtml(u.semestre_base||"—")+'</td></tr>';
+        }).join("") + '</tbody></table></div>'
+      : '<p class="empty-hint">Sem dados de evolução.</p>';
+  } else {
+    html += VizModes.thresholdControlsHtml("inventario", invVizActiveThresh, !!invVizStoredThresh, "%");
+    html += '<div id="inventario-viz-mount"></div>';
+  }
   html += '</div>';
 
   html += '<div class="section-footer">'
@@ -2793,7 +3030,38 @@ function renderInventarioBody(data){
 
   el.innerHTML = html;
   fitAllKpiValues(el);
-  enableSortableTables(el);
+  VizModes.wireModeTabs(el, "inventario", function(m){ inventarioVizMode = m; renderInventarioBody(data); });
+
+  if(inventarioVizMode === "tabela"){
+    enableSortableTables(el);
+  } else {
+    const invVizMount = document.getElementById("inventario-viz-mount");
+    const invVizOpts = {
+      severityLabel: "variação absoluta", severityUnit: "%", groupLabel: "Tendência", idLabel: "Unidade",
+      onItemClick: function(it){ VizModes.openDetailModal(it.label, inventarioEvolDetailTable(it.raw)); },
+    };
+    function drawInvVizMode(){
+      if(inventarioVizMode === "cards") VizModes.renderCardGroups(invVizMount, invVizItemsAll, invVizActiveThresh, invVizOpts);
+      else if(inventarioVizMode === "kanban") VizModes.renderKanban(invVizMount, invVizItemsAll, invVizActiveThresh, invVizOpts);
+      else if(inventarioVizMode === "exec") VizModes.renderExecSummary(invVizMount, invVizItemsAll, invVizActiveThresh, Object.assign({ title:"Resumo executivo — Inventário" }, invVizOpts), { updatedNote: "Semestre " + sem + " · Gerado em " + fmtDateTime(new Date()) });
+    }
+    drawInvVizMode();
+
+    const invVizControlsEl = el.querySelector(".viz-controls");
+    if(invVizControlsEl){
+      VizModes.wireThresholdControls(invVizControlsEl, "inventario", function(t){
+        invVizActiveThresh = t;
+        drawInvVizMode();
+        const noteEl = invVizControlsEl.querySelector(".vc-note");
+        if(noteEl) noteEl.textContent = "Limiares ajustados manualmente.";
+      }, function(){
+        invVizActiveThresh = invVizAutoThresh;
+        drawInvVizMode();
+        const noteEl = invVizControlsEl.querySelector(".vc-note");
+        if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis).";
+      });
+    }
+  }
 
   document.getElementById("inventario-sem-select").addEventListener("change", function(e){
     inventarioSemestreSel = e.target.value;
