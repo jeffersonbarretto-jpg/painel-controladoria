@@ -219,6 +219,94 @@
   .login-logo-wrap{ text-align:center; margin-bottom:18px; }
   .login-logo-wrap .logo-box{ display:flex; align-items:center; justify-content:center; width:100%; height:96px; }
   .login-logo{ max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:12px; }
+
+  /* ---------- Modos de visualização alternativos (genérico, reutilizável) ---------- */
+  .viz-mode-tabs{ margin-bottom:16px; }
+  .viz-controls{ display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; margin-bottom:18px; padding:12px 14px; background:var(--surface-1); border:1px solid var(--border); border-radius:10px; }
+  .viz-controls .vc-field{ display:flex; flex-direction:column; gap:4px; }
+  .viz-controls .vc-field label{ font-size:11px; color:var(--text-secondary); }
+  .viz-controls .vc-field input[type=number]{ width:90px; }
+  .viz-controls .vc-reset{ align-self:flex-end; }
+  .viz-controls .vc-note{ font-size:11px; color:var(--text-muted); flex-basis:100%; }
+
+  .vz-summary-row{ margin-bottom:16px; }
+  .vz-minibars{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:16px; margin-bottom:22px; }
+  .vz-minibar-box{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .vz-minibar-box h4{ margin:0 0 10px; font-size:12.5px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; }
+  .vz-minibar-row{ display:grid; grid-template-columns:120px 1fr 36px; align-items:center; gap:8px; margin-bottom:6px; font-size:12px; }
+  .vz-minibar-row .vmb-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
+  .vz-minibar-track{ height:8px; background:var(--gridline); border-radius:999px; overflow:hidden; }
+  .vz-minibar-fill{ height:100%; background:var(--accent); border-radius:999px; }
+  .vz-minibar-row .vmb-count{ text-align:right; font-weight:600; }
+
+  .vz-card-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px; margin-bottom:20px; }
+  .vz-group-card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .vz-group-card .vz-gc-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+  .vz-gc-title-btn{ background:none; border:none; padding:0; font:inherit; font-weight:700; font-size:13.5px; color:var(--text-primary); cursor:pointer; text-align:left; }
+  .vz-gc-title-btn:hover{ color:var(--accent); text-decoration:underline; }
+  .vz-badge-list{ display:flex; flex-wrap:wrap; gap:6px; }
+  .vz-sev-badge{ border:none; font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; cursor:pointer; }
+  .vz-sev-badge.b-critical{ color:var(--critical); background:color-mix(in srgb, var(--critical) 15%, transparent); }
+  .vz-sev-badge.b-warning{ color:var(--warning); background:color-mix(in srgb, var(--warning) 20%, transparent); }
+  .vz-sev-badge.b-good{ color:var(--good); background:color-mix(in srgb, var(--good) 15%, transparent); }
+  .vz-sev-badge.b-info{ color:var(--text-muted); background:var(--gridline); }
+  .vz-more-btn{ font-size:11px; padding:3px 8px; }
+
+  .vz-kanban-dist{ display:flex; height:10px; border-radius:999px; overflow:hidden; margin-bottom:16px; border:1px solid var(--border); }
+  .vz-kanban{ display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-bottom:12px; }
+  .vz-kanban-col{ background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:12px; display:flex; flex-direction:column; min-width:0; }
+  .vz-kanban-col-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); font-weight:700; font-size:13px; }
+  .vz-kanban-body{ overflow-y:auto; max-height:520px; display:flex; flex-direction:column; gap:8px; }
+  .vz-kanban-card{ display:block; width:100%; background:var(--card); border:1px solid var(--border); border-left:3px solid var(--gridline); border-radius:8px; padding:9px 11px; text-align:left; cursor:pointer; font-size:12px; color:var(--text-primary); font-family:inherit; }
+  .vz-kanban-card:hover{ border-color:var(--accent); }
+  .vz-kanban-card .vk-id{ font-weight:700; margin-bottom:3px; }
+  .vz-kanban-card .vk-meta{ color:var(--text-secondary); font-size:11.5px; display:flex; justify-content:space-between; gap:8px; }
+  .vz-kanban-col.critico .vz-kanban-card{ border-left-color:var(--critical); }
+  .vz-kanban-col.atencao .vz-kanban-card{ border-left-color:var(--warning); }
+  .vz-kanban-col.normal .vz-kanban-card{ border-left-color:var(--good); }
+
+  .vz-exec{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 22px; }
+  .vz-exec-head{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--gridline); }
+  .vz-exec-head h3{ margin:0; font-size:16px; }
+  .vz-exec-head .vze-ts{ font-size:12px; color:var(--text-muted); }
+  .vz-exec-kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:12px; margin-bottom:20px; }
+  .vz-exec-kpi{ border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+  .vz-exec-kpi .vek-label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+  .vz-exec-kpi .vek-value{ font-size:20px; font-weight:700; }
+  .vz-exec-kpi.crit .vek-value{ color:var(--critical); }
+  .vz-exec tbody tr{ cursor:pointer; }
+  .vz-exec tbody tr:hover{ background:var(--surface-1); }
+  .vz-exec tbody tr:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
+  .vz-progress-cell{ display:flex; align-items:center; gap:8px; min-width:140px; }
+  .vz-progress-track{ flex:1; height:7px; background:var(--gridline); border-radius:999px; overflow:hidden; }
+  .vz-progress-fill{ display:block; height:100%; background:var(--text-muted); border-radius:999px; }
+  .vz-progress-fill.crit{ background:var(--critical); }
+  .vz-progress-num{ font-size:11.5px; color:var(--text-secondary); white-space:nowrap; }
+  .vz-status-badge{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .vz-status-badge.normal{ color:var(--text-secondary); background:var(--gridline); }
+  .vz-status-badge.atencao{ color:var(--text-primary); background:color-mix(in srgb, var(--warning) 25%, transparent); }
+  .vz-status-badge.critico{ color:#fff; background:var(--critical); }
+  .vz-exec-reco{ margin-top:20px; padding:14px 16px; border-left:4px solid var(--critical); background:var(--surface-1); border-radius:0 10px 10px 0; font-size:13px; line-height:1.55; }
+  .vz-exec-reco b{ color:var(--text-primary); }
+
+  .vz-empty{ text-align:center; padding:36px 16px; color:var(--text-muted); font-size:13px; background:var(--surface-1); border:1px dashed var(--border); border-radius:12px; }
+
+  /* Modal de detalhe genérico dos modos de visualização — independente do modal próprio do
+     painel de Abastecimento (#abast-panel .modal-overlay), que não é tocado aqui. */
+  #viz-modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:60; padding:20px; }
+  #viz-modal-overlay.open{ display:flex; }
+  #viz-modal-overlay .vz-modal{ width:100%; max-width:560px; max-height:82vh; overflow:auto; background:var(--card); border:1px solid var(--border); border-radius:12px; }
+  #viz-modal-overlay .vz-modal-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card); }
+  #viz-modal-overlay .vz-modal-head h3{ margin:0; font-size:15px; }
+  #viz-modal-overlay .vz-modal-close{ background:none; border:none; font-size:20px; line-height:1; color:var(--text-secondary); cursor:pointer; padding:2px 6px; }
+  #viz-modal-overlay .vz-modal-close:hover{ color:var(--text-primary); }
+  #viz-modal-overlay .vz-modal-body{ padding:16px 18px; }
+
+  @media (max-width: 760px){
+    .vz-kanban{ grid-template-columns:1fr; }
+    .vz-exec-kpis{ grid-template-columns:1fr 1fr; }
+    .vz-minibar-row{ grid-template-columns:90px 1fr 30px; }
+  }
 </style>
 <style id="abast-styles">
 /* Este bloco não define mais uma paleta/fonte própria — ele só remapeia as
@@ -1751,6 +1839,393 @@ async function renderPneus(newAsOf){
 }
 
 // =====================================================================
+// MODOS DE VISUALIZAÇÃO ALTERNATIVOS (genérico e reutilizável)
+// Componentes de apoio à tabela — Cards agrupados / Kanban por severidade /
+// Resumo executivo. Não conhecem nomes de aba nem de coluna: cada aba que
+// os usa passa os dados já filtrados como uma lista de itens genéricos
+// {id, label, group, group2, context, severity, raw} — resolvendo os três
+// papéis (identificador, dimensão de agrupamento, métrica de severidade) a
+// partir do seu próprio schema — e algumas opções de rótulo/callback. Nada
+// aqui é específico de uma aba, para poder ser ligado em qualquer outra que
+// tenha uma lista tabular parecida.
+// =====================================================================
+const VizModes = (function(){
+  const VZ_MODES = ["tabela","cards","kanban","exec"];
+  const VZ_MODE_LABEL = { tabela:"Tabela", cards:"Cards", kanban:"Kanban", exec:"Resumo executivo" };
+
+  function loadMode(vizKey){
+    try{
+      const v = localStorage.getItem("vizmode_" + vizKey);
+      return VZ_MODES.indexOf(v) !== -1 ? v : "tabela";
+    }catch(e){ return "tabela"; }
+  }
+  function saveMode(vizKey, mode){
+    try{ localStorage.setItem("vizmode_" + vizKey, mode); }catch(e){}
+  }
+  function loadGroupField(vizKey, fieldKeys, def){
+    try{
+      const v = localStorage.getItem("vizmode_" + vizKey + "_group");
+      return fieldKeys.indexOf(v) !== -1 ? v : def;
+    }catch(e){ return def; }
+  }
+  function saveGroupField(vizKey, key){
+    try{ localStorage.setItem("vizmode_" + vizKey + "_group", key); }catch(e){}
+  }
+  function loadThresholds(vizKey){
+    try{
+      const raw = localStorage.getItem("vizmode_" + vizKey + "_thresh");
+      if(!raw) return null;
+      const obj = JSON.parse(raw);
+      if(obj && typeof obj.low === "number" && typeof obj.high === "number") return obj;
+    }catch(e){}
+    return null;
+  }
+  function saveThresholds(vizKey, thresholds){
+    try{ localStorage.setItem("vizmode_" + vizKey + "_thresh", JSON.stringify(thresholds)); }catch(e){}
+  }
+  function clearThresholds(vizKey){
+    try{ localStorage.removeItem("vizmode_" + vizKey + "_thresh"); }catch(e){}
+  }
+
+  function percentile(sortedAsc, p){
+    if(!sortedAsc.length) return 0;
+    const idx = (sortedAsc.length - 1) * p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    if(lo === hi) return sortedAsc[lo];
+    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+  }
+  // Limiares default calculados pela distribuição real dos valores de severidade (percentis
+  // 50 e 85) — nunca fixos em código. O usuário pode sobrepor manualmente (persistido).
+  function computeDefaultThresholds(values){
+    const nums = values.filter(function(v){ return v !== null && v !== undefined && !isNaN(v); }).slice().sort(function(a,b){ return a-b; });
+    if(!nums.length) return { low:0, high:1 };
+    let low = Math.round(percentile(nums, 0.5) * 100) / 100;
+    let high = Math.round(percentile(nums, 0.85) * 100) / 100;
+    if(high <= low) high = low + 1;
+    return { low: low, high: high };
+  }
+  function bandOf(value, thresholds){
+    if(value === null || value === undefined || isNaN(value)) return "unknown";
+    if(value >= thresholds.high) return "critico";
+    if(value >= thresholds.low) return "atencao";
+    return "normal";
+  }
+  const BAND_LABEL = { critico:"Crítico", atencao:"Atenção", normal:"Normal", unknown:"Sem dado" };
+  const BAND_BADGE_TONE = { critico:"critical", atencao:"warning", normal:"good", unknown:"info" };
+
+  function modeTabsHtml(vizKey, current){
+    return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + VZ_MODES.map(function(m){
+      return '<button type="button" role="tab" aria-selected="' + (m===current?"true":"false") + '" class="' + (m===current?"active":"") + '" data-vz-mode="' + m + '">' + escapeHtml(VZ_MODE_LABEL[m]) + '</button>';
+    }).join("") + '</div>';
+  }
+  function wireModeTabs(container, vizKey, onChange){
+    container.querySelectorAll('[data-vz-mode]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const m = btn.dataset.vzMode;
+        saveMode(vizKey, m);
+        onChange(m);
+      });
+    });
+  }
+
+  function groupSelectHtml(vizKey, groupFields, current){
+    if(!groupFields || groupFields.length < 2) return "";
+    return '<div class="vc-field"><label for="' + vizKey + '-groupsel">Agrupar por</label><select id="' + vizKey + '-groupsel">' + groupFields.map(function(f){
+      return '<option value="' + escapeHtml(f.key) + '"' + (f.key===current?" selected":"") + '>' + escapeHtml(f.label) + '</option>';
+    }).join("") + '</select></div>';
+  }
+  function wireGroupSelect(container, vizKey, onChange){
+    const sel = container.querySelector('#' + vizKey + '-groupsel');
+    if(!sel) return;
+    sel.addEventListener("change", function(){ saveGroupField(vizKey, sel.value); onChange(sel.value); });
+  }
+
+  // extraHtml (opcional): outro(s) campo(s) .vc-field pra colocar antes dos limiares (ex.: o
+  // seletor de dimensão de agrupamento do Modelo 1).
+  function thresholdControlsHtml(vizKey, thresholds, isOverridden, unitLabel, extraHtml){
+    return '<div class="viz-controls">'
+      + (extraHtml || "")
+      + '<div class="vc-field"><label for="' + vizKey + '-th-low">Atenção a partir de (' + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-low" value="' + thresholds.low + '" step="any" /></div>'
+      + '<div class="vc-field"><label for="' + vizKey + '-th-high">Crítico a partir de (' + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-high" value="' + thresholds.high + '" step="any" /></div>'
+      + '<button type="button" class="ghost vc-reset" id="' + vizKey + '-th-reset">Restaurar automático</button>'
+      + '<span class="vc-note">' + (isOverridden ? "Limiares ajustados manualmente." : "Limiares calculados automaticamente pela distribuição dos dados (percentis 50/85).") + '</span>'
+      + '</div>';
+  }
+  function wireThresholdControls(container, vizKey, onChange, onReset){
+    const lowEl = container.querySelector('#' + vizKey + '-th-low');
+    const highEl = container.querySelector('#' + vizKey + '-th-high');
+    const resetBtn = container.querySelector('#' + vizKey + '-th-reset');
+    if(!lowEl || !highEl || !resetBtn) return;
+    function apply(){
+      const low = parseFloat(lowEl.value), high = parseFloat(highEl.value);
+      if(isNaN(low) || isNaN(high) || high <= low) return;
+      const t = { low:low, high:high };
+      saveThresholds(vizKey, t);
+      onChange(t);
+    }
+    lowEl.addEventListener("change", apply);
+    highEl.addEventListener("change", apply);
+    resetBtn.addEventListener("click", function(){
+      clearThresholds(vizKey);
+      onReset();
+    });
+  }
+
+  function miniBarsHtml(title, counts){
+    const max = counts.reduce(function(m,c){ return Math.max(m, c.count); }, 0) || 1;
+    return '<div class="vz-minibar-box"><h4>' + escapeHtml(title) + '</h4>' + (counts.length ? counts.map(function(c){
+      const pct = Math.round((c.count / max) * 100);
+      return '<div class="vz-minibar-row" role="img" aria-label="' + escapeHtml(c.label) + ': ' + c.count + '"><span class="vmb-label" title="' + escapeHtml(c.label) + '">' + escapeHtml(c.label) + '</span><span class="vz-minibar-track"><span class="vz-minibar-fill" style="width:' + pct + '%"></span></span><span class="vmb-count">' + c.count + '</span></div>';
+    }).join("") : '<p class="empty-hint" style="padding:6px 0;">Sem dados.</p>') + '</div>';
+  }
+
+  function openDetailModal(title, bodyHtml){
+    let overlay = document.getElementById("viz-modal-overlay");
+    if(!overlay){
+      overlay = document.createElement("div");
+      overlay.id = "viz-modal-overlay";
+      overlay.innerHTML = '<div class="vz-modal" role="dialog" aria-modal="true" aria-labelledby="viz-modal-title">'
+        + '<div class="vz-modal-head"><h3 id="viz-modal-title"></h3><button type="button" class="vz-modal-close" aria-label="Fechar">&times;</button></div>'
+        + '<div class="vz-modal-body" id="viz-modal-body"></div></div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener("click", function(e){ if(e.target === overlay) closeDetailModal(); });
+      overlay.querySelector(".vz-modal-close").addEventListener("click", closeDetailModal);
+      document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeDetailModal(); });
+    }
+    overlay.querySelector("#viz-modal-title").textContent = title;
+    overlay.querySelector("#viz-modal-body").innerHTML = bodyHtml;
+    overlay.classList.add("open");
+  }
+  function closeDetailModal(){
+    const overlay = document.getElementById("viz-modal-overlay");
+    if(overlay) overlay.classList.remove("open");
+  }
+
+  // ---- Modelo 1: cards agrupados por dimensão de agrupamento ----
+  // items: [{id,label,group,group2,severity,raw}]
+  function renderCardGroups(mountEl, items, thresholds, opts){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir neste agrupamento.</div>'; return; }
+    const total = items.length;
+    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
+    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
+
+    const groupsMap = {};
+    items.forEach(function(it){
+      const k = it.group || "Não informado";
+      if(!groupsMap[k]) groupsMap[k] = [];
+      groupsMap[k].push(it);
+    });
+    const groupNames = Object.keys(groupsMap).sort(function(a,b){ return groupsMap[b].length - groupsMap[a].length; });
+    const groupRows = groupNames.map(function(g){
+      return groupsMap[g].slice().sort(function(a,b){
+        const av = (a.severity===null||a.severity===undefined||isNaN(a.severity))?-Infinity:a.severity;
+        const bv = (b.severity===null||b.severity===undefined||isNaN(b.severity))?-Infinity:b.severity;
+        return bv - av;
+      });
+    });
+    const topGroup = groupNames[0];
+
+    const group2Counts = {};
+    items.forEach(function(it){ if(it.group2){ group2Counts[it.group2] = (group2Counts[it.group2]||0)+1; } });
+    const group2List = Object.keys(group2Counts).map(function(k){ return {label:k, count:group2Counts[k]}; }).sort(function(a,b){ return b.count-a.count; }).slice(0,8);
+
+    let html = '<div class="kpi-grid vz-summary-row">'
+      + kpiCard("Total de registros", fmtNum(total), "info")
+      + kpiCard("Média — " + (opts.severityLabel||"severidade"), avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR") + (opts.severityUnit||"")), "info")
+      + kpiCard("Maior grupo", topGroup ? (topGroup + " (" + groupsMap[topGroup].length + ")") : "—", "info")
+      + '</div>';
+
+    html += '<div class="vz-minibars">'
+      + miniBarsHtml("Registros por " + (opts.groupLabel||"grupo"), groupNames.slice(0,10).map(function(g){ return {label:g, count:groupsMap[g].length}; }))
+      + (group2List.length ? miniBarsHtml("Registros por " + (opts.group2Label||"categoria"), group2List) : "")
+      + '</div>';
+
+    const VISIBLE = 12;
+    function badgeHtml(it){
+      const band = bandOf(it.severity, thresholds);
+      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
+      return '<button type="button" class="vz-sev-badge b-' + BAND_BADGE_TONE[band] + '" title="' + escapeHtml(it.label) + '">' + escapeHtml(String(it.id)) + ' · ' + escapeHtml(String(val)) + '</button>';
+    }
+    html += '<div class="vz-card-grid">' + groupNames.map(function(g, gi){
+      const rowsG = groupRows[gi];
+      const shown = rowsG.slice(0, VISIBLE);
+      const extra = rowsG.length - shown.length;
+      return '<div class="vz-group-card"><div class="vz-gc-head"><button type="button" class="vz-gc-title-btn" data-vz-gi="' + gi + '">' + escapeHtml(g) + '</button><span class="badge b-info">' + rowsG.length + '</span></div>'
+        + '<div class="vz-badge-list" data-vz-body-gi="' + gi + '">' + shown.map(badgeHtml).join("") + (extra > 0 ? '<button type="button" class="ghost vz-more-btn" data-vz-more-gi="' + gi + '">Ver mais (+' + extra + ')</button>' : "") + '</div></div>';
+    }).join("") + '</div>';
+
+    mountEl.innerHTML = html;
+
+    function wireBody(bodyEl, rowsShown){
+      bodyEl.querySelectorAll('.vz-sev-badge').forEach(function(btn, i){
+        btn.addEventListener("click", function(){ if(opts.onItemClick) opts.onItemClick(rowsShown[i]); });
+      });
+    }
+    groupNames.forEach(function(g, gi){
+      const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
+      wireBody(bodyEl, groupRows[gi].slice(0, VISIBLE));
+    });
+    mountEl.querySelectorAll('[data-vz-gi]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const gi = parseInt(btn.dataset.vzGi, 10);
+        if(opts.onGroupClick) opts.onGroupClick(groupNames[gi]);
+      });
+    });
+    mountEl.querySelectorAll('[data-vz-more-gi]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const gi = parseInt(btn.dataset.vzMoreGi, 10);
+        const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
+        const rowsG = groupRows[gi];
+        bodyEl.innerHTML = rowsG.map(badgeHtml).join("");
+        wireBody(bodyEl, rowsG);
+      });
+    });
+  }
+
+  // ---- Modelo 2: kanban por faixa de severidade ----
+  function renderKanban(mountEl, items, thresholds, opts){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
+    const bandsObj = { critico:[], atencao:[], normal:[] };
+    let unknownCount = 0;
+    items.forEach(function(it){
+      const b = bandOf(it.severity, thresholds);
+      if(b === "unknown"){ unknownCount++; return; }
+      bandsObj[b].push(it);
+    });
+    const bandKeys = ["critico","atencao","normal"];
+    bandKeys.forEach(function(b){
+      bandsObj[b].sort(function(a,c){ return (c.severity||0)-(a.severity||0); });
+    });
+    const totalKnown = bandsObj.critico.length + bandsObj.atencao.length + bandsObj.normal.length || 1;
+
+    let html = '<div class="vz-kanban-dist" role="img" aria-label="Distribuição: ' + bandsObj.critico.length + ' crítico, ' + bandsObj.atencao.length + ' atenção, ' + bandsObj.normal.length + ' normal">'
+      + '<div style="width:' + Math.round(bandsObj.critico.length/totalKnown*100) + '%;background:var(--critical);"></div>'
+      + '<div style="width:' + Math.round(bandsObj.atencao.length/totalKnown*100) + '%;background:var(--warning);"></div>'
+      + '<div style="width:' + Math.round(bandsObj.normal.length/totalKnown*100) + '%;background:var(--good);"></div>'
+      + '</div>';
+
+    const VISIBLE = 80;
+    function cardHtml(it){
+      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
+      return '<button type="button" class="vz-kanban-card"><div class="vk-id">' + escapeHtml(String(it.id)) + '</div><div class="vk-meta"><span>' + escapeHtml(it.group||"—") + '</span><span>' + escapeHtml(String(val)) + '</span></div>' + (it.context ? '<div class="vk-meta"><span>' + escapeHtml(it.context) + '</span></div>' : '') + '</button>';
+    }
+    html += '<div class="vz-kanban">' + bandKeys.map(function(b, bi){
+      const list = bandsObj[b];
+      const shown = list.slice(0, VISIBLE);
+      return '<div class="vz-kanban-col ' + b + '"><div class="vz-kanban-col-head"><span>' + BAND_LABEL[b] + '</span><span class="badge b-' + BAND_BADGE_TONE[b] + '">' + list.length + '</span></div>'
+        + '<div class="vz-kanban-body" data-vz-band-idx="' + bi + '">'
+        + (list.length ? shown.map(cardHtml).join("") + (list.length > VISIBLE ? '<button type="button" class="ghost" data-vz-kanban-more="' + bi + '">Carregar mais (' + (list.length-VISIBLE) + ')</button>' : "")
+          : '<p class="empty-hint">Nenhum registro nesta faixa.</p>')
+        + '</div></div>';
+    }).join("") + '</div>'
+    + (unknownCount ? '<p class="hint">' + unknownCount + ' registro(s) sem valor de ' + (opts.severityLabel||"severidade") + ' não exibido(s) no kanban.</p>' : "");
+
+    mountEl.innerHTML = html;
+
+    function wireCol(bi){
+      const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
+      bodyEl.querySelectorAll('.vz-kanban-card').forEach(function(btn, i){
+        btn.addEventListener("click", function(){
+          const list = bandsObj[bandKeys[bi]];
+          if(opts.onItemClick) opts.onItemClick(list[i]);
+        });
+      });
+    }
+    bandKeys.forEach(function(b, bi){ wireCol(bi); });
+    mountEl.querySelectorAll('[data-vz-kanban-more]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const bi = parseInt(btn.dataset.vzKanbanMore, 10);
+        const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
+        const list = bandsObj[bandKeys[bi]];
+        bodyEl.innerHTML = list.map(cardHtml).join("");
+        wireCol(bi);
+      });
+    });
+  }
+
+  // ---- Modelo 3: resumo executivo ----
+  function renderExecSummary(mountEl, items, thresholds, opts, meta){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
+    const total = items.length;
+    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
+    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
+    const acimaAtencao = withSeverity.filter(function(it){ return it.severity >= thresholds.low; }).length;
+    const pctAtencao = withSeverity.length ? Math.round(acimaAtencao / withSeverity.length * 1000)/10 : 0;
+
+    const groupCounts = {};
+    items.forEach(function(it){ const g = it.group||"Não informado"; groupCounts[g]=(groupCounts[g]||0)+1; });
+    const groupNames = Object.keys(groupCounts).sort(function(a,b){ return groupCounts[b]-groupCounts[a]; });
+    const topGroup = groupNames[0];
+    const topGroupPct = topGroup ? Math.round(groupCounts[topGroup]/total*1000)/10 : 0;
+
+    const maxSeverity = withSeverity.length ? Math.max.apply(null, withSeverity.map(function(it){ return it.severity; })) : 0;
+    const sortedRows = items.slice().sort(function(a,b){
+      const av = (a.severity===null||a.severity===undefined||isNaN(a.severity))?-Infinity:a.severity;
+      const bv = (b.severity===null||b.severity===undefined||isNaN(b.severity))?-Infinity:b.severity;
+      return bv - av;
+    });
+    const mostCritical = sortedRows[0];
+
+    let html = '<div class="vz-exec">'
+      + '<div class="vz-exec-head"><h3>' + escapeHtml(opts.title || "Resumo executivo") + '</h3><span class="vze-ts">' + escapeHtml((meta && meta.updatedNote) || "") + '</span></div>'
+      + '<div class="vz-exec-kpis">'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Total de registros</div><div class="vek-value">' + fmtNum(total) + '</div></div>'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Média — ' + escapeHtml(opts.severityLabel||"severidade") + '</div><div class="vek-value">' + (avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR")+(opts.severityUnit||""))) + '</div></div>'
+      + '<div class="vz-exec-kpi crit"><div class="vek-label">Acima do limiar de atenção</div><div class="vek-value">' + pctAtencao.toLocaleString("pt-BR") + '%</div></div>'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Concentração no maior grupo</div><div class="vek-value">' + topGroupPct.toLocaleString("pt-BR") + '%</div></div>'
+      + '</div>';
+
+    html += '<div class="table-wrap"><table><thead><tr><th>' + escapeHtml(opts.idLabel||"Identificador") + '</th><th>' + escapeHtml(opts.groupLabel||"Grupo") + '</th><th>' + escapeHtml(opts.severityLabel||"Severidade") + '</th><th>Status</th></tr></thead><tbody>'
+      + sortedRows.map(function(it){
+          const band = bandOf(it.severity, thresholds);
+          const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? null : it.severity;
+          const pct = (val!==null && maxSeverity>0) ? Math.round(val/maxSeverity*100) : 0;
+          const valTxt = val===null ? "—" : (val + (opts.severityUnit||""));
+          return '<tr><td>' + escapeHtml(String(it.id)) + '</td><td>' + escapeHtml(it.group||"—") + '</td>'
+            + '<td><div class="vz-progress-cell"><span class="vz-progress-track" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(valTxt) + '"><span class="vz-progress-fill' + (band==="critico"?" crit":"") + '" style="width:' + pct + '%"></span></span><span class="vz-progress-num">' + escapeHtml(valTxt) + '</span></div></td>'
+            + '<td><span class="vz-status-badge ' + band + '">' + BAND_LABEL[band] + '</span></td></tr>';
+        }).join("")
+      + '</tbody></table></div>';
+
+    const recoParts = [];
+    if(topGroup) recoParts.push('O grupo com maior concentração de registros é <b>' + escapeHtml(topGroup) + '</b>, com ' + groupCounts[topGroup] + ' de ' + total + ' registros (' + topGroupPct.toLocaleString("pt-BR") + '%).');
+    if(mostCritical && mostCritical.severity !== null && mostCritical.severity !== undefined && !isNaN(mostCritical.severity)){
+      recoParts.push('O registro mais crítico é <b>' + escapeHtml(String(mostCritical.id)) + '</b>' + (mostCritical.group ? (' (' + escapeHtml(mostCritical.group) + ')') : '') + ', com ' + mostCritical.severity + (opts.severityUnit||"") + ' de ' + (opts.severityLabel||"severidade") + '.');
+    }
+    if(pctAtencao > 0) recoParts.push(pctAtencao.toLocaleString("pt-BR") + '% dos registros já estão acima do limiar de atenção — recomenda-se priorizar esse grupo antes que avancem para crítico.');
+    html += '<div class="vz-exec-reco"><b>Recomendação:</b> ' + (recoParts.length ? recoParts.join(" ") : "Sem observações adicionais para os dados filtrados atuais.") + '</div>';
+    html += '</div>';
+
+    mountEl.innerHTML = html;
+
+    if(opts.onItemClick){
+      mountEl.querySelectorAll("tbody tr").forEach(function(tr, i){
+        tr.tabIndex = 0;
+        tr.setAttribute("role","button");
+        tr.addEventListener("click", function(){ opts.onItemClick(sortedRows[i]); });
+        tr.addEventListener("keydown", function(e){ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); opts.onItemClick(sortedRows[i]); } });
+      });
+    }
+  }
+
+  return {
+    loadMode: loadMode, saveMode: saveMode,
+    loadGroupField: loadGroupField, saveGroupField: saveGroupField,
+    loadThresholds: loadThresholds, saveThresholds: saveThresholds, clearThresholds: clearThresholds,
+    computeDefaultThresholds: computeDefaultThresholds, bandOf: bandOf,
+    BAND_LABEL: BAND_LABEL, BAND_BADGE_TONE: BAND_BADGE_TONE,
+    modeTabsHtml: modeTabsHtml, wireModeTabs: wireModeTabs,
+    groupSelectHtml: groupSelectHtml, wireGroupSelect: wireGroupSelect,
+    thresholdControlsHtml: thresholdControlsHtml, wireThresholdControls: wireThresholdControls,
+    openDetailModal: openDetailModal, closeDetailModal: closeDetailModal,
+    renderCardGroups: renderCardGroups, renderKanban: renderKanban, renderExecSummary: renderExecSummary,
+  };
+})();
+
+// =====================================================================
 // RETENÇÃO (O.S. em aberto — fonte: "O.S Aberta - TML")
 // =====================================================================
 const RETENCAO_TAB = "O.S Aberta - TML";
@@ -1984,6 +2459,30 @@ function retencaoOsDetailTable(r){
 
 let retencaoAsOf = null;
 let retencaoUnidadeFiltro = null;
+const RETENCAO_GROUP_FIELDS = [
+  { key:"oficina", label:"Oficina" },
+  { key:"tipo", label:"Tipo de O.S." },
+];
+let retencaoVizMode = VizModes.loadMode("retencao");
+let retencaoGroupField = VizModes.loadGroupField("retencao", RETENCAO_GROUP_FIELDS.map(function(f){ return f.key; }), "oficina");
+// Converte as O.S. já filtradas (mesmos dados que alimentam os KPIs e as tabelas desta aba) para
+// o formato genérico consumido pelos modos de visualização alternativos — nenhum dado novo é
+// exposto, é a mesma lista `rows` só remapeada para os três papéis genéricos.
+function buildRetencaoVizItems(rows, groupFieldKey){
+  return rows.map(function(r, i){
+    const groupVal = groupFieldKey === "tipo" ? r.tipo.label : (r.oficina || "Não identificado");
+    const otherVal = groupFieldKey === "tipo" ? (r.oficina || "Não identificado") : r.tipo.label;
+    return {
+      id: r.os || ("#" + i),
+      label: (r.veiculoRaw ? (r.veiculoRaw + " — ") : "") + "O.S. " + (r.os || "s/nº"),
+      group: groupVal,
+      group2: otherVal,
+      context: r.tipo.label,
+      severity: r.dias,
+      raw: r,
+    };
+  });
+}
 async function renderRetencao(newAsOf){
   if(newAsOf !== undefined) retencaoAsOf = newAsOf;
   const el = document.getElementById("retencao-body");
@@ -1997,6 +2496,13 @@ async function renderRetencao(newAsOf){
     const d = retencaoUnidadeFiltro
       ? Object.assign(computeRetencaoAggregates(full.rowsAll.filter(function(r){ return r.oficina === retencaoUnidadeFiltro; })), { resolvedDates: full.resolvedDates })
       : full;
+
+    // Mesma lista `d.rows` já usada pelos KPIs e tabelas acima, só remapeada pros modos de
+    // visualização alternativos (Cards / Kanban / Resumo executivo) — nada de novo é exposto.
+    const vizItemsAll = buildRetencaoVizItems(d.rows, retencaoGroupField);
+    const vizStoredThresh = VizModes.loadThresholds("retencao");
+    const vizAutoThresh = VizModes.computeDefaultThresholds(vizItemsAll.map(function(it){ return it.severity; }));
+    let vizActiveThresh = vizStoredThresh || vizAutoThresh;
 
     let html = unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
 
@@ -2026,64 +2532,118 @@ async function renderRetencao(newAsOf){
       + kpiCard("Prazo alterado (histórico)", fmtNum(d.prazoAlterados.length), "info")
       + '</div>';
 
-    let terceirosIdxCounter = 0;
-    html += '<div class="subsection"><h3>Alerta Terceiros — SLA 72h (' + d.terceiros.length + ' O.S. em ' + Array.from(new Set(d.terceiros.map(function(r){return r.oficina;}))).length + ' oficina(s) terceirizada(s))</h3><p class="hint">Clique na O.S. para ver os dados completos dela.</p><div class="table-wrap"><table><thead><tr><th>Status</th><th>Oficina</th><th>Veículo</th><th>O.S.</th><th>Tipo</th><th>Horas abertas</th><th>Abertura</th></tr></thead><tbody>'
-      + (d.terceiros.length ? d.terceiros.slice().sort(function(a,b){ return (b.horas||0)-(a.horas||0); }).map(function(r){
-          const idx = terceirosIdxCounter++;
-          const osCell = '<button type="button" class="os-link" data-ret-os-idx="' + idx + '" title="Ver dados completos da O.S.">' + escapeHtml(r.os) + '<span class="os-caret">▾</span></button>';
-          const detailRow = '<tr class="os-detail-row" data-ret-os-detail="' + idx + '" style="display:none;"><td colspan="7">' + retencaoOsDetailTable(r) + '</td></tr>';
-          return '<tr><td>'+slaBadge(r.slaStatus)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+osCell+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+(r.horas===null?"—":r.horas+"h")+'</td><td>'+escapeHtml(r.aberturaStr)+'</td></tr>' + detailRow;
-        }).join("") : '<tr><td colspan="7">Nenhuma O.S. em oficina terceirizada no momento.</td></tr>')
-      + '</tbody></table></div></div>';
+    html += VizModes.modeTabsHtml("retencao", retencaoVizMode);
 
-    html += '<div class="subsection"><h3>Ranking por unidade — O.S. abertas</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>O.S. abertas</th><th>Críticos +90d</th></tr></thead><tbody>'
-      + (d.ranking.length ? d.ranking.map(function(r){
-          return '<tr><td>'+escapeHtml(r.nome)+'</td><td><b>'+r.total+'</b></td><td>'+(r.criticos?('<span class="badge b-critical">'+r.criticos+'</span>'):'0')+'</td></tr>';
-        }).join("") : '<tr><td colspan="3">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    if(retencaoVizMode === "tabela"){
+      let terceirosIdxCounter = 0;
+      html += '<div class="subsection"><h3>Alerta Terceiros — SLA 72h (' + d.terceiros.length + ' O.S. em ' + Array.from(new Set(d.terceiros.map(function(r){return r.oficina;}))).length + ' oficina(s) terceirizada(s))</h3><p class="hint">Clique na O.S. para ver os dados completos dela.</p><div class="table-wrap"><table><thead><tr><th>Status</th><th>Oficina</th><th>Veículo</th><th>O.S.</th><th>Tipo</th><th>Horas abertas</th><th>Abertura</th></tr></thead><tbody>'
+        + (d.terceiros.length ? d.terceiros.slice().sort(function(a,b){ return (b.horas||0)-(a.horas||0); }).map(function(r){
+            const idx = terceirosIdxCounter++;
+            const osCell = '<button type="button" class="os-link" data-ret-os-idx="' + idx + '" title="Ver dados completos da O.S.">' + escapeHtml(r.os) + '<span class="os-caret">▾</span></button>';
+            const detailRow = '<tr class="os-detail-row" data-ret-os-detail="' + idx + '" style="display:none;"><td colspan="7">' + retencaoOsDetailTable(r) + '</td></tr>';
+            return '<tr><td>'+slaBadge(r.slaStatus)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+osCell+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+(r.horas===null?"—":r.horas+"h")+'</td><td>'+escapeHtml(r.aberturaStr)+'</td></tr>' + detailRow;
+          }).join("") : '<tr><td colspan="7">Nenhuma O.S. em oficina terceirizada no momento.</td></tr>')
+        + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Top 10 — O.S. aberta há mais tempo</h3><div class="table-wrap"><table><thead><tr><th>#</th><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
-      + d.top10.map(function(r, i){
-          return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
-        }).join("") + '</tbody></table></div></div>';
+      html += '<div class="subsection"><h3>Ranking por unidade — O.S. abertas</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>O.S. abertas</th><th>Críticos +90d</th></tr></thead><tbody>'
+        + (d.ranking.length ? d.ranking.map(function(r){
+            return '<tr><td>'+escapeHtml(r.nome)+'</td><td><b>'+r.total+'</b></td><td>'+(r.criticos?('<span class="badge b-critical">'+r.criticos+'</span>'):'0')+'</td></tr>';
+          }).join("") : '<tr><td colspan="3">Sem dados.</td></tr>')
+        + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Impeditivas — detectadas automaticamente (' + d.impeditivas.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th><th>Observação</th></tr></thead><tbody>'
-      + (d.impeditivas.length ? d.impeditivas.slice().sort(function(a,b){ return (b.dias||0)-(a.dias||0); }).map(function(r){
-          const obsShort = r.observacao.length > 90 ? r.observacao.slice(0,90)+"…" : r.observacao;
-          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td><td>'+escapeHtml(obsShort)+'</td></tr>';
-        }).join("") : '<tr><td colspan="6">Nenhuma O.S. impeditiva detectada no momento.</td></tr>')
-      + '</tbody></table></div></div>';
+      html += '<div class="subsection"><h3>Top 10 — O.S. aberta há mais tempo</h3><div class="table-wrap"><table><thead><tr><th>#</th><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
+        + d.top10.map(function(r, i){
+            return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
+          }).join("") + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Sem observação (' + d.semObs.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
-      + (d.semObs.length ? d.semObs.map(function(r){
-          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
-        }).join("") : '<tr><td colspan="5">Todas as O.S. possuem observação registrada.</td></tr>')
-      + '</tbody></table></div></div>';
+      html += '<div class="subsection"><h3>Impeditivas — detectadas automaticamente (' + d.impeditivas.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th><th>Observação</th></tr></thead><tbody>'
+        + (d.impeditivas.length ? d.impeditivas.slice().sort(function(a,b){ return (b.dias||0)-(a.dias||0); }).map(function(r){
+            const obsShort = r.observacao.length > 90 ? r.observacao.slice(0,90)+"…" : r.observacao;
+            return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td><td>'+escapeHtml(obsShort)+'</td></tr>';
+          }).join("") : '<tr><td colspan="6">Nenhuma O.S. impeditiva detectada no momento.</td></tr>')
+        + '</tbody></table></div></div>';
 
-    html += '<div class="subsection"><h3>Prazo — alterações detectadas automaticamente (últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias, ' + d.prazoAlterados.length + ' O.S.)</h3><p class="hint">O prazo é lido direto do texto da observação (ex.: "PRAZO DE ENTREGA 25/08/2026") e comparado entre os snapshots diários já sincronizados — nenhum campo é preenchido manualmente.</p><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>O.S.</th><th>Oficina</th><th>Prazo atual</th><th>Histórico de mudanças</th></tr></thead><tbody>'
-      + (d.prazoAlterados.length ? d.prazoAlterados.map(function(r){
-          const histTxt = r.prazoHistorico.map(function(h){
-            return escapeHtml(h.data) + ": " + (h.de?fmtDateBR(h.de):"sem prazo") + " → " + (h.para?fmtDateBR(h.para):"removido");
-          }).join("<br/>");
-          return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+(r.prazo?fmtDateBR(r.prazo):"—")+'</td><td style="font-size:11.5px">'+histTxt+'</td></tr>';
-        }).join("") : '<tr><td colspan="5">Nenhuma mudança de prazo detectada no período.</td></tr>')
-      + '</tbody></table></div></div>';
+      html += '<div class="subsection"><h3>Sem observação (' + d.semObs.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Oficina</th><th>O.S.</th><th>Tipo</th><th>Dias em aberto</th></tr></thead><tbody>'
+        + (d.semObs.length ? d.semObs.map(function(r){
+            return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td>'+escapeHtml(r.oficina)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.tipo.label)+'</td><td>'+diasBadgeRetencao(r.dias)+'</td></tr>';
+          }).join("") : '<tr><td colspan="5">Todas as O.S. possuem observação registrada.</td></tr>')
+        + '</tbody></table></div></div>';
+
+      html += '<div class="subsection"><h3>Prazo — alterações detectadas automaticamente (últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias, ' + d.prazoAlterados.length + ' O.S.)</h3><p class="hint">O prazo é lido direto do texto da observação (ex.: "PRAZO DE ENTREGA 25/08/2026") e comparado entre os snapshots diários já sincronizados — nenhum campo é preenchido manualmente.</p><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>O.S.</th><th>Oficina</th><th>Prazo atual</th><th>Histórico de mudanças</th></tr></thead><tbody>'
+        + (d.prazoAlterados.length ? d.prazoAlterados.map(function(r){
+            const histTxt = r.prazoHistorico.map(function(h){
+              return escapeHtml(h.data) + ": " + (h.de?fmtDateBR(h.de):"sem prazo") + " → " + (h.para?fmtDateBR(h.para):"removido");
+            }).join("<br/>");
+            return '<tr><td>'+escapeHtml(r.veiculoRaw)+'</td><td style="font-family:monospace">'+escapeHtml(r.os)+'</td><td>'+escapeHtml(r.oficina)+'</td><td>'+(r.prazo?fmtDateBR(r.prazo):"—")+'</td><td style="font-size:11.5px">'+histTxt+'</td></tr>';
+          }).join("") : '<tr><td colspan="5">Nenhuma mudança de prazo detectada no período.</td></tr>')
+        + '</tbody></table></div></div>';
+    } else {
+      html += VizModes.thresholdControlsHtml("retencao", vizActiveThresh, !!vizStoredThresh, "dias",
+        VizModes.groupSelectHtml("retencao", RETENCAO_GROUP_FIELDS, retencaoGroupField));
+      html += '<div id="retencao-viz-mount"></div>';
+    }
 
     html += '<div class="section-footer">' + srcNote(RETENCAO_TAB + " — Tipo de O.S., Observação (Impeditiva/Prazo detectados por palavra-chave) e Tempo em aberto") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
     fitAllKpiValues(area);
-    enableSortableTables(area);
-    wireUnidadeFilter("retencao", function(v){ retencaoUnidadeFiltro = v; renderRetencao(); });
-    area.querySelectorAll(".os-link[data-ret-os-idx]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const row = area.querySelector('.os-detail-row[data-ret-os-detail="' + btn.dataset.retOsIdx + '"]');
-        if(!row) return;
-        const showing = row.style.display !== "none";
-        row.style.display = showing ? "none" : "table-row";
-        btn.classList.toggle("open", !showing);
+    VizModes.wireModeTabs(area, "retencao", function(m){ retencaoVizMode = m; renderRetencao(); });
+
+    if(retencaoVizMode === "tabela"){
+      enableSortableTables(area);
+      wireUnidadeFilter("retencao", function(v){ retencaoUnidadeFiltro = v; renderRetencao(); });
+      area.querySelectorAll(".os-link[data-ret-os-idx]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          const row = area.querySelector('.os-detail-row[data-ret-os-detail="' + btn.dataset.retOsIdx + '"]');
+          if(!row) return;
+          const showing = row.style.display !== "none";
+          row.style.display = showing ? "none" : "table-row";
+          btn.classList.toggle("open", !showing);
+        });
       });
-    });
+    } else {
+      wireUnidadeFilter("retencao", function(v){ retencaoUnidadeFiltro = v; renderRetencao(); });
+
+      const vizMount = document.getElementById("retencao-viz-mount");
+      const vizGroupMeta = RETENCAO_GROUP_FIELDS.reduce(function(m,f){ m[f.key]=f.label; return m; }, {});
+      const vizCommonOpts = {
+        severityLabel: "dias em aberto", severityUnit: "d",
+        groupLabel: vizGroupMeta[retencaoGroupField],
+        group2Label: RETENCAO_GROUP_FIELDS.filter(function(f){ return f.key !== retencaoGroupField; }).map(function(f){ return f.label; })[0],
+        idLabel: "O.S.",
+        onItemClick: function(it){ VizModes.openDetailModal(it.label, retencaoOsDetailTable(it.raw)); },
+        onGroupClick: function(groupName){
+          if(retencaoGroupField === "oficina"){
+            retencaoUnidadeFiltro = groupName;
+            retencaoVizMode = "tabela";
+            VizModes.saveMode("retencao", "tabela");
+            renderRetencao();
+          }
+        },
+      };
+      function drawVizMode(){
+        if(retencaoVizMode === "cards") VizModes.renderCardGroups(vizMount, vizItemsAll, vizActiveThresh, vizCommonOpts);
+        else if(retencaoVizMode === "kanban") VizModes.renderKanban(vizMount, vizItemsAll, vizActiveThresh, vizCommonOpts);
+        else if(retencaoVizMode === "exec") VizModes.renderExecSummary(vizMount, vizItemsAll, vizActiveThresh, Object.assign({ title:"Resumo executivo — Retenção" }, vizCommonOpts), { updatedNote: "Dados de " + fmtDateBR(d.resolvedDates[RETENCAO_TAB]) + " · Gerado em " + fmtDateTime(new Date()) });
+      }
+      drawVizMode();
+
+      const vizControlsEl = area.querySelector(".viz-controls");
+      if(vizControlsEl){
+        VizModes.wireThresholdControls(vizControlsEl, "retencao", function(t){
+          vizActiveThresh = t;
+          drawVizMode();
+          const noteEl = vizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares ajustados manualmente.";
+        }, function(){
+          vizActiveThresh = vizAutoThresh;
+          drawVizMode();
+          const noteEl = vizControlsEl.querySelector(".vc-note");
+          if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis 50/85).";
+        });
+        VizModes.wireGroupSelect(vizControlsEl, "retencao", function(key){ retencaoGroupField = key; renderRetencao(); });
+      }
+    }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Retenção: ' + escapeHtml(err.message) + '</p>';
   }
