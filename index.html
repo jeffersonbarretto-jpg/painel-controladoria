@@ -1130,11 +1130,12 @@ const VizModes = (function(){
   const VZ_MODES = ["tabela","cards","kanban","exec"];
   const VZ_MODE_LABEL = { tabela:"Tabela", cards:"Cards", kanban:"Kanban", exec:"Resumo executivo" };
 
-  function loadMode(vizKey){
+  function loadMode(vizKey, defaultMode){
+    const fallback = VZ_MODES.indexOf(defaultMode) !== -1 ? defaultMode : "tabela";
     try{
       const v = localStorage.getItem("vizmode_" + vizKey);
-      return VZ_MODES.indexOf(v) !== -1 ? v : "tabela";
-    }catch(e){ return "tabela"; }
+      return VZ_MODES.indexOf(v) !== -1 ? v : fallback;
+    }catch(e){ return fallback; }
   }
   function saveMode(vizKey, mode){
     try{ localStorage.setItem("vizmode_" + vizKey, mode); }catch(e){}
@@ -1864,7 +1865,7 @@ function osAbertaDetailTable(v){
 
 let telemetriaAsOf = null;
 let telemetriaUnidadeFiltro = null;
-let telemetriaVizMode = VizModes.loadMode("telemetria");
+let telemetriaVizMode = VizModes.loadMode("telemetria", "kanban");
 // Mesma lista `vehicles` já usada pelos KPIs e pela "Detalhamento por unidade" acima, remapeada
 // pros modos de visualização alternativos: identificador = carro, agrupamento = unidade,
 // severidade = dias sem comunicação (quanto maior, pior — mesma métrica já usada no KPI "Média
@@ -2264,7 +2265,7 @@ function buildPneusVizItems(tires, groupFieldKey){
 }
 let pneusAsOf = null;
 let pneusUnidadeFiltro = null;
-let pneusVizMode = VizModes.loadMode("pneus");
+let pneusVizMode = VizModes.loadMode("pneus", "kanban");
 let pneusGroupField = VizModes.loadGroupField("pneus", PNEUS_GROUP_FIELDS.map(function(f){ return f.key; }), "local");
 async function renderPneus(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
@@ -2659,7 +2660,7 @@ const RETENCAO_GROUP_FIELDS = [
   { key:"oficina", label:"Oficina" },
   { key:"tipo", label:"Tipo de O.S." },
 ];
-let retencaoVizMode = VizModes.loadMode("retencao");
+let retencaoVizMode = VizModes.loadMode("retencao", "kanban");
 let retencaoGroupField = VizModes.loadGroupField("retencao", RETENCAO_GROUP_FIELDS.map(function(f){ return f.key; }), "oficina");
 // Converte as O.S. já filtradas (mesmos dados que alimentam os KPIs e as tabelas desta aba) para
 // o formato genérico consumido pelos modos de visualização alternativos — nenhum dado novo é
@@ -2945,7 +2946,33 @@ function buildInventarioVizItems(evolOrdenada){
     };
   });
 }
-let inventarioVizMode = VizModes.loadMode("inventario");
+// Detalhe de um almoxarifado do ranking principal — aberto ao clicar um item nos modos alternativos.
+function inventarioRankingDetailTable(r){
+  return '<div class="table-wrap"><table><tbody>'
+    + '<tr><td style="font-weight:700;width:180px;">Almoxarifado</td><td>' + escapeHtml(r.almoxarifado) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Inventário</td><td>' + invBRL(r.inventario_geral) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">Ajuste total</td><td>' + invBRL(r.ajuste_total) + '</td></tr>'
+    + '<tr><td style="font-weight:700;">% ajuste</td><td>' + invPctFmt(r.pct_ajustes) + '</td></tr>'
+    + '</tbody></table></div>';
+}
+// Ranking por almoxarifado remapeado pros modos de visualização alternativos: identificador =
+// almoxarifado, sem dimensão de agrupamento natural (cada linha já é a menor unidade), severidade
+// = % de ajuste sobre o inventário (quanto maior, pior — mesmo limiar de 15% já usado na tabela).
+function buildInventarioRankingVizItems(unidades){
+  return unidades.map(function(r, i){
+    return {
+      id: r.almoxarifado || ("#"+i),
+      label: r.almoxarifado || "—",
+      group: null,
+      group2: null,
+      context: null,
+      severity: isNaN(r.pct_ajustes) ? null : Math.round(r.pct_ajustes * 1000) / 10,
+      raw: r,
+    };
+  });
+}
+let inventarioRankingVizMode = VizModes.loadMode("inventario_ranking", "kanban");
+let inventarioVizMode = VizModes.loadMode("inventario", "kanban");
 function renderInventarioBody(data){
   const el = document.getElementById("inventario-body");
   const sem = inventarioSemestreSel;
@@ -2985,41 +3012,52 @@ function renderInventarioBody(data){
   const invVizAutoThresh = VizModes.computeDefaultThresholds(invVizItemsAll.map(function(it){ return it.severity; }));
   let invVizActiveThresh = invVizStoredThresh || invVizAutoThresh;
 
+  const rankVizItemsAll = buildInventarioRankingVizItems(unidades);
+  const rankVizStoredThresh = VizModes.loadThresholds("inventario_ranking");
+  const rankVizAutoThresh = VizModes.computeDefaultThresholds(rankVizItemsAll.map(function(it){ return it.severity; }));
+  let rankVizActiveThresh = rankVizStoredThresh || rankVizAutoThresh;
+
   html += '<div class="subsection"><h3>Ranking por almoxarifado — % de ajuste (' + escapeHtml(sem) + ')</h3>';
-  html += unidades.length
-    ? '<div class="table-wrap"><table><thead><tr><th>Almoxarifado</th><th>Inventário</th><th>Ajuste total</th><th>% ajuste</th></tr></thead><tbody>'
-      + unidades.map(function(r){
-        const pctCell = r.pct_ajustes > 0.15
-          ? '<span class="badge b-critical">' + invPctFmt(r.pct_ajustes) + '</span>'
-          : invPctFmt(r.pct_ajustes);
-        return '<tr><td>'+escapeHtml(r.almoxarifado)+'</td><td>'+invBRL(r.inventario_geral)+'</td><td>'+invBRL(r.ajuste_total)+'</td><td>'+pctCell+'</td></tr>';
-      }).join("") + '</tbody></table></div>'
-    : '<p class="empty-hint">Sem dados para este semestre.</p>';
+  html += '<div id="inv-ranking-modetabs">' + VizModes.modeTabsHtml("inventario_ranking", inventarioRankingVizMode) + '</div>';
+  if(inventarioRankingVizMode === "tabela"){
+    html += '<div id="inv-ranking-table-wrap">' + (unidades.length
+      ? '<div class="table-wrap"><table><thead><tr><th>Almoxarifado</th><th>Inventário</th><th>Ajuste total</th><th>% ajuste</th></tr></thead><tbody>'
+        + unidades.map(function(r){
+          const pctCell = r.pct_ajustes > 0.15
+            ? '<span class="badge b-critical">' + invPctFmt(r.pct_ajustes) + '</span>'
+            : invPctFmt(r.pct_ajustes);
+          return '<tr><td>'+escapeHtml(r.almoxarifado)+'</td><td>'+invBRL(r.inventario_geral)+'</td><td>'+invBRL(r.ajuste_total)+'</td><td>'+pctCell+'</td></tr>';
+        }).join("") + '</tbody></table></div>'
+      : '<p class="empty-hint">Sem dados para este semestre.</p>') + '</div>';
+  } else {
+    html += '<div id="inv-ranking-controls">' + VizModes.thresholdControlsHtml("inventario_ranking", rankVizActiveThresh, !!rankVizStoredThresh, "%") + '</div>';
+    html += '<div id="inventario-ranking-viz-mount"></div>';
+  }
   html += '</div>';
 
   const grupos = data.grupos.filter(function(g){ return g.semestre === sem && g.nivel === "Grupo" && g.grupo !== "Total Geral"; })
     .sort(function(a,b){ return b.total - a.total; });
   html += '<div class="subsection"><h3>Grupos de material por ajuste total (' + escapeHtml(sem) + ')</h3>';
-  html += grupos.length
+  html += '<div id="inv-grupos-wrap">' + (grupos.length
     ? '<div class="table-wrap"><table><thead><tr><th>Grupo</th><th>Entrada</th><th>Saída</th><th>Total</th></tr></thead><tbody>'
       + grupos.map(function(g){
         return '<tr><td>'+escapeHtml(g.grupo)+'</td><td>'+invBRL(g.entrada)+'</td><td>'+invBRL(g.saida)+'</td><td>'+invBRL(g.total)+'</td></tr>';
       }).join("") + '</tbody></table></div>'
-    : '<p class="empty-hint">Sem dados para este semestre.</p>';
+    : '<p class="empty-hint">Sem dados para este semestre.</p>') + '</div>';
   html += '</div>';
 
   html += '<div class="subsection"><h3>Unidades em destaque — variação vs. semestre base</h3>';
-  html += VizModes.modeTabsHtml("inventario", inventarioVizMode);
+  html += '<div id="inv-destaque-modetabs">' + VizModes.modeTabsHtml("inventario", inventarioVizMode) + '</div>';
   if(inventarioVizMode === "tabela"){
-    html += evolOrdenada.length
+    html += '<div id="inv-destaque-table-wrap">' + (evolOrdenada.length
       ? '<div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Tendência</th><th>Variação</th><th>Semestre base</th></tr></thead><tbody>'
         + evolOrdenada.map(function(u){
           const tone = u.tendencia === "Alta" ? "b-critical" : "b-good";
           return '<tr><td>'+escapeHtml(u.unidade)+'</td><td><span class="badge '+tone+'">'+escapeHtml(u.tendencia||"—")+'</span></td><td>'+invPctFmt(Math.abs(u.variacao_pct))+'</td><td>'+escapeHtml(u.semestre_base||"—")+'</td></tr>';
         }).join("") + '</tbody></table></div>'
-      : '<p class="empty-hint">Sem dados de evolução.</p>';
+      : '<p class="empty-hint">Sem dados de evolução.</p>') + '</div>';
   } else {
-    html += VizModes.thresholdControlsHtml("inventario", invVizActiveThresh, !!invVizStoredThresh, "%");
+    html += '<div id="inv-destaque-controls">' + VizModes.thresholdControlsHtml("inventario", invVizActiveThresh, !!invVizStoredThresh, "%") + '</div>';
     html += '<div id="inventario-viz-mount"></div>';
   }
   html += '</div>';
@@ -3031,10 +3069,54 @@ function renderInventarioBody(data){
 
   el.innerHTML = html;
   fitAllKpiValues(el);
-  VizModes.wireModeTabs(el, "inventario", function(m){ inventarioVizMode = m; renderInventarioBody(data); });
 
+  // Grupos de material é sempre uma tabela simples, sem clique por índice — pode ordenar
+  // independente do modo escolhido nas outras duas seções.
+  const invGruposWrap = document.getElementById("inv-grupos-wrap");
+  if(invGruposWrap) enableSortableTables(invGruposWrap);
+
+  // ---- Ranking por almoxarifado (seção com seu próprio seletor de modo) ----
+  const rankModeTabsEl = document.getElementById("inv-ranking-modetabs");
+  if(rankModeTabsEl) VizModes.wireModeTabs(rankModeTabsEl, "inventario_ranking", function(m){ inventarioRankingVizMode = m; renderInventarioBody(data); });
+  if(inventarioRankingVizMode === "tabela"){
+    const rankTableWrap = document.getElementById("inv-ranking-table-wrap");
+    if(rankTableWrap) enableSortableTables(rankTableWrap);
+  } else {
+    const rankVizMount = document.getElementById("inventario-ranking-viz-mount");
+    const rankVizOpts = {
+      severityLabel: "% de ajuste", severityUnit: "%", idLabel: "Almoxarifado",
+      onItemClick: function(it){ VizModes.openDetailModal(it.label, inventarioRankingDetailTable(it.raw)); },
+    };
+    function drawRankVizMode(){
+      if(inventarioRankingVizMode === "cards") VizModes.renderCardGroups(rankVizMount, rankVizItemsAll, rankVizActiveThresh, rankVizOpts);
+      else if(inventarioRankingVizMode === "kanban") VizModes.renderKanban(rankVizMount, rankVizItemsAll, rankVizActiveThresh, rankVizOpts);
+      else if(inventarioRankingVizMode === "exec") VizModes.renderExecSummary(rankVizMount, rankVizItemsAll, rankVizActiveThresh, Object.assign({ title:"Resumo executivo — Ranking por almoxarifado" }, rankVizOpts), { updatedNote: "Semestre " + sem + " · Gerado em " + fmtDateTime(new Date()) });
+    }
+    drawRankVizMode();
+
+    const rankControlsWrap = document.getElementById("inv-ranking-controls");
+    const rankVizControlsEl = rankControlsWrap ? rankControlsWrap.querySelector(".viz-controls") : null;
+    if(rankVizControlsEl){
+      VizModes.wireThresholdControls(rankVizControlsEl, "inventario_ranking", function(t){
+        rankVizActiveThresh = t;
+        drawRankVizMode();
+        const noteEl = rankVizControlsEl.querySelector(".vc-note");
+        if(noteEl) noteEl.textContent = "Limiares ajustados manualmente.";
+      }, function(){
+        rankVizActiveThresh = rankVizAutoThresh;
+        drawRankVizMode();
+        const noteEl = rankVizControlsEl.querySelector(".vc-note");
+        if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis).";
+      });
+    }
+  }
+
+  // ---- Unidades em destaque (seção com seu próprio seletor de modo) ----
+  const destaqueModeTabsEl = document.getElementById("inv-destaque-modetabs");
+  if(destaqueModeTabsEl) VizModes.wireModeTabs(destaqueModeTabsEl, "inventario", function(m){ inventarioVizMode = m; renderInventarioBody(data); });
   if(inventarioVizMode === "tabela"){
-    enableSortableTables(el);
+    const destaqueTableWrap = document.getElementById("inv-destaque-table-wrap");
+    if(destaqueTableWrap) enableSortableTables(destaqueTableWrap);
   } else {
     const invVizMount = document.getElementById("inventario-viz-mount");
     const invVizOpts = {
@@ -3048,7 +3130,8 @@ function renderInventarioBody(data){
     }
     drawInvVizMode();
 
-    const invVizControlsEl = el.querySelector(".viz-controls");
+    const destaqueControlsWrap = document.getElementById("inv-destaque-controls");
+    const invVizControlsEl = destaqueControlsWrap ? destaqueControlsWrap.querySelector(".viz-controls") : null;
     if(invVizControlsEl){
       VizModes.wireThresholdControls(invVizControlsEl, "inventario", function(t){
         invVizActiveThresh = t;
