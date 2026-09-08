@@ -1115,6 +1115,420 @@ function srcNote(text){
   return '<p class="src-note">Fonte: ' + escapeHtml(text) + '</p>';
 }
 
+// =====================================================================
+// MODOS DE VISUALIZAÇÃO ALTERNATIVOS (genérico e reutilizável)
+// Componentes de apoio à tabela — Cards agrupados / Kanban por severidade /
+// Resumo executivo. Não conhecem nomes de aba nem de coluna: cada aba que
+// os usa passa os dados já filtrados como uma lista de itens genéricos
+// {id, label, group, group2, context, severity, raw} — resolvendo os três
+// papéis (identificador, dimensão de agrupamento, métrica de severidade) a
+// partir do seu próprio schema — e algumas opções de rótulo/callback. Nada
+// aqui é específico de uma aba, para poder ser ligado em qualquer outra que
+// tenha uma lista tabular parecida.
+// =====================================================================
+const VizModes = (function(){
+  const VZ_MODES = ["tabela","cards","kanban","exec"];
+  const VZ_MODE_LABEL = { tabela:"Tabela", cards:"Cards", kanban:"Kanban", exec:"Resumo executivo" };
+
+  function loadMode(vizKey){
+    try{
+      const v = localStorage.getItem("vizmode_" + vizKey);
+      return VZ_MODES.indexOf(v) !== -1 ? v : "tabela";
+    }catch(e){ return "tabela"; }
+  }
+  function saveMode(vizKey, mode){
+    try{ localStorage.setItem("vizmode_" + vizKey, mode); }catch(e){}
+  }
+  function loadGroupField(vizKey, fieldKeys, def){
+    try{
+      const v = localStorage.getItem("vizmode_" + vizKey + "_group");
+      return fieldKeys.indexOf(v) !== -1 ? v : def;
+    }catch(e){ return def; }
+  }
+  function saveGroupField(vizKey, key){
+    try{ localStorage.setItem("vizmode_" + vizKey + "_group", key); }catch(e){}
+  }
+  function loadThresholds(vizKey){
+    try{
+      const raw = localStorage.getItem("vizmode_" + vizKey + "_thresh");
+      if(!raw) return null;
+      const obj = JSON.parse(raw);
+      if(obj && typeof obj.low === "number" && typeof obj.high === "number") return obj;
+    }catch(e){}
+    return null;
+  }
+  function saveThresholds(vizKey, thresholds){
+    try{ localStorage.setItem("vizmode_" + vizKey + "_thresh", JSON.stringify(thresholds)); }catch(e){}
+  }
+  function clearThresholds(vizKey){
+    try{ localStorage.removeItem("vizmode_" + vizKey + "_thresh"); }catch(e){}
+  }
+
+  function percentile(sortedAsc, p){
+    if(!sortedAsc.length) return 0;
+    const idx = (sortedAsc.length - 1) * p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    if(lo === hi) return sortedAsc[lo];
+    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+  }
+  // Limiares default calculados pela distribuição real dos valores de severidade — nunca fixos em
+  // código. `invert` cobre métricas onde valor BAIXO é que é pior (ex.: mm de sulco de pneu): nesse
+  // caso os limiares vêm dos percentis baixos (15/50) em vez dos altos (50/85), mas continuam
+  // representados como { low <= high } — só a comparação em bandOf() muda de sentido. O usuário
+  // pode sempre sobrepor os dois valores manualmente (persistido).
+  function computeDefaultThresholds(values, invert){
+    const nums = values.filter(function(v){ return v !== null && v !== undefined && !isNaN(v); }).slice().sort(function(a,b){ return a-b; });
+    if(!nums.length) return { low:0, high:1, invert: !!invert };
+    let low, high;
+    if(invert){
+      low = Math.round(percentile(nums, 0.15) * 100) / 100;
+      high = Math.round(percentile(nums, 0.5) * 100) / 100;
+      if(low >= high) low = high - 1;
+    } else {
+      low = Math.round(percentile(nums, 0.5) * 100) / 100;
+      high = Math.round(percentile(nums, 0.85) * 100) / 100;
+      if(high <= low) high = low + 1;
+    }
+    return { low: low, high: high, invert: !!invert };
+  }
+  function bandOf(value, thresholds){
+    if(value === null || value === undefined || isNaN(value)) return "unknown";
+    if(thresholds.invert){
+      if(value <= thresholds.low) return "critico";
+      if(value <= thresholds.high) return "atencao";
+      return "normal";
+    }
+    if(value >= thresholds.high) return "critico";
+    if(value >= thresholds.low) return "atencao";
+    return "normal";
+  }
+  const BAND_LABEL = { critico:"Crítico", atencao:"Atenção", normal:"Normal", unknown:"Sem dado" };
+  const BAND_BADGE_TONE = { critico:"critical", atencao:"warning", normal:"good", unknown:"info" };
+
+  // Ordena "pior primeiro", independente da métrica ser normal (maior = pior) ou invertida
+  // (menor = pior, ex.: mm de sulco de pneu) — usado em qualquer lista/ranking dos 3 modelos, pra
+  // que "pior primeiro" sempre signifique a mesma coisa visualmente. Itens sem valor vão pro fim.
+  function worstFirstCompare(a, b, invert){
+    const av = (a===null||a===undefined||isNaN(a)) ? null : a;
+    const bv = (b===null||b===undefined||isNaN(b)) ? null : b;
+    if(av === null && bv === null) return 0;
+    if(av === null) return 1;
+    if(bv === null) return -1;
+    return invert ? (av - bv) : (bv - av);
+  }
+
+  function modeTabsHtml(vizKey, current){
+    return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + VZ_MODES.map(function(m){
+      return '<button type="button" role="tab" aria-selected="' + (m===current?"true":"false") + '" class="' + (m===current?"active":"") + '" data-vz-mode="' + m + '">' + escapeHtml(VZ_MODE_LABEL[m]) + '</button>';
+    }).join("") + '</div>';
+  }
+  function wireModeTabs(container, vizKey, onChange){
+    container.querySelectorAll('[data-vz-mode]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const m = btn.dataset.vzMode;
+        saveMode(vizKey, m);
+        onChange(m);
+      });
+    });
+  }
+
+  function groupSelectHtml(vizKey, groupFields, current){
+    if(!groupFields || groupFields.length < 2) return "";
+    return '<div class="vc-field"><label for="' + vizKey + '-groupsel">Agrupar por</label><select id="' + vizKey + '-groupsel">' + groupFields.map(function(f){
+      return '<option value="' + escapeHtml(f.key) + '"' + (f.key===current?" selected":"") + '>' + escapeHtml(f.label) + '</option>';
+    }).join("") + '</select></div>';
+  }
+  function wireGroupSelect(container, vizKey, onChange){
+    const sel = container.querySelector('#' + vizKey + '-groupsel');
+    if(!sel) return;
+    sel.addEventListener("change", function(){ saveGroupField(vizKey, sel.value); onChange(sel.value); });
+  }
+
+  // extraHtml (opcional): outro(s) campo(s) .vc-field pra colocar antes dos limiares (ex.: o
+  // seletor de dimensão de agrupamento do Modelo 1). Os rótulos dos dois campos se adaptam quando
+  // thresholds.invert é verdadeiro (métrica onde valor baixo é que é pior).
+  function thresholdControlsHtml(vizKey, thresholds, isOverridden, unitLabel, extraHtml){
+    const lowLabel = thresholds.invert ? "Crítico até (" : "Atenção a partir de (";
+    const highLabel = thresholds.invert ? "Atenção até (" : "Crítico a partir de (";
+    return '<div class="viz-controls">'
+      + (extraHtml || "")
+      + '<div class="vc-field"><label for="' + vizKey + '-th-low">' + lowLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-low" value="' + thresholds.low + '" step="any" /></div>'
+      + '<div class="vc-field"><label for="' + vizKey + '-th-high">' + highLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-high" value="' + thresholds.high + '" step="any" /></div>'
+      + '<button type="button" class="ghost vc-reset" id="' + vizKey + '-th-reset">Restaurar automático</button>'
+      + '<span class="vc-note">' + (isOverridden ? "Limiares ajustados manualmente." : "Limiares calculados automaticamente pela distribuição dos dados (percentis).") + '</span>'
+      + '</div>';
+  }
+  function wireThresholdControls(container, vizKey, onChange, onReset, invert){
+    const lowEl = container.querySelector('#' + vizKey + '-th-low');
+    const highEl = container.querySelector('#' + vizKey + '-th-high');
+    const resetBtn = container.querySelector('#' + vizKey + '-th-reset');
+    if(!lowEl || !highEl || !resetBtn) return;
+    function apply(){
+      const low = parseFloat(lowEl.value), high = parseFloat(highEl.value);
+      if(isNaN(low) || isNaN(high) || high <= low) return;
+      const t = { low:low, high:high, invert: !!invert };
+      saveThresholds(vizKey, t);
+      onChange(t);
+    }
+    lowEl.addEventListener("change", apply);
+    highEl.addEventListener("change", apply);
+    resetBtn.addEventListener("click", function(){
+      clearThresholds(vizKey);
+      onReset();
+    });
+  }
+
+  function miniBarsHtml(title, counts){
+    const max = counts.reduce(function(m,c){ return Math.max(m, c.count); }, 0) || 1;
+    return '<div class="vz-minibar-box"><h4>' + escapeHtml(title) + '</h4>' + (counts.length ? counts.map(function(c){
+      const pct = Math.round((c.count / max) * 100);
+      return '<div class="vz-minibar-row" role="img" aria-label="' + escapeHtml(c.label) + ': ' + c.count + '"><span class="vmb-label" title="' + escapeHtml(c.label) + '">' + escapeHtml(c.label) + '</span><span class="vz-minibar-track"><span class="vz-minibar-fill" style="width:' + pct + '%"></span></span><span class="vmb-count">' + c.count + '</span></div>';
+    }).join("") : '<p class="empty-hint" style="padding:6px 0;">Sem dados.</p>') + '</div>';
+  }
+
+  function openDetailModal(title, bodyHtml){
+    let overlay = document.getElementById("viz-modal-overlay");
+    if(!overlay){
+      overlay = document.createElement("div");
+      overlay.id = "viz-modal-overlay";
+      overlay.innerHTML = '<div class="vz-modal" role="dialog" aria-modal="true" aria-labelledby="viz-modal-title">'
+        + '<div class="vz-modal-head"><h3 id="viz-modal-title"></h3><button type="button" class="vz-modal-close" aria-label="Fechar">&times;</button></div>'
+        + '<div class="vz-modal-body" id="viz-modal-body"></div></div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener("click", function(e){ if(e.target === overlay) closeDetailModal(); });
+      overlay.querySelector(".vz-modal-close").addEventListener("click", closeDetailModal);
+      document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeDetailModal(); });
+    }
+    overlay.querySelector("#viz-modal-title").textContent = title;
+    overlay.querySelector("#viz-modal-body").innerHTML = bodyHtml;
+    overlay.classList.add("open");
+  }
+  function closeDetailModal(){
+    const overlay = document.getElementById("viz-modal-overlay");
+    if(overlay) overlay.classList.remove("open");
+  }
+
+  // ---- Modelo 1: cards agrupados por dimensão de agrupamento ----
+  // items: [{id,label,group,group2,severity,raw}]
+  function renderCardGroups(mountEl, items, thresholds, opts){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir neste agrupamento.</div>'; return; }
+    const total = items.length;
+    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
+    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
+
+    const groupsMap = {};
+    items.forEach(function(it){
+      const k = it.group || "Não informado";
+      if(!groupsMap[k]) groupsMap[k] = [];
+      groupsMap[k].push(it);
+    });
+    const groupNames = Object.keys(groupsMap).sort(function(a,b){ return groupsMap[b].length - groupsMap[a].length; });
+    const groupRows = groupNames.map(function(g){
+      return groupsMap[g].slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
+    });
+    const topGroup = groupNames[0];
+
+    const group2Counts = {};
+    items.forEach(function(it){ if(it.group2){ group2Counts[it.group2] = (group2Counts[it.group2]||0)+1; } });
+    const group2List = Object.keys(group2Counts).map(function(k){ return {label:k, count:group2Counts[k]}; }).sort(function(a,b){ return b.count-a.count; }).slice(0,8);
+
+    let html = '<div class="kpi-grid vz-summary-row">'
+      + kpiCard("Total de registros", fmtNum(total), "info")
+      + kpiCard("Média — " + (opts.severityLabel||"severidade"), avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR") + (opts.severityUnit||"")), "info")
+      + kpiCard("Maior grupo", topGroup ? (topGroup + " (" + groupsMap[topGroup].length + ")") : "—", "info")
+      + '</div>';
+
+    html += '<div class="vz-minibars">'
+      + miniBarsHtml("Registros por " + (opts.groupLabel||"grupo"), groupNames.slice(0,10).map(function(g){ return {label:g, count:groupsMap[g].length}; }))
+      + (group2List.length ? miniBarsHtml("Registros por " + (opts.group2Label||"categoria"), group2List) : "")
+      + '</div>';
+
+    const VISIBLE = 12;
+    function badgeHtml(it){
+      const band = bandOf(it.severity, thresholds);
+      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
+      return '<button type="button" class="vz-sev-badge b-' + BAND_BADGE_TONE[band] + '" title="' + escapeHtml(it.label) + '">' + escapeHtml(String(it.id)) + ' · ' + escapeHtml(String(val)) + '</button>';
+    }
+    html += '<div class="vz-card-grid">' + groupNames.map(function(g, gi){
+      const rowsG = groupRows[gi];
+      const shown = rowsG.slice(0, VISIBLE);
+      const extra = rowsG.length - shown.length;
+      return '<div class="vz-group-card"><div class="vz-gc-head"><button type="button" class="vz-gc-title-btn" data-vz-gi="' + gi + '">' + escapeHtml(g) + '</button><span class="badge b-info">' + rowsG.length + '</span></div>'
+        + '<div class="vz-badge-list" data-vz-body-gi="' + gi + '">' + shown.map(badgeHtml).join("") + (extra > 0 ? '<button type="button" class="ghost vz-more-btn" data-vz-more-gi="' + gi + '">Ver mais (+' + extra + ')</button>' : "") + '</div></div>';
+    }).join("") + '</div>';
+
+    mountEl.innerHTML = html;
+
+    function wireBody(bodyEl, rowsShown){
+      bodyEl.querySelectorAll('.vz-sev-badge').forEach(function(btn, i){
+        btn.addEventListener("click", function(){ if(opts.onItemClick) opts.onItemClick(rowsShown[i]); });
+      });
+    }
+    groupNames.forEach(function(g, gi){
+      const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
+      wireBody(bodyEl, groupRows[gi].slice(0, VISIBLE));
+    });
+    mountEl.querySelectorAll('[data-vz-gi]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const gi = parseInt(btn.dataset.vzGi, 10);
+        if(opts.onGroupClick) opts.onGroupClick(groupNames[gi]);
+      });
+    });
+    mountEl.querySelectorAll('[data-vz-more-gi]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const gi = parseInt(btn.dataset.vzMoreGi, 10);
+        const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
+        const rowsG = groupRows[gi];
+        bodyEl.innerHTML = rowsG.map(badgeHtml).join("");
+        wireBody(bodyEl, rowsG);
+      });
+    });
+  }
+
+  // ---- Modelo 2: kanban por faixa de severidade ----
+  function renderKanban(mountEl, items, thresholds, opts){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
+    const bandsObj = { critico:[], atencao:[], normal:[] };
+    let unknownCount = 0;
+    items.forEach(function(it){
+      const b = bandOf(it.severity, thresholds);
+      if(b === "unknown"){ unknownCount++; return; }
+      bandsObj[b].push(it);
+    });
+    const bandKeys = ["critico","atencao","normal"];
+    bandKeys.forEach(function(b){
+      bandsObj[b].sort(function(a,c){ return worstFirstCompare(a.severity, c.severity, thresholds.invert); });
+    });
+    const totalKnown = bandsObj.critico.length + bandsObj.atencao.length + bandsObj.normal.length || 1;
+
+    let html = '<div class="vz-kanban-dist" role="img" aria-label="Distribuição: ' + bandsObj.critico.length + ' crítico, ' + bandsObj.atencao.length + ' atenção, ' + bandsObj.normal.length + ' normal">'
+      + '<div style="width:' + Math.round(bandsObj.critico.length/totalKnown*100) + '%;background:var(--critical);"></div>'
+      + '<div style="width:' + Math.round(bandsObj.atencao.length/totalKnown*100) + '%;background:var(--warning);"></div>'
+      + '<div style="width:' + Math.round(bandsObj.normal.length/totalKnown*100) + '%;background:var(--good);"></div>'
+      + '</div>';
+
+    const VISIBLE = 80;
+    function cardHtml(it){
+      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
+      return '<button type="button" class="vz-kanban-card"><div class="vk-id">' + escapeHtml(String(it.id)) + '</div><div class="vk-meta"><span>' + escapeHtml(it.group||"—") + '</span><span>' + escapeHtml(String(val)) + '</span></div>' + (it.context ? '<div class="vk-meta"><span>' + escapeHtml(it.context) + '</span></div>' : '') + '</button>';
+    }
+    html += '<div class="vz-kanban">' + bandKeys.map(function(b, bi){
+      const list = bandsObj[b];
+      const shown = list.slice(0, VISIBLE);
+      return '<div class="vz-kanban-col ' + b + '"><div class="vz-kanban-col-head"><span>' + BAND_LABEL[b] + '</span><span class="badge b-' + BAND_BADGE_TONE[b] + '">' + list.length + '</span></div>'
+        + '<div class="vz-kanban-body" data-vz-band-idx="' + bi + '">'
+        + (list.length ? shown.map(cardHtml).join("") + (list.length > VISIBLE ? '<button type="button" class="ghost" data-vz-kanban-more="' + bi + '">Carregar mais (' + (list.length-VISIBLE) + ')</button>' : "")
+          : '<p class="empty-hint">Nenhum registro nesta faixa.</p>')
+        + '</div></div>';
+    }).join("") + '</div>'
+    + (unknownCount ? '<p class="hint">' + unknownCount + ' registro(s) sem valor de ' + (opts.severityLabel||"severidade") + ' não exibido(s) no kanban.</p>' : "");
+
+    mountEl.innerHTML = html;
+
+    function wireCol(bi){
+      const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
+      bodyEl.querySelectorAll('.vz-kanban-card').forEach(function(btn, i){
+        btn.addEventListener("click", function(){
+          const list = bandsObj[bandKeys[bi]];
+          if(opts.onItemClick) opts.onItemClick(list[i]);
+        });
+      });
+    }
+    bandKeys.forEach(function(b, bi){ wireCol(bi); });
+    mountEl.querySelectorAll('[data-vz-kanban-more]').forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const bi = parseInt(btn.dataset.vzKanbanMore, 10);
+        const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
+        const list = bandsObj[bandKeys[bi]];
+        bodyEl.innerHTML = list.map(cardHtml).join("");
+        wireCol(bi);
+      });
+    });
+  }
+
+  // ---- Modelo 3: resumo executivo ----
+  function renderExecSummary(mountEl, items, thresholds, opts, meta){
+    opts = opts || {};
+    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
+    const total = items.length;
+    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
+    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
+    // "Acima do limiar de atenção" = já em atenção ou pior — usa bandOf() em vez de comparar o
+    // valor bruto, pra funcionar igual em métricas normais e invertidas (menor = pior).
+    const acimaAtencao = withSeverity.filter(function(it){ const b = bandOf(it.severity, thresholds); return b === "atencao" || b === "critico"; }).length;
+    const pctAtencao = withSeverity.length ? Math.round(acimaAtencao / withSeverity.length * 1000)/10 : 0;
+
+    const groupCounts = {};
+    items.forEach(function(it){ const g = it.group||"Não informado"; groupCounts[g]=(groupCounts[g]||0)+1; });
+    const groupNames = Object.keys(groupCounts).sort(function(a,b){ return groupCounts[b]-groupCounts[a]; });
+    const topGroup = groupNames[0];
+    const topGroupPct = topGroup ? Math.round(groupCounts[topGroup]/total*1000)/10 : 0;
+
+    const maxSeverity = withSeverity.length ? Math.max.apply(null, withSeverity.map(function(it){ return it.severity; })) : 0;
+    const sortedRows = items.slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
+    const mostCritical = sortedRows[0];
+
+    let html = '<div class="vz-exec">'
+      + '<div class="vz-exec-head"><h3>' + escapeHtml(opts.title || "Resumo executivo") + '</h3><span class="vze-ts">' + escapeHtml((meta && meta.updatedNote) || "") + '</span></div>'
+      + '<div class="vz-exec-kpis">'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Total de registros</div><div class="vek-value">' + fmtNum(total) + '</div></div>'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Média — ' + escapeHtml(opts.severityLabel||"severidade") + '</div><div class="vek-value">' + (avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR")+(opts.severityUnit||""))) + '</div></div>'
+      + '<div class="vz-exec-kpi crit"><div class="vek-label">Acima do limiar de atenção</div><div class="vek-value">' + pctAtencao.toLocaleString("pt-BR") + '%</div></div>'
+      + '<div class="vz-exec-kpi"><div class="vek-label">Concentração no maior grupo</div><div class="vek-value">' + topGroupPct.toLocaleString("pt-BR") + '%</div></div>'
+      + '</div>';
+
+    html += '<div class="table-wrap"><table><thead><tr><th>' + escapeHtml(opts.idLabel||"Identificador") + '</th><th>' + escapeHtml(opts.groupLabel||"Grupo") + '</th><th>' + escapeHtml(opts.severityLabel||"Severidade") + '</th><th>Status</th></tr></thead><tbody>'
+      + sortedRows.map(function(it){
+          const band = bandOf(it.severity, thresholds);
+          const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? null : it.severity;
+          // A barra representa "quão severo", não o valor bruto — numa métrica invertida (menor é
+          // pior) ela fica cheia perto de zero, e não perto do maior valor da lista.
+          const pct = (val===null || maxSeverity<=0) ? 0 : (thresholds.invert ? Math.round((1 - val/maxSeverity) * 100) : Math.round(val/maxSeverity*100));
+          const valTxt = val===null ? "—" : (val + (opts.severityUnit||""));
+          return '<tr><td>' + escapeHtml(String(it.id)) + '</td><td>' + escapeHtml(it.group||"—") + '</td>'
+            + '<td><div class="vz-progress-cell"><span class="vz-progress-track" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(valTxt) + '"><span class="vz-progress-fill' + (band==="critico"?" crit":"") + '" style="width:' + pct + '%"></span></span><span class="vz-progress-num">' + escapeHtml(valTxt) + '</span></div></td>'
+            + '<td><span class="vz-status-badge ' + band + '">' + BAND_LABEL[band] + '</span></td></tr>';
+        }).join("")
+      + '</tbody></table></div>';
+
+    const recoParts = [];
+    if(topGroup) recoParts.push('O grupo com maior concentração de registros é <b>' + escapeHtml(topGroup) + '</b>, com ' + groupCounts[topGroup] + ' de ' + total + ' registros (' + topGroupPct.toLocaleString("pt-BR") + '%).');
+    if(mostCritical && mostCritical.severity !== null && mostCritical.severity !== undefined && !isNaN(mostCritical.severity)){
+      recoParts.push('O registro mais crítico é <b>' + escapeHtml(String(mostCritical.id)) + '</b>' + (mostCritical.group ? (' (' + escapeHtml(mostCritical.group) + ')') : '') + ', com ' + mostCritical.severity + (opts.severityUnit||"") + ' de ' + (opts.severityLabel||"severidade") + '.');
+    }
+    if(pctAtencao > 0) recoParts.push(pctAtencao.toLocaleString("pt-BR") + '% dos registros já estão acima do limiar de atenção — recomenda-se priorizar esse grupo antes que avancem para crítico.');
+    html += '<div class="vz-exec-reco"><b>Recomendação:</b> ' + (recoParts.length ? recoParts.join(" ") : "Sem observações adicionais para os dados filtrados atuais.") + '</div>';
+    html += '</div>';
+
+    mountEl.innerHTML = html;
+
+    if(opts.onItemClick){
+      mountEl.querySelectorAll("tbody tr").forEach(function(tr, i){
+        tr.tabIndex = 0;
+        tr.setAttribute("role","button");
+        tr.addEventListener("click", function(){ opts.onItemClick(sortedRows[i]); });
+        tr.addEventListener("keydown", function(e){ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); opts.onItemClick(sortedRows[i]); } });
+      });
+    }
+  }
+
+  return {
+    loadMode: loadMode, saveMode: saveMode,
+    loadGroupField: loadGroupField, saveGroupField: saveGroupField,
+    loadThresholds: loadThresholds, saveThresholds: saveThresholds, clearThresholds: clearThresholds,
+    computeDefaultThresholds: computeDefaultThresholds, bandOf: bandOf,
+    BAND_LABEL: BAND_LABEL, BAND_BADGE_TONE: BAND_BADGE_TONE,
+    modeTabsHtml: modeTabsHtml, wireModeTabs: wireModeTabs,
+    groupSelectHtml: groupSelectHtml, wireGroupSelect: wireGroupSelect,
+    thresholdControlsHtml: thresholdControlsHtml, wireThresholdControls: wireThresholdControls,
+    openDetailModal: openDetailModal, closeDetailModal: closeDetailModal,
+    renderCardGroups: renderCardGroups, renderKanban: renderKanban, renderExecSummary: renderExecSummary,
+  };
+})();
+
+
 // ---------- UI: login ----------
 const whoSelect = document.getElementById("who");
 USERS.forEach(function(u){
@@ -2006,419 +2420,6 @@ async function renderPneus(newAsOf){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
   }
 }
-
-// =====================================================================
-// MODOS DE VISUALIZAÇÃO ALTERNATIVOS (genérico e reutilizável)
-// Componentes de apoio à tabela — Cards agrupados / Kanban por severidade /
-// Resumo executivo. Não conhecem nomes de aba nem de coluna: cada aba que
-// os usa passa os dados já filtrados como uma lista de itens genéricos
-// {id, label, group, group2, context, severity, raw} — resolvendo os três
-// papéis (identificador, dimensão de agrupamento, métrica de severidade) a
-// partir do seu próprio schema — e algumas opções de rótulo/callback. Nada
-// aqui é específico de uma aba, para poder ser ligado em qualquer outra que
-// tenha uma lista tabular parecida.
-// =====================================================================
-const VizModes = (function(){
-  const VZ_MODES = ["tabela","cards","kanban","exec"];
-  const VZ_MODE_LABEL = { tabela:"Tabela", cards:"Cards", kanban:"Kanban", exec:"Resumo executivo" };
-
-  function loadMode(vizKey){
-    try{
-      const v = localStorage.getItem("vizmode_" + vizKey);
-      return VZ_MODES.indexOf(v) !== -1 ? v : "tabela";
-    }catch(e){ return "tabela"; }
-  }
-  function saveMode(vizKey, mode){
-    try{ localStorage.setItem("vizmode_" + vizKey, mode); }catch(e){}
-  }
-  function loadGroupField(vizKey, fieldKeys, def){
-    try{
-      const v = localStorage.getItem("vizmode_" + vizKey + "_group");
-      return fieldKeys.indexOf(v) !== -1 ? v : def;
-    }catch(e){ return def; }
-  }
-  function saveGroupField(vizKey, key){
-    try{ localStorage.setItem("vizmode_" + vizKey + "_group", key); }catch(e){}
-  }
-  function loadThresholds(vizKey){
-    try{
-      const raw = localStorage.getItem("vizmode_" + vizKey + "_thresh");
-      if(!raw) return null;
-      const obj = JSON.parse(raw);
-      if(obj && typeof obj.low === "number" && typeof obj.high === "number") return obj;
-    }catch(e){}
-    return null;
-  }
-  function saveThresholds(vizKey, thresholds){
-    try{ localStorage.setItem("vizmode_" + vizKey + "_thresh", JSON.stringify(thresholds)); }catch(e){}
-  }
-  function clearThresholds(vizKey){
-    try{ localStorage.removeItem("vizmode_" + vizKey + "_thresh"); }catch(e){}
-  }
-
-  function percentile(sortedAsc, p){
-    if(!sortedAsc.length) return 0;
-    const idx = (sortedAsc.length - 1) * p;
-    const lo = Math.floor(idx), hi = Math.ceil(idx);
-    if(lo === hi) return sortedAsc[lo];
-    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
-  }
-  // Limiares default calculados pela distribuição real dos valores de severidade — nunca fixos em
-  // código. `invert` cobre métricas onde valor BAIXO é que é pior (ex.: mm de sulco de pneu): nesse
-  // caso os limiares vêm dos percentis baixos (15/50) em vez dos altos (50/85), mas continuam
-  // representados como { low <= high } — só a comparação em bandOf() muda de sentido. O usuário
-  // pode sempre sobrepor os dois valores manualmente (persistido).
-  function computeDefaultThresholds(values, invert){
-    const nums = values.filter(function(v){ return v !== null && v !== undefined && !isNaN(v); }).slice().sort(function(a,b){ return a-b; });
-    if(!nums.length) return { low:0, high:1, invert: !!invert };
-    let low, high;
-    if(invert){
-      low = Math.round(percentile(nums, 0.15) * 100) / 100;
-      high = Math.round(percentile(nums, 0.5) * 100) / 100;
-      if(low >= high) low = high - 1;
-    } else {
-      low = Math.round(percentile(nums, 0.5) * 100) / 100;
-      high = Math.round(percentile(nums, 0.85) * 100) / 100;
-      if(high <= low) high = low + 1;
-    }
-    return { low: low, high: high, invert: !!invert };
-  }
-  function bandOf(value, thresholds){
-    if(value === null || value === undefined || isNaN(value)) return "unknown";
-    if(thresholds.invert){
-      if(value <= thresholds.low) return "critico";
-      if(value <= thresholds.high) return "atencao";
-      return "normal";
-    }
-    if(value >= thresholds.high) return "critico";
-    if(value >= thresholds.low) return "atencao";
-    return "normal";
-  }
-  const BAND_LABEL = { critico:"Crítico", atencao:"Atenção", normal:"Normal", unknown:"Sem dado" };
-  const BAND_BADGE_TONE = { critico:"critical", atencao:"warning", normal:"good", unknown:"info" };
-
-  // Ordena "pior primeiro", independente da métrica ser normal (maior = pior) ou invertida
-  // (menor = pior, ex.: mm de sulco de pneu) — usado em qualquer lista/ranking dos 3 modelos, pra
-  // que "pior primeiro" sempre signifique a mesma coisa visualmente. Itens sem valor vão pro fim.
-  function worstFirstCompare(a, b, invert){
-    const av = (a===null||a===undefined||isNaN(a)) ? null : a;
-    const bv = (b===null||b===undefined||isNaN(b)) ? null : b;
-    if(av === null && bv === null) return 0;
-    if(av === null) return 1;
-    if(bv === null) return -1;
-    return invert ? (av - bv) : (bv - av);
-  }
-
-  function modeTabsHtml(vizKey, current){
-    return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + VZ_MODES.map(function(m){
-      return '<button type="button" role="tab" aria-selected="' + (m===current?"true":"false") + '" class="' + (m===current?"active":"") + '" data-vz-mode="' + m + '">' + escapeHtml(VZ_MODE_LABEL[m]) + '</button>';
-    }).join("") + '</div>';
-  }
-  function wireModeTabs(container, vizKey, onChange){
-    container.querySelectorAll('[data-vz-mode]').forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const m = btn.dataset.vzMode;
-        saveMode(vizKey, m);
-        onChange(m);
-      });
-    });
-  }
-
-  function groupSelectHtml(vizKey, groupFields, current){
-    if(!groupFields || groupFields.length < 2) return "";
-    return '<div class="vc-field"><label for="' + vizKey + '-groupsel">Agrupar por</label><select id="' + vizKey + '-groupsel">' + groupFields.map(function(f){
-      return '<option value="' + escapeHtml(f.key) + '"' + (f.key===current?" selected":"") + '>' + escapeHtml(f.label) + '</option>';
-    }).join("") + '</select></div>';
-  }
-  function wireGroupSelect(container, vizKey, onChange){
-    const sel = container.querySelector('#' + vizKey + '-groupsel');
-    if(!sel) return;
-    sel.addEventListener("change", function(){ saveGroupField(vizKey, sel.value); onChange(sel.value); });
-  }
-
-  // extraHtml (opcional): outro(s) campo(s) .vc-field pra colocar antes dos limiares (ex.: o
-  // seletor de dimensão de agrupamento do Modelo 1). Os rótulos dos dois campos se adaptam quando
-  // thresholds.invert é verdadeiro (métrica onde valor baixo é que é pior).
-  function thresholdControlsHtml(vizKey, thresholds, isOverridden, unitLabel, extraHtml){
-    const lowLabel = thresholds.invert ? "Crítico até (" : "Atenção a partir de (";
-    const highLabel = thresholds.invert ? "Atenção até (" : "Crítico a partir de (";
-    return '<div class="viz-controls">'
-      + (extraHtml || "")
-      + '<div class="vc-field"><label for="' + vizKey + '-th-low">' + lowLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-low" value="' + thresholds.low + '" step="any" /></div>'
-      + '<div class="vc-field"><label for="' + vizKey + '-th-high">' + highLabel + escapeHtml(unitLabel||"") + ')</label><input type="number" id="' + vizKey + '-th-high" value="' + thresholds.high + '" step="any" /></div>'
-      + '<button type="button" class="ghost vc-reset" id="' + vizKey + '-th-reset">Restaurar automático</button>'
-      + '<span class="vc-note">' + (isOverridden ? "Limiares ajustados manualmente." : "Limiares calculados automaticamente pela distribuição dos dados (percentis).") + '</span>'
-      + '</div>';
-  }
-  function wireThresholdControls(container, vizKey, onChange, onReset, invert){
-    const lowEl = container.querySelector('#' + vizKey + '-th-low');
-    const highEl = container.querySelector('#' + vizKey + '-th-high');
-    const resetBtn = container.querySelector('#' + vizKey + '-th-reset');
-    if(!lowEl || !highEl || !resetBtn) return;
-    function apply(){
-      const low = parseFloat(lowEl.value), high = parseFloat(highEl.value);
-      if(isNaN(low) || isNaN(high) || high <= low) return;
-      const t = { low:low, high:high, invert: !!invert };
-      saveThresholds(vizKey, t);
-      onChange(t);
-    }
-    lowEl.addEventListener("change", apply);
-    highEl.addEventListener("change", apply);
-    resetBtn.addEventListener("click", function(){
-      clearThresholds(vizKey);
-      onReset();
-    });
-  }
-
-  function miniBarsHtml(title, counts){
-    const max = counts.reduce(function(m,c){ return Math.max(m, c.count); }, 0) || 1;
-    return '<div class="vz-minibar-box"><h4>' + escapeHtml(title) + '</h4>' + (counts.length ? counts.map(function(c){
-      const pct = Math.round((c.count / max) * 100);
-      return '<div class="vz-minibar-row" role="img" aria-label="' + escapeHtml(c.label) + ': ' + c.count + '"><span class="vmb-label" title="' + escapeHtml(c.label) + '">' + escapeHtml(c.label) + '</span><span class="vz-minibar-track"><span class="vz-minibar-fill" style="width:' + pct + '%"></span></span><span class="vmb-count">' + c.count + '</span></div>';
-    }).join("") : '<p class="empty-hint" style="padding:6px 0;">Sem dados.</p>') + '</div>';
-  }
-
-  function openDetailModal(title, bodyHtml){
-    let overlay = document.getElementById("viz-modal-overlay");
-    if(!overlay){
-      overlay = document.createElement("div");
-      overlay.id = "viz-modal-overlay";
-      overlay.innerHTML = '<div class="vz-modal" role="dialog" aria-modal="true" aria-labelledby="viz-modal-title">'
-        + '<div class="vz-modal-head"><h3 id="viz-modal-title"></h3><button type="button" class="vz-modal-close" aria-label="Fechar">&times;</button></div>'
-        + '<div class="vz-modal-body" id="viz-modal-body"></div></div>';
-      document.body.appendChild(overlay);
-      overlay.addEventListener("click", function(e){ if(e.target === overlay) closeDetailModal(); });
-      overlay.querySelector(".vz-modal-close").addEventListener("click", closeDetailModal);
-      document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeDetailModal(); });
-    }
-    overlay.querySelector("#viz-modal-title").textContent = title;
-    overlay.querySelector("#viz-modal-body").innerHTML = bodyHtml;
-    overlay.classList.add("open");
-  }
-  function closeDetailModal(){
-    const overlay = document.getElementById("viz-modal-overlay");
-    if(overlay) overlay.classList.remove("open");
-  }
-
-  // ---- Modelo 1: cards agrupados por dimensão de agrupamento ----
-  // items: [{id,label,group,group2,severity,raw}]
-  function renderCardGroups(mountEl, items, thresholds, opts){
-    opts = opts || {};
-    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir neste agrupamento.</div>'; return; }
-    const total = items.length;
-    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
-    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
-
-    const groupsMap = {};
-    items.forEach(function(it){
-      const k = it.group || "Não informado";
-      if(!groupsMap[k]) groupsMap[k] = [];
-      groupsMap[k].push(it);
-    });
-    const groupNames = Object.keys(groupsMap).sort(function(a,b){ return groupsMap[b].length - groupsMap[a].length; });
-    const groupRows = groupNames.map(function(g){
-      return groupsMap[g].slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
-    });
-    const topGroup = groupNames[0];
-
-    const group2Counts = {};
-    items.forEach(function(it){ if(it.group2){ group2Counts[it.group2] = (group2Counts[it.group2]||0)+1; } });
-    const group2List = Object.keys(group2Counts).map(function(k){ return {label:k, count:group2Counts[k]}; }).sort(function(a,b){ return b.count-a.count; }).slice(0,8);
-
-    let html = '<div class="kpi-grid vz-summary-row">'
-      + kpiCard("Total de registros", fmtNum(total), "info")
-      + kpiCard("Média — " + (opts.severityLabel||"severidade"), avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR") + (opts.severityUnit||"")), "info")
-      + kpiCard("Maior grupo", topGroup ? (topGroup + " (" + groupsMap[topGroup].length + ")") : "—", "info")
-      + '</div>';
-
-    html += '<div class="vz-minibars">'
-      + miniBarsHtml("Registros por " + (opts.groupLabel||"grupo"), groupNames.slice(0,10).map(function(g){ return {label:g, count:groupsMap[g].length}; }))
-      + (group2List.length ? miniBarsHtml("Registros por " + (opts.group2Label||"categoria"), group2List) : "")
-      + '</div>';
-
-    const VISIBLE = 12;
-    function badgeHtml(it){
-      const band = bandOf(it.severity, thresholds);
-      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
-      return '<button type="button" class="vz-sev-badge b-' + BAND_BADGE_TONE[band] + '" title="' + escapeHtml(it.label) + '">' + escapeHtml(String(it.id)) + ' · ' + escapeHtml(String(val)) + '</button>';
-    }
-    html += '<div class="vz-card-grid">' + groupNames.map(function(g, gi){
-      const rowsG = groupRows[gi];
-      const shown = rowsG.slice(0, VISIBLE);
-      const extra = rowsG.length - shown.length;
-      return '<div class="vz-group-card"><div class="vz-gc-head"><button type="button" class="vz-gc-title-btn" data-vz-gi="' + gi + '">' + escapeHtml(g) + '</button><span class="badge b-info">' + rowsG.length + '</span></div>'
-        + '<div class="vz-badge-list" data-vz-body-gi="' + gi + '">' + shown.map(badgeHtml).join("") + (extra > 0 ? '<button type="button" class="ghost vz-more-btn" data-vz-more-gi="' + gi + '">Ver mais (+' + extra + ')</button>' : "") + '</div></div>';
-    }).join("") + '</div>';
-
-    mountEl.innerHTML = html;
-
-    function wireBody(bodyEl, rowsShown){
-      bodyEl.querySelectorAll('.vz-sev-badge').forEach(function(btn, i){
-        btn.addEventListener("click", function(){ if(opts.onItemClick) opts.onItemClick(rowsShown[i]); });
-      });
-    }
-    groupNames.forEach(function(g, gi){
-      const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
-      wireBody(bodyEl, groupRows[gi].slice(0, VISIBLE));
-    });
-    mountEl.querySelectorAll('[data-vz-gi]').forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const gi = parseInt(btn.dataset.vzGi, 10);
-        if(opts.onGroupClick) opts.onGroupClick(groupNames[gi]);
-      });
-    });
-    mountEl.querySelectorAll('[data-vz-more-gi]').forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const gi = parseInt(btn.dataset.vzMoreGi, 10);
-        const bodyEl = mountEl.querySelector('[data-vz-body-gi="' + gi + '"]');
-        const rowsG = groupRows[gi];
-        bodyEl.innerHTML = rowsG.map(badgeHtml).join("");
-        wireBody(bodyEl, rowsG);
-      });
-    });
-  }
-
-  // ---- Modelo 2: kanban por faixa de severidade ----
-  function renderKanban(mountEl, items, thresholds, opts){
-    opts = opts || {};
-    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
-    const bandsObj = { critico:[], atencao:[], normal:[] };
-    let unknownCount = 0;
-    items.forEach(function(it){
-      const b = bandOf(it.severity, thresholds);
-      if(b === "unknown"){ unknownCount++; return; }
-      bandsObj[b].push(it);
-    });
-    const bandKeys = ["critico","atencao","normal"];
-    bandKeys.forEach(function(b){
-      bandsObj[b].sort(function(a,c){ return worstFirstCompare(a.severity, c.severity, thresholds.invert); });
-    });
-    const totalKnown = bandsObj.critico.length + bandsObj.atencao.length + bandsObj.normal.length || 1;
-
-    let html = '<div class="vz-kanban-dist" role="img" aria-label="Distribuição: ' + bandsObj.critico.length + ' crítico, ' + bandsObj.atencao.length + ' atenção, ' + bandsObj.normal.length + ' normal">'
-      + '<div style="width:' + Math.round(bandsObj.critico.length/totalKnown*100) + '%;background:var(--critical);"></div>'
-      + '<div style="width:' + Math.round(bandsObj.atencao.length/totalKnown*100) + '%;background:var(--warning);"></div>'
-      + '<div style="width:' + Math.round(bandsObj.normal.length/totalKnown*100) + '%;background:var(--good);"></div>'
-      + '</div>';
-
-    const VISIBLE = 80;
-    function cardHtml(it){
-      const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? "—" : (it.severity + (opts.severityUnit||""));
-      return '<button type="button" class="vz-kanban-card"><div class="vk-id">' + escapeHtml(String(it.id)) + '</div><div class="vk-meta"><span>' + escapeHtml(it.group||"—") + '</span><span>' + escapeHtml(String(val)) + '</span></div>' + (it.context ? '<div class="vk-meta"><span>' + escapeHtml(it.context) + '</span></div>' : '') + '</button>';
-    }
-    html += '<div class="vz-kanban">' + bandKeys.map(function(b, bi){
-      const list = bandsObj[b];
-      const shown = list.slice(0, VISIBLE);
-      return '<div class="vz-kanban-col ' + b + '"><div class="vz-kanban-col-head"><span>' + BAND_LABEL[b] + '</span><span class="badge b-' + BAND_BADGE_TONE[b] + '">' + list.length + '</span></div>'
-        + '<div class="vz-kanban-body" data-vz-band-idx="' + bi + '">'
-        + (list.length ? shown.map(cardHtml).join("") + (list.length > VISIBLE ? '<button type="button" class="ghost" data-vz-kanban-more="' + bi + '">Carregar mais (' + (list.length-VISIBLE) + ')</button>' : "")
-          : '<p class="empty-hint">Nenhum registro nesta faixa.</p>')
-        + '</div></div>';
-    }).join("") + '</div>'
-    + (unknownCount ? '<p class="hint">' + unknownCount + ' registro(s) sem valor de ' + (opts.severityLabel||"severidade") + ' não exibido(s) no kanban.</p>' : "");
-
-    mountEl.innerHTML = html;
-
-    function wireCol(bi){
-      const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
-      bodyEl.querySelectorAll('.vz-kanban-card').forEach(function(btn, i){
-        btn.addEventListener("click", function(){
-          const list = bandsObj[bandKeys[bi]];
-          if(opts.onItemClick) opts.onItemClick(list[i]);
-        });
-      });
-    }
-    bandKeys.forEach(function(b, bi){ wireCol(bi); });
-    mountEl.querySelectorAll('[data-vz-kanban-more]').forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const bi = parseInt(btn.dataset.vzKanbanMore, 10);
-        const bodyEl = mountEl.querySelector('[data-vz-band-idx="' + bi + '"]');
-        const list = bandsObj[bandKeys[bi]];
-        bodyEl.innerHTML = list.map(cardHtml).join("");
-        wireCol(bi);
-      });
-    });
-  }
-
-  // ---- Modelo 3: resumo executivo ----
-  function renderExecSummary(mountEl, items, thresholds, opts, meta){
-    opts = opts || {};
-    if(!items.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum registro para exibir.</div>'; return; }
-    const total = items.length;
-    const withSeverity = items.filter(function(it){ return it.severity !== null && it.severity !== undefined && !isNaN(it.severity); });
-    const avgSeverity = withSeverity.length ? (withSeverity.reduce(function(s,it){ return s+it.severity; },0) / withSeverity.length) : null;
-    // "Acima do limiar de atenção" = já em atenção ou pior — usa bandOf() em vez de comparar o
-    // valor bruto, pra funcionar igual em métricas normais e invertidas (menor = pior).
-    const acimaAtencao = withSeverity.filter(function(it){ const b = bandOf(it.severity, thresholds); return b === "atencao" || b === "critico"; }).length;
-    const pctAtencao = withSeverity.length ? Math.round(acimaAtencao / withSeverity.length * 1000)/10 : 0;
-
-    const groupCounts = {};
-    items.forEach(function(it){ const g = it.group||"Não informado"; groupCounts[g]=(groupCounts[g]||0)+1; });
-    const groupNames = Object.keys(groupCounts).sort(function(a,b){ return groupCounts[b]-groupCounts[a]; });
-    const topGroup = groupNames[0];
-    const topGroupPct = topGroup ? Math.round(groupCounts[topGroup]/total*1000)/10 : 0;
-
-    const maxSeverity = withSeverity.length ? Math.max.apply(null, withSeverity.map(function(it){ return it.severity; })) : 0;
-    const sortedRows = items.slice().sort(function(a,b){ return worstFirstCompare(a.severity, b.severity, thresholds.invert); });
-    const mostCritical = sortedRows[0];
-
-    let html = '<div class="vz-exec">'
-      + '<div class="vz-exec-head"><h3>' + escapeHtml(opts.title || "Resumo executivo") + '</h3><span class="vze-ts">' + escapeHtml((meta && meta.updatedNote) || "") + '</span></div>'
-      + '<div class="vz-exec-kpis">'
-      + '<div class="vz-exec-kpi"><div class="vek-label">Total de registros</div><div class="vek-value">' + fmtNum(total) + '</div></div>'
-      + '<div class="vz-exec-kpi"><div class="vek-label">Média — ' + escapeHtml(opts.severityLabel||"severidade") + '</div><div class="vek-value">' + (avgSeverity===null?"—":((Math.round(avgSeverity*10)/10).toLocaleString("pt-BR")+(opts.severityUnit||""))) + '</div></div>'
-      + '<div class="vz-exec-kpi crit"><div class="vek-label">Acima do limiar de atenção</div><div class="vek-value">' + pctAtencao.toLocaleString("pt-BR") + '%</div></div>'
-      + '<div class="vz-exec-kpi"><div class="vek-label">Concentração no maior grupo</div><div class="vek-value">' + topGroupPct.toLocaleString("pt-BR") + '%</div></div>'
-      + '</div>';
-
-    html += '<div class="table-wrap"><table><thead><tr><th>' + escapeHtml(opts.idLabel||"Identificador") + '</th><th>' + escapeHtml(opts.groupLabel||"Grupo") + '</th><th>' + escapeHtml(opts.severityLabel||"Severidade") + '</th><th>Status</th></tr></thead><tbody>'
-      + sortedRows.map(function(it){
-          const band = bandOf(it.severity, thresholds);
-          const val = (it.severity===null||it.severity===undefined||isNaN(it.severity)) ? null : it.severity;
-          // A barra representa "quão severo", não o valor bruto — numa métrica invertida (menor é
-          // pior) ela fica cheia perto de zero, e não perto do maior valor da lista.
-          const pct = (val===null || maxSeverity<=0) ? 0 : (thresholds.invert ? Math.round((1 - val/maxSeverity) * 100) : Math.round(val/maxSeverity*100));
-          const valTxt = val===null ? "—" : (val + (opts.severityUnit||""));
-          return '<tr><td>' + escapeHtml(String(it.id)) + '</td><td>' + escapeHtml(it.group||"—") + '</td>'
-            + '<td><div class="vz-progress-cell"><span class="vz-progress-track" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + escapeHtml(valTxt) + '"><span class="vz-progress-fill' + (band==="critico"?" crit":"") + '" style="width:' + pct + '%"></span></span><span class="vz-progress-num">' + escapeHtml(valTxt) + '</span></div></td>'
-            + '<td><span class="vz-status-badge ' + band + '">' + BAND_LABEL[band] + '</span></td></tr>';
-        }).join("")
-      + '</tbody></table></div>';
-
-    const recoParts = [];
-    if(topGroup) recoParts.push('O grupo com maior concentração de registros é <b>' + escapeHtml(topGroup) + '</b>, com ' + groupCounts[topGroup] + ' de ' + total + ' registros (' + topGroupPct.toLocaleString("pt-BR") + '%).');
-    if(mostCritical && mostCritical.severity !== null && mostCritical.severity !== undefined && !isNaN(mostCritical.severity)){
-      recoParts.push('O registro mais crítico é <b>' + escapeHtml(String(mostCritical.id)) + '</b>' + (mostCritical.group ? (' (' + escapeHtml(mostCritical.group) + ')') : '') + ', com ' + mostCritical.severity + (opts.severityUnit||"") + ' de ' + (opts.severityLabel||"severidade") + '.');
-    }
-    if(pctAtencao > 0) recoParts.push(pctAtencao.toLocaleString("pt-BR") + '% dos registros já estão acima do limiar de atenção — recomenda-se priorizar esse grupo antes que avancem para crítico.');
-    html += '<div class="vz-exec-reco"><b>Recomendação:</b> ' + (recoParts.length ? recoParts.join(" ") : "Sem observações adicionais para os dados filtrados atuais.") + '</div>';
-    html += '</div>';
-
-    mountEl.innerHTML = html;
-
-    if(opts.onItemClick){
-      mountEl.querySelectorAll("tbody tr").forEach(function(tr, i){
-        tr.tabIndex = 0;
-        tr.setAttribute("role","button");
-        tr.addEventListener("click", function(){ opts.onItemClick(sortedRows[i]); });
-        tr.addEventListener("keydown", function(e){ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); opts.onItemClick(sortedRows[i]); } });
-      });
-    }
-  }
-
-  return {
-    loadMode: loadMode, saveMode: saveMode,
-    loadGroupField: loadGroupField, saveGroupField: saveGroupField,
-    loadThresholds: loadThresholds, saveThresholds: saveThresholds, clearThresholds: clearThresholds,
-    computeDefaultThresholds: computeDefaultThresholds, bandOf: bandOf,
-    BAND_LABEL: BAND_LABEL, BAND_BADGE_TONE: BAND_BADGE_TONE,
-    modeTabsHtml: modeTabsHtml, wireModeTabs: wireModeTabs,
-    groupSelectHtml: groupSelectHtml, wireGroupSelect: wireGroupSelect,
-    thresholdControlsHtml: thresholdControlsHtml, wireThresholdControls: wireThresholdControls,
-    openDetailModal: openDetailModal, closeDetailModal: closeDetailModal,
-    renderCardGroups: renderCardGroups, renderKanban: renderKanban, renderExecSummary: renderExecSummary,
-  };
-})();
 
 // =====================================================================
 // RETENÇÃO (O.S. em aberto — fonte: "O.S Aberta - TML")
