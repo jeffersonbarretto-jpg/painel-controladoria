@@ -1957,7 +1957,11 @@ function ultimoAbastecimentoDoVeiculo(key, abastByVeh){
 // Unidades que efetivamente têm telemetria, com a frota fixa de cada uma — informado por
 // Jefferson (nem toda unidade tem telemetria instalada, então a lista não é "todas as unidades
 // da empresa" e a frota de cada uma não vem de nenhuma base sincronizada, e sim deste cadastro).
-// A soma das 12 frotas bate com o total de referência (414).
+// A soma das 12 frotas "estáveis" bate com o total de referência (414).
+// ARACAJU é piloto/instalação recente: a Base - TML ainda grafa essa unidade como "Aracaju - Teste"
+// (não bate com o nome "Aracaju" por normUnidade), então em vez de casar pelo nome da unidade essa
+// entrada casa pelos números de carro informados diretamente por Jefferson (vehicleKeys) — os 4
+// veículos com telemetria instalada lá até o momento.
 const TELEMETRIA_UNIDADES_FROTA = [
   { label: "ALF - LAURO DE FREITAS", frota: 16, matchKey: normUnidade("Lauro de Freitas") },
   { label: "ALN - SALVADOR RODOVIÁRIO", frota: 26, matchKey: normUnidade("Salvador Rodoviária") },
@@ -1971,12 +1975,14 @@ const TELEMETRIA_UNIDADES_FROTA = [
   { label: "SFC - SAO FRANCISCO DO CONDE", frota: 10, matchKey: normUnidade("São Francisco do Conde") },
   { label: "SSP - SAO SEBASTIAO DO PASSE", frota: 7, matchKey: normUnidade("São Sebastião do Passé") },
   { label: "VCA - VITORIA DA CONQUISTA", frota: 84, matchKey: normUnidade("Vitória da Conquista") },
+  { label: "ARACAJU", frota: 4, matchKey: normUnidade("Aracaju"), vehicleKeys: ["882414","882449","8824141","8824143"] },
 ];
-// Monta a linha "Setor Operacional" (por unidade), só pras 12 unidades com telemetria: frota =
+// Monta a linha "Setor Operacional" (por unidade), só pras unidades com telemetria: frota =
 // número fixo de TELEMETRIA_UNIDADES_FROTA; sem comunicação = veículos daquela unidade presentes
-// na Base - TML (lista de pendência de comunicação, a única coisa realmente contabilizada aqui);
-// com comunicação = frota - sem comunicação. A "Relação da Frota" expansível lista só os veículos
-// sem comunicação — é a única lista individual que a base realmente sustenta.
+// na Base - TML (lista de pendência de comunicação, a única coisa realmente contabilizada aqui) —
+// exceto ARACAJU, que casa por vehicleKeys explícitos (ver comentário acima); com comunicação =
+// frota - sem comunicação. A "Relação da Frota" expansível lista só os veículos sem comunicação —
+// é a única lista individual que a base realmente sustenta.
 function buildSetorOperacionalRows(data, unidadeFiltro){
   const unidadesFiltradas = unidadeFiltro
     ? TELEMETRIA_UNIDADES_FROTA.filter(function(u){ return u.matchKey === normUnidade(unidadeFiltro) || normUnidade(u.label) === normUnidade(unidadeFiltro); })
@@ -2002,7 +2008,9 @@ function buildSetorOperacionalRows(data, unidadeFiltro){
   }
 
   const rows = unidadesFiltradas.map(function(u){
-    const semComVehicles = data.vehicles.filter(function(v){ return normUnidade(v.unidade) === u.matchKey; });
+    const semComVehicles = u.vehicleKeys
+      ? data.vehicles.filter(function(v){ return u.vehicleKeys.indexOf(vehicleKey(v.carro)) !== -1; })
+      : data.vehicles.filter(function(v){ return normUnidade(v.unidade) === u.matchKey; });
     const veiculos = semComVehicles.map(buildRow).sort(function(a,b){ return (b.diasSemCom||0) - (a.diasSemCom||0); });
     const semComTotal = veiculos.length;
     const comComTotal = Math.max(0, u.frota - semComTotal);
