@@ -1910,12 +1910,6 @@ async function renderTelemetria(newAsOf){
 
     let html = unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro);
 
-    html += legendBox("O que significa cada status", [
-      { label:"Conforme", desc:'<span class="badge b-good">verde</span> — o veículo já tem uma O.S. de telemetria aberta, ou a observação da base já menciona o assunto: o caso já está sendo tratado.' },
-      { label:"Crítico", desc:'<span class="badge b-critical">vermelho</span> — sem comunicação do rastreador, mas com abastecimento registrado depois da última comunicação: indício de que o veículo está rodando sem rastreamento e sem nenhum registro sobre isso.' },
-      { label:"Irregular", desc:'<span class="badge b-warning">laranja</span> — sem comunicação do rastreador e sem abastecimento registrado depois da última comunicação: sem indício de uso recente e também sem tratamento.' },
-    ]);
-
     if(data.filtroData){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — mostrando os <b>' + fmtNum(total) + '</b> carro(s) cuja "Dt. Verificação" é a data selecionada, de um total de <b>' + fmtNum(data.totalFrota) + '</b> carro(s) na base. Remova a data (botão "Mais recente") para ver a base completa.</p>';
     }
@@ -1975,6 +1969,11 @@ async function renderTelemetria(newAsOf){
       html += '<div id="telemetria-viz-mount"></div>';
     }
 
+    html += legendBox("O que significa cada status", [
+      { label:"Conforme", desc:'<span class="badge b-good">verde</span> — o veículo já tem uma O.S. de telemetria aberta, ou a observação da base já menciona o assunto: o caso já está sendo tratado.' },
+      { label:"Crítico", desc:'<span class="badge b-critical">vermelho</span> — sem comunicação do rastreador, mas com abastecimento registrado depois da última comunicação: indício de que o veículo está rodando sem rastreamento e sem nenhum registro sobre isso.' },
+      { label:"Irregular", desc:'<span class="badge b-warning">laranja</span> — sem comunicação do rastreador e sem abastecimento registrado depois da última comunicação: sem indício de uso recente e também sem tratamento.' },
+    ]);
     html += '<div class="section-footer">' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML") + resolvedDatesNote(data.resolvedDates) + '</div>';
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
@@ -2283,16 +2282,6 @@ async function renderPneus(newAsOf){
 
     let html = unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro);
 
-    html += legendBox("O que significa cada critério", [
-      { label:"Reforma (DD/DE)", desc:"pneu de posição dianteira (DD/DE) com situação de recapagem em andamento (REC) ou pronto pra reforma (RF)." },
-      { label:"Sulco crítico", desc:'<span class="badge b-critical">≤3mm</span> — profundidade do sulco na última medição; risco de rodar fora do limite legal.' },
-      { label:"Sulco em atenção", desc:'<span class="badge b-warning">4–5mm</span> — já perto do limite, mas ainda não crítico.' },
-      { label:"Rodízio necessário", desc:"diferença de sulco maior que 2mm entre os dois pneus do mesmo eixo (par DD/DE, TDE/TDI, etc.)." },
-      { label:"Pendente de coleta", desc:"mais de 3.000km rodados desde a última medição de sulco registrada no plano de manutenção." },
-      { label:"Sucata", desc:"pneu marcado com situação SUC — troca imediata." },
-      { label:"Sem pneu", desc:"posição do veículo sem nenhum pneu cadastrado (vaga)." },
-      { label:"Vinculados à unidade / Sem unidade", desc:"se o veículo tem uma Unidade/Local identificado na base cadastral (Base de Veículos - Pneus ou, como reserva, a Base - TML)." },
-    ]);
     if(pneusUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusUnidadeFiltro) + '</b>.</p>';
     }
@@ -2366,6 +2355,16 @@ async function renderPneus(newAsOf){
       html += '<div id="pneus-viz-mount"></div>';
     }
 
+    html += legendBox("O que significa cada critério", [
+      { label:"Reforma (DD/DE)", desc:"pneu de posição dianteira (DD/DE) com situação de recapagem em andamento (REC) ou pronto pra reforma (RF)." },
+      { label:"Sulco crítico", desc:'<span class="badge b-critical">≤3mm</span> — profundidade do sulco na última medição; risco de rodar fora do limite legal.' },
+      { label:"Sulco em atenção", desc:'<span class="badge b-warning">4–5mm</span> — já perto do limite, mas ainda não crítico.' },
+      { label:"Rodízio necessário", desc:"diferença de sulco maior que 2mm entre os dois pneus do mesmo eixo (par DD/DE, TDE/TDI, etc.)." },
+      { label:"Pendente de coleta", desc:"mais de 3.000km rodados desde a última medição de sulco registrada no plano de manutenção." },
+      { label:"Sucata", desc:"pneu marcado com situação SUC — troca imediata." },
+      { label:"Sem pneu", desc:"posição do veículo sem nenhum pneu cadastrado (vaga)." },
+      { label:"Vinculados à unidade / Sem unidade", desc:"se o veículo tem uma Unidade/Local identificado na base cadastral (Base de Veículos - Pneus ou, como reserva, a Base - TML)." },
+    ]);
     html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV, Base - TML (conciliação de unidade)") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
@@ -2703,14 +2702,6 @@ async function renderRetencao(newAsOf){
 
     let html = unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
 
-    html += legendBox("O que significa cada critério", [
-      { label:"Críticos +90d", desc:"O.S. aberta há 90 dias ou mais, contando a partir da coluna \"Tempo\" da própria planilha." },
-      { label:"Sem observação", desc:'campo de observação vazio ou preenchido só com "-".' },
-      { label:"Impeditivas (auto)", desc:'detectado automaticamente quando a palavra "impeditiva"/"impeditivo" aparece na observação — não é uma classificação manual.' },
-      { label:"Motor / Caixa", desc:'observação menciona "motor" ou "caixa de marcha".' },
-      { label:"Terceiros — SLA 72h", desc:'<span class="badge b-critical">Vencido</span> = 72h ou mais desde a abertura; <span class="badge b-warning">Próximo</span> = entre 48h e 72h; <span class="badge b-good">OK</span> = menos de 48h. Vale só para O.S. de oficina terceirizada (nome começando com "Terceiros").' },
-      { label:"Prazo alterado", desc:'o prazo de entrega/liberação citado na observação (ex.: "PRAZO DE ENTREGA 25/08") mudou entre um snapshot diário e outro, nos últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias.' },
-    ]);
     if(retencaoUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(retencaoUnidadeFiltro) + '</b>.</p>';
     }
@@ -2780,6 +2771,14 @@ async function renderRetencao(newAsOf){
       html += '<div id="retencao-viz-mount"></div>';
     }
 
+    html += legendBox("O que significa cada critério", [
+      { label:"Críticos +90d", desc:"O.S. aberta há 90 dias ou mais, contando a partir da coluna \"Tempo\" da própria planilha." },
+      { label:"Sem observação", desc:'campo de observação vazio ou preenchido só com "-".' },
+      { label:"Impeditivas (auto)", desc:'detectado automaticamente quando a palavra "impeditiva"/"impeditivo" aparece na observação — não é uma classificação manual.' },
+      { label:"Motor / Caixa", desc:'observação menciona "motor" ou "caixa de marcha".' },
+      { label:"Terceiros — SLA 72h", desc:'<span class="badge b-critical">Vencido</span> = 72h ou mais desde a abertura; <span class="badge b-warning">Próximo</span> = entre 48h e 72h; <span class="badge b-good">OK</span> = menos de 48h. Vale só para O.S. de oficina terceirizada (nome começando com "Terceiros").' },
+      { label:"Prazo alterado", desc:'o prazo de entrega/liberação citado na observação (ex.: "PRAZO DE ENTREGA 25/08") mudou entre um snapshot diário e outro, nos últimos ' + RETENCAO_HISTORY_LOOKBACK_DAYS + ' dias.' },
+    ]);
     html += '<div class="section-footer">' + srcNote(RETENCAO_TAB + " — Tipo de O.S., Observação (Impeditiva/Prazo detectados por palavra-chave) e Tempo em aberto") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
@@ -2995,11 +2994,6 @@ function renderInventarioBody(data){
     + '<button class="ghost" id="inventario-refresh">Atualizar dados</button>'
     + '</div>';
 
-  html += legendBox("O que significa cada critério", [
-    { label:"% ajuste em destaque", desc:'<span class="badge b-critical">vermelho</span> — almoxarifado com ajuste acima de 15% do valor do inventário.' },
-    { label:"Tendência Alta / Baixa", desc:"variação da unidade em relação ao semestre base de comparação (não necessariamente o semestre anterior)." },
-  ]);
-
   html += '<div class="kpi-grid">'
     + kpiCard("Inventário geral", total ? invBRL(total.inventario_geral) : "—", "info")
     + kpiCard("Ajuste total", total ? invBRL(total.ajuste_total) : "—", (total && total.ajuste_total > 0) ? "warning" : "good")
@@ -3061,6 +3055,11 @@ function renderInventarioBody(data){
     html += '<div id="inventario-viz-mount"></div>';
   }
   html += '</div>';
+
+  html += legendBox("O que significa cada critério", [
+    { label:"% ajuste em destaque", desc:'<span class="badge b-critical">vermelho</span> — almoxarifado com ajuste acima de 15% do valor do inventário.' },
+    { label:"Tendência Alta / Baixa", desc:"variação da unidade em relação ao semestre base de comparação (não necessariamente o semestre anterior)." },
+  ]);
 
   html += '<div class="section-footer">'
     + srcNote("inventario_resumo_semestre, inventario_ajustes_grupo, inventario_unidade_evolucao")
