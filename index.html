@@ -1777,33 +1777,18 @@ async function buildTelemetriaData(asOfDate){
   // ela filtra os veículos pela própria coluna "Dt. Verificação" de cada linha (ver mais abaixo).
   // Por isso aqui sempre usamos o snapshot mais recente sincronizado de cada aba — é o retrato
   // mais completo e atual da frota e das O.S./abastecimentos para cruzar com aquela verificação.
-  const [baseSnap, abertaSnap, fechadaSnap, abastSnap, veicSnap] = await Promise.all([
+  const [baseSnap, abertaSnap, fechadaSnap, abastSnap] = await Promise.all([
     getLatestSnapshotDate("Base - TML"),
     getLatestSnapshotDate("O.S Aberta - TML"),
     getLatestSnapshotDate("O.S Fechada - TML"),
     getLatestSnapshotDate("Abastecimento - TML"),
-    getLatestSnapshotDate("Base de Veiculos - Pneus"),
   ]);
-  const [baseRows, abertaRows, fechadaRows, abastRows, veicRows] = await Promise.all([
+  const [baseRows, abertaRows, fechadaRows, abastRows] = await Promise.all([
     fetchAllRows("Base - TML", baseSnap),
     fetchAllRows("O.S Aberta - TML", abertaSnap),
     fetchAllRows("O.S Fechada - TML", fechadaSnap),
     fetchAllRows("Abastecimento - TML", abastSnap),
-    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
   ]);
-
-  // Frota "oficial" por veículo — vem da Base de Veículos - Pneus (cadastro completo da frota),
-  // não da Base - TML (que é só a lista de carros em verificação/pendência de comunicação naquele
-  // ciclo). Usada pro "Resumo executivo" contabilizar a frota real de cada unidade.
-  const frotaVeic = [];
-  const frotaByKey = {};
-  veicRows.forEach(function(r){
-    const key = vehicleKey(r["Nº de Ordem"]);
-    if(!key || frotaByKey[key]) return;
-    const entry = { key: key, placa: r.Placa, unidadeRaw: (r.Unidade||"").trim() || "Sem unidade", empresa: r.Empresa };
-    frotaByKey[key] = entry;
-    frotaVeic.push(entry);
-  });
 
   const osAberta = abertaRows.filter(function(r){ return r.OS; }).map(function(r){
     const tempoM = /Dias:\s*(\d+)/i.exec(r.Tempo || "");
@@ -1890,9 +1875,8 @@ async function buildTelemetriaData(asOfDate){
 
   return { vehicles: vehiclesFiltered, totalFrota: vehicles.length, filtroData: !!asOfDate, resolvedDates: {
     "Base - TML": baseSnap, "O.S Aberta - TML": abertaSnap, "O.S Fechada - TML": fechadaSnap, "Abastecimento - TML": abastSnap,
-    "Base de Veiculos - Pneus": veicSnap,
   },
-    frotaVeic: frotaVeic, osAbertaByVeh: osAbertaByVeh, osFechadaByVeh: osFechadaByVeh, abastByVeh: abastByVeh,
+    osAbertaByVeh: osAbertaByVeh, osFechadaByVeh: osFechadaByVeh, abastByVeh: abastByVeh,
   };
 }
 
@@ -1970,71 +1954,66 @@ function ultimoAbastecimentoDoVeiculo(key, abastByVeh){
   if(!list || !list.length) return null;
   return list.slice().sort(function(a,b){ return b.data - a.data; })[0];
 }
-// Monta a linha "Setor Operacional" (por unidade): frota total = cadastro completo da Base de
-// Veículos - Pneus; sem comunicação = veículos daquela unidade presentes na Base - TML (lista de
-// pendência de comunicação); com comunicação = o resto da frota, sem pendência registrada.
-// Cada unidade carrega também a lista completa de veículos já enriquecida (O.S. mais recente,
-// abastecimento mais recente), pronta pro painel "Relação da Frota" expansível.
+// Unidades que efetivamente têm telemetria, com a frota fixa de cada uma — informado por
+// Jefferson (nem toda unidade tem telemetria instalada, então a lista não é "todas as unidades
+// da empresa" e a frota de cada uma não vem de nenhuma base sincronizada, e sim deste cadastro).
+// A soma das 12 frotas bate com o total de referência (414).
+const TELEMETRIA_UNIDADES_FROTA = [
+  { label: "ALF - LAURO DE FREITAS", frota: 16, matchKey: normUnidade("Lauro de Freitas") },
+  { label: "ALN - SALVADOR RODOVIÁRIO", frota: 26, matchKey: normUnidade("Salvador Rodoviária") },
+  { label: "CAB", frota: 6, matchKey: normUnidade("CAB") },
+  { label: "CMC - CAMAÇARI", frota: 47, matchKey: normUnidade("Camaçari") },
+  { label: "IOS - ILHEUS", frota: 58, matchKey: normUnidade("Ilheus") },
+  { label: "ITB - ITABUNA", frota: 61, matchKey: normUnidade("Itabuna") },
+  { label: "JZR - JUAZEIRO", frota: 28, matchKey: normUnidade("Juazeiro") },
+  { label: "PAV - PAULO AFONSO", frota: 17, matchKey: normUnidade("Paulo Afonso") },
+  { label: "PNZ - PETROLINA", frota: 54, matchKey: normUnidade("Petrolina") },
+  { label: "SFC - SAO FRANCISCO DO CONDE", frota: 10, matchKey: normUnidade("São Francisco do Conde") },
+  { label: "SSP - SAO SEBASTIAO DO PASSE", frota: 7, matchKey: normUnidade("São Sebastião do Passé") },
+  { label: "VCA - VITORIA DA CONQUISTA", frota: 84, matchKey: normUnidade("Vitória da Conquista") },
+];
+// Monta a linha "Setor Operacional" (por unidade), só pras 12 unidades com telemetria: frota =
+// número fixo de TELEMETRIA_UNIDADES_FROTA; sem comunicação = veículos daquela unidade presentes
+// na Base - TML (lista de pendência de comunicação, a única coisa realmente contabilizada aqui);
+// com comunicação = frota - sem comunicação. A "Relação da Frota" expansível lista só os veículos
+// sem comunicação — é a única lista individual que a base realmente sustenta.
 function buildSetorOperacionalRows(data, unidadeFiltro){
-  const frotaVeic = unidadeFiltro
-    ? data.frotaVeic.filter(function(f){ return normUnidade(f.unidadeRaw) === normUnidade(unidadeFiltro); })
-    : data.frotaVeic;
-  const semComVehicles = unidadeFiltro
-    ? data.vehicles.filter(function(v){ return v.unidade === unidadeFiltro; })
-    : data.vehicles;
+  const unidadesFiltradas = unidadeFiltro
+    ? TELEMETRIA_UNIDADES_FROTA.filter(function(u){ return u.matchKey === normUnidade(unidadeFiltro) || normUnidade(u.label) === normUnidade(unidadeFiltro); })
+    : TELEMETRIA_UNIDADES_FROTA;
 
-  const groups = {};
-  function ensureGroup(normKey, label){
-    if(!groups[normKey]) groups[normKey] = { normKey: normKey, label: label, frotaKeys: {}, semComByKey: {} };
-    return groups[normKey];
-  }
-
-  frotaVeic.forEach(function(f){
-    const nk = normUnidade(f.unidadeRaw);
-    const g = ensureGroup(nk, titleCaseUnidade(f.unidadeRaw));
-    g.frotaKeys[f.key] = f;
-  });
-  semComVehicles.forEach(function(v){
+  function buildRow(v){
     const key = vehicleKey(v.carro);
-    const nk = normUnidade(v.unidade);
-    const g = ensureGroup(nk, v.unidade || "Sem unidade");
-    g.label = v.unidade || g.label; // grafia da Base - TML é a mais "arrumada", prevalece quando existir
-    if(key) g.semComByKey[key] = v;
-  });
-
-  function buildRow(key, fleetInfo, semComInfo){
     const os = ultimaOsAbertaDoVeiculo(key, data.osAbertaByVeh);
     const abast = ultimoAbastecimentoDoVeiculo(key, data.abastByVeh);
     return {
       key: key,
-      veiculo: (semComInfo && semComInfo.carro) || (fleetInfo && fleetInfo.placa) || key,
-      semComunicacao: !!semComInfo,
-      ultimaCom: semComInfo ? semComInfo.ultimaCom : null,
-      diasSemCom: semComInfo ? semComInfo.diasSemCom : null,
+      veiculo: v.carro,
+      semComunicacao: true,
+      ultimaCom: v.ultimaCom,
+      diasSemCom: v.diasSemCom,
       osNumero: os ? os.raw.OS : null,
       osTipo: os ? os.raw.Tipo_de_OS : null,
       osData: os ? os.dataAbertura : null,
       osObservacao: os ? (os.raw.Observacao || "") : "",
       ultimoAbastecimento: abast ? abast.data : null,
-      raw: semComInfo || null,
+      raw: v,
     };
   }
 
-  const rows = Object.keys(groups).map(function(nk){
-    const g = groups[nk];
-    const allKeys = new Set(Object.keys(g.frotaKeys).concat(Object.keys(g.semComByKey)));
-    const veiculos = Array.from(allKeys).map(function(k){ return buildRow(k, g.frotaKeys[k], g.semComByKey[k]); });
-    const frotaTotal = Object.keys(g.frotaKeys).length || allKeys.size;
-    const semComTotal = Object.keys(g.semComByKey).length;
-    const comComTotal = Math.max(0, frotaTotal - semComTotal);
+  const rows = unidadesFiltradas.map(function(u){
+    const semComVehicles = data.vehicles.filter(function(v){ return normUnidade(v.unidade) === u.matchKey; });
+    const veiculos = semComVehicles.map(buildRow).sort(function(a,b){ return (b.diasSemCom||0) - (a.diasSemCom||0); });
+    const semComTotal = veiculos.length;
+    const comComTotal = Math.max(0, u.frota - semComTotal);
     return {
-      unidade: g.label, normKey: nk,
-      frota: frotaTotal, comComunicacao: comComTotal, semComunicacao: semComTotal,
-      pctCom: frotaTotal ? Math.round(comComTotal/frotaTotal*1000)/10 : 0,
-      pctSem: frotaTotal ? Math.round(semComTotal/frotaTotal*1000)/10 : 0,
-      veiculos: veiculos.sort(function(a,b){ return (b.diasSemCom||0) - (a.diasSemCom||0); }),
+      unidade: u.label, normKey: u.matchKey,
+      frota: u.frota, comComunicacao: comComTotal, semComunicacao: semComTotal,
+      pctCom: u.frota ? Math.round(comComTotal/u.frota*1000)/10 : 0,
+      pctSem: u.frota ? Math.round(semComTotal/u.frota*1000)/10 : 0,
+      veiculos: veiculos,
     };
-  }).sort(function(a,b){ return b.frota - a.frota; });
+  });
 
   const totalFrota = rows.reduce(function(s,r){ return s+r.frota; }, 0);
   const totalCom = rows.reduce(function(s,r){ return s+r.comComunicacao; }, 0);
@@ -2057,22 +2036,17 @@ function relacaoFrotaVeiculoRow(v){
     + '<td>' + (v.osObservacao ? escapeHtml(v.osObservacao) : '<span class="empty-hint">—</span>') + '</td>'
     + '</tr>';
 }
-// Painel "Relação da Frota — <unidade>": mesmo padrão de sub-abas Todos/Comunicando/Sem Comunicação,
-// com a "Localização" reaproveitada pra mostrar a observação da O.S. mais recente do veículo (em
-// vez de coordenada/endereço, que a base não tem).
+// Painel "Relação da Frota — <unidade>": lista só os veículos sem comunicação (é a única lista
+// individual que a Base - TML sustenta), com a "Localização" reaproveitada pra mostrar a observação
+// da O.S. mais recente do veículo (em vez de coordenada/endereço, que a base não tem).
 function relacaoFrotaPanelHtml(row){
   const cols = '<th>Veículo</th><th>Última comunicação</th><th>Dias sem comunicação</th><th>Última O.S. aberta</th><th>Tipo O.S.</th><th>Data última O.S.</th><th>Último abastecimento</th><th>Localização (Observação da O.S.)</th>';
   return '<div class="so-detail-panel">'
-    + '<div class="so-detail-head">Relação da Frota — ' + escapeHtml(row.unidade) + '</div>'
-    + '<div class="so-filter-chips" role="tablist">'
-    + '<button type="button" class="so-chip active" data-so-filter="todos">Todos</button>'
-    + '<button type="button" class="so-chip" data-so-filter="com">Comunicando</button>'
-    + '<button type="button" class="so-chip" data-so-filter="sem">Sem Comunicação</button>'
-    + '</div>'
-    + '<div class="table-wrap"><table class="so-detail-table"><thead><tr>' + cols + '</tr></thead><tbody data-so-body="todos">'
-    + row.veiculos.map(relacaoFrotaVeiculoRow).join("")
+    + '<div class="so-detail-head">Relação da Frota — ' + escapeHtml(row.unidade) + ' <span class="badge b-critical">' + row.veiculos.length + ' sem comunicação</span></div>'
+    + '<div class="table-wrap"><table class="so-detail-table"><thead><tr>' + cols + '</tr></thead><tbody>'
+    + (row.veiculos.length ? row.veiculos.map(relacaoFrotaVeiculoRow).join("") : '<tr><td colspan="8"><span class="empty-hint">Nenhum veículo sem comunicação nesta unidade.</span></td></tr>')
     + '</tbody></table></div>'
-    + '<p class="hint">Exibindo apenas resumo: última O.S. aberta e último abastecimento por veículo.</p>'
+    + '<p class="hint">Lista apenas os veículos sem comunicação (Base - TML) — a base não guarda o detalhe individual de quem está comunicando, só o total. Última O.S. aberta e último abastecimento por veículo.</p>'
     + '</div>';
 }
 // Modelo "Setor Operacional": 3 KPIs (Frota / Com Comunicação / Sem Comunicação) + ranking por
@@ -2119,21 +2093,6 @@ function renderSetorOperacional(mountEl, data, opts){
       detailRow.style.display = showing ? "none" : "table-row";
       btn.classList.toggle("open", !showing);
       btn.setAttribute("aria-expanded", String(!showing));
-    });
-  });
-  mountEl.querySelectorAll(".so-detail-panel").forEach(function(panel, i){
-    const tbody = panel.querySelector("[data-so-body]");
-    const allRows = agg.rows[i].veiculos;
-    panel.querySelectorAll("[data-so-filter]").forEach(function(chip){
-      chip.addEventListener("click", function(){
-        panel.querySelectorAll("[data-so-filter]").forEach(function(c){ c.classList.remove("active"); });
-        chip.classList.add("active");
-        const f = chip.dataset.soFilter;
-        const filtered = f === "com" ? allRows.filter(function(v){ return !v.semComunicacao; })
-          : f === "sem" ? allRows.filter(function(v){ return v.semComunicacao; })
-          : allRows;
-        tbody.innerHTML = filtered.map(relacaoFrotaVeiculoRow).join("") || '<tr><td colspan="8"><span class="empty-hint">Nenhum veículo nesta categoria.</span></td></tr>';
-      });
     });
   });
 }
