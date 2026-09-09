@@ -307,6 +307,35 @@
     .vz-exec-kpis{ grid-template-columns:1fr 1fr; }
     .vz-minibar-row{ grid-template-columns:90px 1fr 30px; }
   }
+
+  /* Modelo "Setor Operacional" (Telemetria — Resumo executivo): KPIs com selo de percentual,
+     ranking por unidade com barra de duas cores e linha expansível "Relação da Frota". */
+  .so-kpi-row{ display:flex; flex-wrap:wrap; gap:14px; margin-bottom:18px; }
+  .so-kpi{ flex:1 1 180px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .so-kpi-label{ font-size:12px; color:var(--text-secondary); margin-bottom:6px; }
+  .so-kpi-value{ font-size:26px; font-weight:700; color:var(--text-primary); }
+  .so-kpi-pct{ display:inline-flex; align-items:center; gap:3px; margin-top:6px; padding:2px 8px; border-radius:999px; font-size:11.5px; font-weight:700; color:var(--good); background:color-mix(in srgb, var(--good) 18%, transparent); }
+  .so-kpi-arrow{ font-size:10px; }
+  .so-ranking-table th, .so-ranking-table td{ vertical-align:middle; }
+  .so-expand-btn{ width:18px; height:18px; border:1.5px solid var(--border); border-radius:4px; background:var(--surface-1); cursor:pointer; padding:0; position:relative; }
+  .so-expand-btn.open{ background:var(--accent); border-color:var(--accent); }
+  .so-expand-btn.open::after{ content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff; }
+  .so-bar-cell{ display:flex; align-items:center; gap:8px; min-width:140px; }
+  .so-bar-track{ flex:1; height:8px; border-radius:999px; background:var(--gridline); overflow:hidden; display:block; }
+  .so-bar-fill-good{ display:block; height:100%; background:var(--good); border-radius:999px; }
+  .so-bar-fill-bad{ display:block; height:100%; background:var(--critical); border-radius:999px; }
+  .so-bar-pct{ font-size:12px; color:var(--text-secondary); white-space:nowrap; }
+  .so-detail-panel{ padding:14px 4px 4px; }
+  .so-detail-head{ font-weight:700; font-size:13.5px; margin-bottom:10px; }
+  .so-filter-chips{ display:flex; gap:8px; margin-bottom:12px; }
+  .so-chip{ padding:5px 14px; border-radius:999px; border:1px solid var(--border); background:var(--surface-1); color:var(--text-secondary); font-size:12.5px; cursor:pointer; }
+  .so-chip.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .so-detail-table{ font-size:12.5px; }
+
+  @media (max-width: 760px){
+    .so-kpi-row{ flex-direction:column; }
+    .so-bar-cell{ min-width:0; }
+  }
 </style>
 <style id="abast-styles">
 /* Este bloco não define mais uma paleta/fonte própria — ele só remapeia as
@@ -757,9 +786,9 @@ const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const DADOS_GATE_CODE = "170726";
 
 const USERS = [
-  { label: "Jefferson Barretto (Controlador Jr)", email: "jefferson.barretto@controladoria.internal" },
-  { label: "Filipe Dantas (Controlador Jr)", email: "filipe.dantas@controladoria.internal" },
-  { label: "Fabio Gomes (Controlador Jr)", email: "fabio.gomes@controladoria.internal" },
+  { label: "Jefferson Barretto (Analista Jr III)", email: "jefferson.barretto@controladoria.internal" },
+  { label: "Filipe Dantas (Analista Jr III)", email: "filipe.dantas@controladoria.internal" },
+  { label: "Fabio Gomes (Analista Pleno)", email: "fabio.gomes@controladoria.internal" },
   { label: "Cleito Araujo (Auditor)", email: "cleito.araujo@controladoria.internal" },
   { label: "João Victor (Auditor)", email: "joao.victor@controladoria.internal" },
   { label: "Thairone (Gerente da Controladoria)", email: "thairone@controladoria.internal" },
@@ -1075,6 +1104,17 @@ function vehicleKey(s){
   for(const r of runs){ if(r.replace(/^0+/,"").length >= best.replace(/^0+/,"").length) best = r; }
   const stripped = best.replace(/^0+/, "");
   return stripped || "0";
+}
+// Chave normalizada de unidade — reconcilia grafias diferentes da mesma unidade entre bases (ex.:
+// "GARAGEM LAURO DE FREITAS" na Base de Veículos - Pneus vs. "Lauro de Freitas" na Base - TML):
+// remove o prefixo "GARAGEM", acentos, caixa e espaços extras.
+function normUnidade(s){
+  return String(s||"")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/^\s*GARAGEM\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
 }
 function num(v){
   if(v === null || v === undefined) return NaN;
@@ -1737,18 +1777,33 @@ async function buildTelemetriaData(asOfDate){
   // ela filtra os veículos pela própria coluna "Dt. Verificação" de cada linha (ver mais abaixo).
   // Por isso aqui sempre usamos o snapshot mais recente sincronizado de cada aba — é o retrato
   // mais completo e atual da frota e das O.S./abastecimentos para cruzar com aquela verificação.
-  const [baseSnap, abertaSnap, fechadaSnap, abastSnap] = await Promise.all([
+  const [baseSnap, abertaSnap, fechadaSnap, abastSnap, veicSnap] = await Promise.all([
     getLatestSnapshotDate("Base - TML"),
     getLatestSnapshotDate("O.S Aberta - TML"),
     getLatestSnapshotDate("O.S Fechada - TML"),
     getLatestSnapshotDate("Abastecimento - TML"),
+    getLatestSnapshotDate("Base de Veiculos - Pneus"),
   ]);
-  const [baseRows, abertaRows, fechadaRows, abastRows] = await Promise.all([
+  const [baseRows, abertaRows, fechadaRows, abastRows, veicRows] = await Promise.all([
     fetchAllRows("Base - TML", baseSnap),
     fetchAllRows("O.S Aberta - TML", abertaSnap),
     fetchAllRows("O.S Fechada - TML", fechadaSnap),
     fetchAllRows("Abastecimento - TML", abastSnap),
+    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
   ]);
+
+  // Frota "oficial" por veículo — vem da Base de Veículos - Pneus (cadastro completo da frota),
+  // não da Base - TML (que é só a lista de carros em verificação/pendência de comunicação naquele
+  // ciclo). Usada pro "Resumo executivo" contabilizar a frota real de cada unidade.
+  const frotaVeic = [];
+  const frotaByKey = {};
+  veicRows.forEach(function(r){
+    const key = vehicleKey(r["Nº de Ordem"]);
+    if(!key || frotaByKey[key]) return;
+    const entry = { key: key, placa: r.Placa, unidadeRaw: (r.Unidade||"").trim() || "Sem unidade", empresa: r.Empresa };
+    frotaByKey[key] = entry;
+    frotaVeic.push(entry);
+  });
 
   const osAberta = abertaRows.filter(function(r){ return r.OS; }).map(function(r){
     const tempoM = /Dias:\s*(\d+)/i.exec(r.Tempo || "");
@@ -1835,7 +1890,10 @@ async function buildTelemetriaData(asOfDate){
 
   return { vehicles: vehiclesFiltered, totalFrota: vehicles.length, filtroData: !!asOfDate, resolvedDates: {
     "Base - TML": baseSnap, "O.S Aberta - TML": abertaSnap, "O.S Fechada - TML": fechadaSnap, "Abastecimento - TML": abastSnap,
-  }};
+    "Base de Veiculos - Pneus": veicSnap,
+  },
+    frotaVeic: frotaVeic, osAbertaByVeh: osAbertaByVeh, osFechadaByVeh: osFechadaByVeh, abastByVeh: abastByVeh,
+  };
 }
 
 function classBadge(classe){
@@ -1881,6 +1939,202 @@ function buildTelemetriaVizItems(vehicles){
       severity: v.diasSemCom,
       raw: v,
     };
+  });
+}
+
+// Rótulo de exibição de uma unidade a partir do nome "GARAGEM X" da Base de Veículos - Pneus,
+// usado só quando a Base - TML não tem nenhuma grafia própria pra essa unidade.
+function titleCaseUnidade(s){
+  return String(s||"").replace(/^\s*GARAGEM\s+/i, "").toLowerCase()
+    .replace(/(^|\s)\S/g, function(c){ return c.toUpperCase(); });
+}
+// Badge de tipo de O.S., reaproveitando a mesma classificação já usada em Retenção.
+function tipoOsBadge(tipo){
+  const c = classificaTipoOS(tipo);
+  const tone = c.key === "PREVENTIVA" ? "good" : (c.key === "OUTROS" || c.key === "DOC") ? "info" : "warning";
+  return '<span class="badge b-' + tone + '">' + escapeHtml(c.label) + '</span>';
+}
+// A O.S. aberta mais recente de um veículo (por vehicleKey), buscando direto nos mapas já
+// construídos em buildTelemetriaData — funciona pra qualquer veículo da frota, tenha ele um
+// registro na Base - TML (lista de pendências) ou não.
+function ultimaOsAbertaDoVeiculo(key, osAbertaByVeh){
+  const list = osAbertaByVeh[key];
+  if(!list || !list.length) return null;
+  return list.slice().sort(function(a,b){
+    const ta = a.dataAbertura ? a.dataAbertura.getTime() : -1, tb = b.dataAbertura ? b.dataAbertura.getTime() : -1;
+    return tb - ta;
+  })[0];
+}
+function ultimoAbastecimentoDoVeiculo(key, abastByVeh){
+  const list = abastByVeh[key];
+  if(!list || !list.length) return null;
+  return list.slice().sort(function(a,b){ return b.data - a.data; })[0];
+}
+// Monta a linha "Setor Operacional" (por unidade): frota total = cadastro completo da Base de
+// Veículos - Pneus; sem comunicação = veículos daquela unidade presentes na Base - TML (lista de
+// pendência de comunicação); com comunicação = o resto da frota, sem pendência registrada.
+// Cada unidade carrega também a lista completa de veículos já enriquecida (O.S. mais recente,
+// abastecimento mais recente), pronta pro painel "Relação da Frota" expansível.
+function buildSetorOperacionalRows(data, unidadeFiltro){
+  const frotaVeic = unidadeFiltro
+    ? data.frotaVeic.filter(function(f){ return normUnidade(f.unidadeRaw) === normUnidade(unidadeFiltro); })
+    : data.frotaVeic;
+  const semComVehicles = unidadeFiltro
+    ? data.vehicles.filter(function(v){ return v.unidade === unidadeFiltro; })
+    : data.vehicles;
+
+  const groups = {};
+  function ensureGroup(normKey, label){
+    if(!groups[normKey]) groups[normKey] = { normKey: normKey, label: label, frotaKeys: {}, semComByKey: {} };
+    return groups[normKey];
+  }
+
+  frotaVeic.forEach(function(f){
+    const nk = normUnidade(f.unidadeRaw);
+    const g = ensureGroup(nk, titleCaseUnidade(f.unidadeRaw));
+    g.frotaKeys[f.key] = f;
+  });
+  semComVehicles.forEach(function(v){
+    const key = vehicleKey(v.carro);
+    const nk = normUnidade(v.unidade);
+    const g = ensureGroup(nk, v.unidade || "Sem unidade");
+    g.label = v.unidade || g.label; // grafia da Base - TML é a mais "arrumada", prevalece quando existir
+    if(key) g.semComByKey[key] = v;
+  });
+
+  function buildRow(key, fleetInfo, semComInfo){
+    const os = ultimaOsAbertaDoVeiculo(key, data.osAbertaByVeh);
+    const abast = ultimoAbastecimentoDoVeiculo(key, data.abastByVeh);
+    return {
+      key: key,
+      veiculo: (semComInfo && semComInfo.carro) || (fleetInfo && fleetInfo.placa) || key,
+      semComunicacao: !!semComInfo,
+      ultimaCom: semComInfo ? semComInfo.ultimaCom : null,
+      diasSemCom: semComInfo ? semComInfo.diasSemCom : null,
+      osNumero: os ? os.raw.OS : null,
+      osTipo: os ? os.raw.Tipo_de_OS : null,
+      osData: os ? os.dataAbertura : null,
+      osObservacao: os ? (os.raw.Observacao || "") : "",
+      ultimoAbastecimento: abast ? abast.data : null,
+      raw: semComInfo || null,
+    };
+  }
+
+  const rows = Object.keys(groups).map(function(nk){
+    const g = groups[nk];
+    const allKeys = new Set(Object.keys(g.frotaKeys).concat(Object.keys(g.semComByKey)));
+    const veiculos = Array.from(allKeys).map(function(k){ return buildRow(k, g.frotaKeys[k], g.semComByKey[k]); });
+    const frotaTotal = Object.keys(g.frotaKeys).length || allKeys.size;
+    const semComTotal = Object.keys(g.semComByKey).length;
+    const comComTotal = Math.max(0, frotaTotal - semComTotal);
+    return {
+      unidade: g.label, normKey: nk,
+      frota: frotaTotal, comComunicacao: comComTotal, semComunicacao: semComTotal,
+      pctCom: frotaTotal ? Math.round(comComTotal/frotaTotal*1000)/10 : 0,
+      pctSem: frotaTotal ? Math.round(semComTotal/frotaTotal*1000)/10 : 0,
+      veiculos: veiculos.sort(function(a,b){ return (b.diasSemCom||0) - (a.diasSemCom||0); }),
+    };
+  }).sort(function(a,b){ return b.frota - a.frota; });
+
+  const totalFrota = rows.reduce(function(s,r){ return s+r.frota; }, 0);
+  const totalCom = rows.reduce(function(s,r){ return s+r.comComunicacao; }, 0);
+  const totalSem = rows.reduce(function(s,r){ return s+r.semComunicacao; }, 0);
+  return { rows: rows, totalFrota: totalFrota, totalCom: totalCom, totalSem: totalSem };
+}
+
+function relacaoFrotaVeiculoRow(v){
+  const osCell = v.osNumero
+    ? v.osNumero + (v.osTipo ? ' ' + tipoOsBadge(v.osTipo) : '')
+    : '<span class="empty-hint">—</span>';
+  return '<tr>'
+    + '<td>' + escapeHtml(v.veiculo) + '</td>'
+    + '<td>' + (v.ultimaCom ? v.ultimaCom.toLocaleDateString("pt-BR") : "—") + '</td>'
+    + '<td>' + (v.diasSemCom==null ? "—" : v.diasSemCom) + '</td>'
+    + '<td>' + osCell + '</td>'
+    + '<td>' + (v.osTipo ? tipoOsBadge(v.osTipo) : "—") + '</td>'
+    + '<td>' + (v.osData ? v.osData.toLocaleDateString("pt-BR") : "—") + '</td>'
+    + '<td>' + (v.ultimoAbastecimento ? v.ultimoAbastecimento.toLocaleDateString("pt-BR") : "—") + '</td>'
+    + '<td>' + (v.osObservacao ? escapeHtml(v.osObservacao) : '<span class="empty-hint">—</span>') + '</td>'
+    + '</tr>';
+}
+// Painel "Relação da Frota — <unidade>": mesmo padrão de sub-abas Todos/Comunicando/Sem Comunicação,
+// com a "Localização" reaproveitada pra mostrar a observação da O.S. mais recente do veículo (em
+// vez de coordenada/endereço, que a base não tem).
+function relacaoFrotaPanelHtml(row){
+  const cols = '<th>Veículo</th><th>Última comunicação</th><th>Dias sem comunicação</th><th>Última O.S. aberta</th><th>Tipo O.S.</th><th>Data última O.S.</th><th>Último abastecimento</th><th>Localização (Observação da O.S.)</th>';
+  return '<div class="so-detail-panel">'
+    + '<div class="so-detail-head">Relação da Frota — ' + escapeHtml(row.unidade) + '</div>'
+    + '<div class="so-filter-chips" role="tablist">'
+    + '<button type="button" class="so-chip active" data-so-filter="todos">Todos</button>'
+    + '<button type="button" class="so-chip" data-so-filter="com">Comunicando</button>'
+    + '<button type="button" class="so-chip" data-so-filter="sem">Sem Comunicação</button>'
+    + '</div>'
+    + '<div class="table-wrap"><table class="so-detail-table"><thead><tr>' + cols + '</tr></thead><tbody data-so-body="todos">'
+    + row.veiculos.map(relacaoFrotaVeiculoRow).join("")
+    + '</tbody></table></div>'
+    + '<p class="hint">Exibindo apenas resumo: última O.S. aberta e último abastecimento por veículo.</p>'
+    + '</div>';
+}
+// Modelo "Setor Operacional": 3 KPIs (Frota / Com Comunicação / Sem Comunicação) + ranking por
+// unidade com barra de duas cores, cada linha expansível (checkbox) pra "Relação da Frota".
+function renderSetorOperacional(mountEl, data, opts){
+  opts = opts || {};
+  const agg = buildSetorOperacionalRows(data, opts.unidadeFiltro);
+  if(!agg.rows.length){ mountEl.innerHTML = '<div class="vz-empty">Nenhum dado de frota disponível.</div>'; return; }
+
+  function pctBadge(pct){
+    return '<span class="so-kpi-pct"><span class="so-kpi-arrow">▲</span>' + String(pct).replace(".", ",") + '%</span>';
+  }
+  const pctComTotal = agg.totalFrota ? Math.round(agg.totalCom/agg.totalFrota*1000)/10 : 0;
+  const pctSemTotal = agg.totalFrota ? Math.round(agg.totalSem/agg.totalFrota*1000)/10 : 0;
+
+  let html = '<div class="so-kpi-row">'
+    + '<div class="so-kpi"><div class="so-kpi-label">Frota</div><div class="so-kpi-value">' + fmtNum(agg.totalFrota) + '</div></div>'
+    + '<div class="so-kpi"><div class="so-kpi-label">Com Comunicação</div><div class="so-kpi-value">' + fmtNum(agg.totalCom) + '</div>' + pctBadge(pctComTotal) + '</div>'
+    + '<div class="so-kpi"><div class="so-kpi-label">Sem Comunicação</div><div class="so-kpi-value">' + fmtNum(agg.totalSem) + '</div>' + pctBadge(pctSemTotal) + '</div>'
+    + '</div>';
+
+  html += '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Setor Operacional</th><th>Frota</th><th>Com Comunicação</th><th>% com comunicação</th><th>Sem Comunicação</th><th>% sem comunicação</th></tr></thead><tbody>'
+    + agg.rows.map(function(r, i){
+      return '<tr class="so-row" data-so-row="' + i + '">'
+        + '<td><button type="button" class="so-expand-btn" data-so-toggle="' + i + '" aria-expanded="false" title="Ver relação da frota"></button></td>'
+        + '<td>' + escapeHtml(r.unidade) + '</td>'
+        + '<td>' + fmtNum(r.frota) + '</td>'
+        + '<td>' + fmtNum(r.comComunicacao) + '</td>'
+        + '<td><div class="so-bar-cell"><span class="so-bar-track"><span class="so-bar-fill-good" style="width:' + r.pctCom + '%"></span></span><span class="so-bar-pct">' + String(r.pctCom).replace(".",",") + '%</span></div></td>'
+        + '<td>' + fmtNum(r.semComunicacao) + '</td>'
+        + '<td><div class="so-bar-cell"><span class="so-bar-track"><span class="so-bar-fill-bad" style="width:' + r.pctSem + '%"></span></span><span class="so-bar-pct">' + String(r.pctSem).replace(".",",") + '%</span></div></td>'
+        + '</tr>'
+        + '<tr class="so-detail-row" data-so-detail="' + i + '" style="display:none;"><td colspan="7">' + relacaoFrotaPanelHtml(r) + '</td></tr>';
+    }).join("") + '</tbody></table></div>';
+
+  mountEl.innerHTML = html;
+
+  mountEl.querySelectorAll("[data-so-toggle]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      const idx = btn.dataset.soToggle;
+      const detailRow = mountEl.querySelector('[data-so-detail="' + idx + '"]');
+      if(!detailRow) return;
+      const showing = detailRow.style.display !== "none";
+      detailRow.style.display = showing ? "none" : "table-row";
+      btn.classList.toggle("open", !showing);
+      btn.setAttribute("aria-expanded", String(!showing));
+    });
+  });
+  mountEl.querySelectorAll(".so-detail-panel").forEach(function(panel, i){
+    const tbody = panel.querySelector("[data-so-body]");
+    const allRows = agg.rows[i].veiculos;
+    panel.querySelectorAll("[data-so-filter]").forEach(function(chip){
+      chip.addEventListener("click", function(){
+        panel.querySelectorAll("[data-so-filter]").forEach(function(c){ c.classList.remove("active"); });
+        chip.classList.add("active");
+        const f = chip.dataset.soFilter;
+        const filtered = f === "com" ? allRows.filter(function(v){ return !v.semComunicacao; })
+          : f === "sem" ? allRows.filter(function(v){ return v.semComunicacao; })
+          : allRows;
+        tbody.innerHTML = filtered.map(relacaoFrotaVeiculoRow).join("") || '<tr><td colspan="8"><span class="empty-hint">Nenhum veículo nesta categoria.</span></td></tr>';
+      });
+    });
   });
 }
 async function renderTelemetria(newAsOf){
@@ -1965,7 +2219,12 @@ async function renderTelemetria(newAsOf){
       });
       html += '</div>';
     } else {
-      html += VizModes.thresholdControlsHtml("telemetria", telVizActiveThresh, !!telVizStoredThresh, "dias");
+      // O modo "Resumo executivo" usa o modelo próprio "Setor Operacional" (KPIs de comunicação +
+      // ranking por unidade), sem limiar de severidade — os controles de limiar só fazem sentido
+      // nos modos Cards/Kanban, que continuam usando o sistema genérico de bandas por percentil.
+      if(telemetriaVizMode !== "exec"){
+        html += VizModes.thresholdControlsHtml("telemetria", telVizActiveThresh, !!telVizStoredThresh, "dias");
+      }
       html += '<div id="telemetria-viz-mount"></div>';
     }
 
@@ -2009,7 +2268,7 @@ async function renderTelemetria(newAsOf){
       function drawTelVizMode(){
         if(telemetriaVizMode === "cards") VizModes.renderCardGroups(telVizMount, telVizItemsAll, telVizActiveThresh, telVizOpts);
         else if(telemetriaVizMode === "kanban") VizModes.renderKanban(telVizMount, telVizItemsAll, telVizActiveThresh, telVizOpts);
-        else if(telemetriaVizMode === "exec") VizModes.renderExecSummary(telVizMount, telVizItemsAll, telVizActiveThresh, Object.assign({ title:"Resumo executivo — Telemetria" }, telVizOpts), { updatedNote: "Dados de " + fmtDateBR(data.resolvedDates["Base - TML"]) + " · Gerado em " + fmtDateTime(new Date()) });
+        else if(telemetriaVizMode === "exec") renderSetorOperacional(telVizMount, data, { unidadeFiltro: telemetriaUnidadeFiltro });
       }
       drawTelVizMode();
 
