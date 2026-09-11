@@ -583,7 +583,7 @@
         <button class="nav-btn" data-section="retencao"><span class="ico">🔁</span> Retenção</button>
         <button class="nav-btn soon" data-soon="Preventiva"><span class="ico">🛠️</span> Preventiva <span class="soon-tag">em breve</span></button>
         <button class="nav-btn" data-section="abastecimento"><span class="ico">⛽</span> Abastecimento</button>
-        <button class="nav-btn soon" data-soon="Suprimentos"><span class="ico">📦</span> Suprimentos <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn" data-section="suprimentos"><span class="ico">📦</span> Suprimentos</button>
         <button class="nav-btn soon" data-soon="Dashboard"><span class="ico">📊</span> Dashboard <span class="soon-tag">em breve</span></button>
         <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Base de Dados</button>
       </nav>
@@ -745,6 +745,14 @@
     </div>
   </div>
 </div>
+        </div>
+
+        <div class="section" id="sec-suprimentos">
+          <div class="section-head">
+            <h2>Suprimentos</h2>
+            <p>Estoque, sucata, borracharia e reforma externa de pneus por unidade — cruzando "Pneus por Unidade" com a frota cadastrada e a coleta de sulco (Manutencao - PRV).</p>
+          </div>
+          <div id="suprimentos-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dados">
@@ -1687,9 +1695,10 @@ const SECTION_TITLES = {
   inventario: "Inventário",
   retencao: "Retenção",
   abastecimento: "Abastecimento",
+  suprimentos: "Suprimentos",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, retencao:false, abastecimento:false, dados:false };
+const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, retencao:false, abastecimento:false, suprimentos:false, dados:false };
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -1718,6 +1727,7 @@ function activateSection(section){
     if(section === "inventario") renderInventario();
     if(section === "retencao") renderRetencao();
     if(section === "abastecimento") renderAbastecimentoPanel();
+    if(section === "suprimentos") renderSuprimentos();
     if(section === "dados") renderDadosGeral();
   }
 }
@@ -3068,6 +3078,273 @@ async function renderRetencao(newAsOf){
     }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Retenção: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// SUPRIMENTOS (Pneus por Unidade — estoque, sucata, borracharia, reforma externa)
+// =====================================================================
+const SUPRIMENTOS_ESTOQUE_MINIMO = 10; // informado por Jefferson: nº mínimo de pneus em estoque
+                                        // (todos os motivos, dentro de "...- ESTOQUE X") por
+                                        // unidade pra considerar suficiente perto da frota.
+const SUPRIMENTOS_COLETA_KM_LIMITE = 3000; // mesmo limiar já usado no alerta "Pendente de coleta"
+                                            // do módulo de Pneus (Manutencao - PRV, plano de
+                                            // coleta de sulco) — Jefferson confirmou reaproveitar.
+
+// Normalização específica pra cruzar "Pneus por Unidade" (que grafa a unidade dentro de um código
+// tipo "026 - ESTOQUE PETROLINA" ou "087 - REF. EXTERNA -V DA CONQUISTA") com as 22 unidades de
+// "Base de Veículos - Pneus" ("GARAGEM X") — reaproveita normUnidade() (acentos, caixa, prefixo
+// GARAGEM) e ainda remove pontuação, que aparece só em algumas variações da mesma cidade
+// ("V DA CONQUISTA" vs "V. DA CONQUISTA").
+function normCidade(s){
+  return normUnidade(s).replace(/\./g, "").replace(/\s+/g, " ").trim();
+}
+// Tabela explícita cidade → unidade canônica, montada a mão a partir da lista real observada em
+// "Pneus por Unidade" (61 combinações código+categoria, 17 cidades distintas) cruzada com as 22
+// unidades de "Base de Veículos - Pneus" — mesma lição do Aracaju/CAB na Telemetria: casar por
+// heurística de string dava pra errar sem avisar, então aqui é tudo explícito e conferido contra
+// os dados reais.
+const SUPRIMENTOS_CIDADE_ALIASES = {
+  "CAMACARI": "GARAGEM CAMAÇARI",
+  "SF DO CONDE": "GARAGEM SÃO FRANCISCO DO CONDE",
+  "POJUCA": "GARAGEM POJUCA",
+  "P AFONSO": "GARAGEM PAULO AFONSO",
+  "PETROLINA": "GARAGEM PETROLINA",
+  "V DA CONQUISTA": "GARAGEM VITORIA DA CONQUISTA",
+  "ITABUNA": "GARAGEM ITABUNA",
+  "L DE FREITAS": "GARAGEM LAURO DE FREITAS",
+  "PALMAS": "GARAGEM PALMAS",
+  "ARAGUAINA": "GARAGEM ARAGUAINA",
+  "GOIANIA": "GARAGEM GOIANIA",
+  "IGUATEMI": "GARAGEM SALVADOR IGUATEMI",
+  "ILHEUS": "GARAGEM ILHEUS",
+  "RIO REAL": "GARAGEM RIO REAL",
+  "JUAZEIRO": "GARAGEM JUAZEIRO",
+  "MORRO DO CHAPEU": "GARAGEM MORRO DO CHAPEU",
+  "ARACAJU": "GARAGEM ARACAJU",
+};
+// Quebra "NNN - CATEGORIA[-| ]CIDADE" (a pontuação entre categoria e cidade varia na planilha:
+// "- CATEGORIA -CIDADE", "- CATEGORIA - CIDADE", "- CATEGORIA CIDADE") em {categoria, unidade}.
+function parsePneusPorUnidade(unidadeRaw){
+  const semCodigo = String(unidadeRaw||"").trim().replace(/^\d+\s*-\s*/, "");
+  const upper = semCodigo.toUpperCase();
+  let categoria, resto;
+  if(upper.indexOf("REF. EXTERNA") === 0 || upper.indexOf("REF EXTERNA") === 0){
+    categoria = "reforma_externa"; resto = semCodigo.slice(upper.indexOf("EXTERNA") + "EXTERNA".length);
+  } else if(upper.indexOf("REF. INTERNA") === 0 || upper.indexOf("REF INTERNA") === 0){
+    categoria = "reforma_interna"; resto = semCodigo.slice(upper.indexOf("INTERNA") + "INTERNA".length);
+  } else if(upper.indexOf("SUCATA") === 0){
+    categoria = "sucata"; resto = semCodigo.slice("SUCATA".length);
+  } else if(upper.indexOf("ESTOQUE") === 0){
+    categoria = "estoque"; resto = semCodigo.slice("ESTOQUE".length);
+  } else if(upper.indexOf("BORRACHARIA") === 0){
+    categoria = "borracharia"; resto = semCodigo.slice("BORRACHARIA".length);
+  } else {
+    categoria = "outro"; resto = semCodigo;
+  }
+  resto = resto.replace(/^[\s\-]+/, "").trim();
+  const unidade = SUPRIMENTOS_CIDADE_ALIASES[normCidade(resto)] || null;
+  return { categoria: categoria, cidadeRaw: resto, unidade: unidade };
+}
+
+let suprimentosCache = null;
+async function getSuprimentosData(force){
+  if(force || !suprimentosCache){
+    suprimentosCache = buildSuprimentosData().catch(function(err){ suprimentosCache = null; throw err; });
+  }
+  return suprimentosCache;
+}
+
+async function buildSuprimentosData(){
+  const [supSnap, veicSnap] = await Promise.all([
+    resolveSnapshotDate("Pneus por Unidade", null),
+    resolveSnapshotDate("Base de Veiculos - Pneus", null),
+  ]);
+  const [supRows, veicRows, pneusFull] = await Promise.all([
+    fetchAllRows("Pneus por Unidade", supSnap),
+    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
+    getPneusData(null, false), // reaproveita sulco/coleta já resolvidos no módulo de Pneus (mesma
+                                // fonte, mesmo vínculo veículo→unidade já testado ali)
+  ]);
+
+  const frotaPorUnidade = {};
+  veicRows.forEach(function(r){
+    const u = (r.Unidade||"").trim();
+    if(!u) return;
+    frotaPorUnidade[u] = (frotaPorUnidade[u]||0) + 1;
+  });
+
+  const itens = supRows.map(function(r){
+    const parsed = parsePneusPorUnidade(r.Unidade);
+    return {
+      raw: r, categoria: parsed.categoria, unidade: parsed.unidade, cidadeRaw: parsed.cidadeRaw,
+      data: parseLenientDate(r.Data), medida: r.Medida || "Sem medida", marca: r.Marca, modelo: r.Modelo,
+      nSerie: r["Nº Série"] || r["Nº Série (Curto)"] || "—", reformador: r.Reformador,
+      motivo: r["Motivo de Movimentação"] || "—",
+    };
+  });
+  const semUnidadeCount = itens.filter(function(it){ return !it.unidade; }).length;
+
+  // Pendência de sulco por unidade: reaproveita o alerta "Pendente de coleta" já calculado no
+  // módulo de Pneus (Manutencao - PRV, plano "110-COLETA MILIMETRAGEM SULCO PNEUS", km rodado
+  // desde a última coleta acima do limite) — é o "plano vencido" que Jefferson descreveu.
+  const unidadesComSulcoPendente = new Set();
+  (pneusFull.alerts.coleta || []).forEach(function(a){
+    if(a.local) unidadesComSulcoPendente.add(normCidade(a.local));
+  });
+
+  const unidades = Object.keys(frotaPorUnidade).sort().map(function(nomeUnidade){
+    const doUnidade = itens.filter(function(it){ return it.unidade === nomeUnidade; });
+    const estoque = doUnidade.filter(function(it){ return it.categoria === "estoque"; });
+    const sucata = doUnidade.filter(function(it){ return it.categoria === "sucata"; });
+    const borracharia = doUnidade.filter(function(it){ return it.categoria === "borracharia"; });
+    const reformaExterna = doUnidade.filter(function(it){ return it.categoria === "reforma_externa"; })
+      .sort(function(a,b){ return (a.data?a.data.getTime():0) - (b.data?b.data.getTime():0); });
+    const reformaInterna = doUnidade.filter(function(it){ return it.categoria === "reforma_interna"; });
+    const frota = frotaPorUnidade[nomeUnidade] || 0;
+    const sulcoPendente = unidadesComSulcoPendente.has(normCidade(nomeUnidade));
+    const estoqueQtd = estoque.length;
+    let status;
+    if(estoqueQtd >= SUPRIMENTOS_ESTOQUE_MINIMO) status = "ok";
+    else status = sulcoPendente ? "nao_autorizado" : "liberado";
+    return {
+      unidade: nomeUnidade, frota: frota,
+      estoque: estoque, sucata: sucata, borracharia: borracharia, reformaExterna: reformaExterna, reformaInterna: reformaInterna,
+      estoqueQtd: estoqueQtd, sucataQtd: sucata.length, borrachariaQtd: borracharia.length,
+      reformaExternaQtd: reformaExterna.length, reformaInternaQtd: reformaInterna.length,
+      semDadosMovimentacao: (estoqueQtd + sucata.length + borracharia.length + reformaExterna.length + reformaInterna.length) === 0,
+      sulcoPendente: sulcoPendente, status: status,
+    };
+  });
+
+  const porMedida = {};
+  itens.forEach(function(it){ porMedida[it.medida] = (porMedida[it.medida]||0) + 1; });
+  const medidas = Object.keys(porMedida).map(function(m){ return { medida:m, qtd: porMedida[m] }; })
+    .sort(function(a,b){ return b.qtd - a.qtd; });
+
+  return {
+    unidades: unidades, medidas: medidas, itensTotal: itens.length, semUnidadeCount: semUnidadeCount,
+    resolvedDates: {
+      "Pneus por Unidade": supSnap, "Base de Veiculos - Pneus": veicSnap,
+      "Manutencao - PRV": (pneusFull.resolvedDates || {})["Manutencao - PRV"] || null,
+    },
+  };
+}
+
+function suprimentosStatusBadge(status){
+  if(status === "ok") return '<span class="badge b-good">Estoque OK</span>';
+  if(status === "liberado") return '<span class="badge b-good">Liberado compra para unidade</span>';
+  return '<span class="badge b-critical">Não autorizado compra</span>';
+}
+
+function reformaExternaDetailHtml(u){
+  if(!u.reformaExterna.length){
+    return '<div class="so-detail-panel"><p class="empty-hint">Nenhum pneu em reforma externa nesta unidade.</p></div>';
+  }
+  const rows = u.reformaExterna.map(function(it){
+    const dias = it.data ? daysSince(it.data) : null;
+    return '<tr>'
+      + '<td>' + escapeHtml(it.nSerie) + '</td>'
+      + '<td>' + escapeHtml((it.marca||"") + (it.modelo ? " " + it.modelo : "") || "—") + '</td>'
+      + '<td>' + escapeHtml(it.medida) + '</td>'
+      + '<td>' + escapeHtml(it.reformador || "—") + '</td>'
+      + '<td>' + (it.data ? it.data.toLocaleDateString("pt-BR") : "—") + '</td>'
+      + '<td>' + (dias == null ? "—" : (dias + ' dia(s)')) + '</td>'
+      + '<td>' + escapeHtml(it.motivo) + '</td>'
+      + '</tr>';
+  }).join("");
+  return '<div class="so-detail-panel">'
+    + '<div class="so-detail-head">Reforma externa — ' + escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,"")) + ' <span class="badge b-warning">' + u.reformaExterna.length + ' pneu(s)</span></div>'
+    + '<div class="table-wrap"><table class="so-detail-table"><thead><tr><th>Nº Série</th><th>Marca/Modelo</th><th>Medida</th><th>Reformador</th><th>Desde</th><th>Tempo lá</th><th>Motivo</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + '</div>';
+}
+
+async function renderSuprimentos(){
+  const el = document.getElementById("suprimentos-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de suprimentos...</div>';
+  try{
+    const d = await getSuprimentosData(false);
+
+    const totalUnidadesPrecisando = d.unidades.filter(function(u){ return u.status !== "ok"; }).length;
+    const totalSulcoPendente = d.unidades.filter(function(u){ return u.sulcoPendente; }).length;
+    const totalReformaExterna = d.unidades.reduce(function(s,u){ return s + u.reformaExternaQtd; }, 0);
+
+    let html = '<div class="kpi-grid">'
+      + kpiCard("Unidades", fmtNum(d.unidades.length), "info")
+      + kpiCard("Itens fora de circulação (Pneus por Unidade)", fmtNum(d.itensTotal), "info")
+      + kpiCard("Unidades abaixo do estoque mínimo (" + SUPRIMENTOS_ESTOQUE_MINIMO + ")", fmtNum(totalUnidadesPrecisando), totalUnidadesPrecisando?"warning":"good")
+      + kpiCard("Unidades com sulco pendente", fmtNum(totalSulcoPendente), totalSulcoPendente?"critical":"good")
+      + kpiCard("Pneus em reforma externa (todas unidades)", fmtNum(totalReformaExterna), "info")
+      + '</div>';
+
+    // Confronto: quem tem mais estoque agora vs. quem mais precisa (menos estoque)
+    const porEstoqueDesc = d.unidades.slice().sort(function(a,b){ return b.estoqueQtd - a.estoqueQtd; }).slice(0,5);
+    const porEstoqueAsc = d.unidades.slice().sort(function(a,b){ return a.estoqueQtd - b.estoqueQtd; }).slice(0,5);
+    function confrontoTable(list){
+      return '<div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Estoque</th><th>Frota</th></tr></thead><tbody>'
+        + list.map(function(u){
+            return '<tr><td>' + escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,"")) + '</td><td>' + fmtNum(u.estoqueQtd) + '</td><td>' + fmtNum(u.frota) + '</td></tr>';
+          }).join("")
+        + '</tbody></table></div>';
+    }
+    html += '<div class="subsection"><h3>Confronto — quem tem mais estoque agora vs. quem mais precisa</h3>'
+      + '<div class="card-grid" style="grid-template-columns:1fr 1fr;">'
+      + '<div><p class="hint" style="margin-bottom:8px;"><b>Mais estoque no momento</b></p>' + confrontoTable(porEstoqueDesc) + '</div>'
+      + '<div><p class="hint" style="margin-bottom:8px;"><b>Mais precisando (menos estoque)</b></p>' + confrontoTable(porEstoqueAsc) + '</div>'
+      + '</div></div>';
+
+    html += '<div class="subsection"><h3>Quantidade por unidade</h3>'
+      + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Unidade</th><th>Frota</th><th>Estoque</th><th>Sucata</th><th>Borracharia</th><th>Reforma externa</th><th>Sulco</th><th>Status</th></tr></thead><tbody>'
+      + d.unidades.map(function(u, i){
+          const nomeCurto = escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,""));
+          return '<tr class="so-row">'
+            + '<td><button type="button" class="so-expand-btn" data-sup-toggle="' + i + '" aria-expanded="false" title="Ver pneus em reforma externa"' + (u.reformaExternaQtd?'':' disabled style="opacity:.3;cursor:default;"') + '></button></td>'
+            + '<td>' + nomeCurto + (u.semDadosMovimentacao ? ' <span class="badge b-info" title="Nenhuma movimentação encontrada em Pneus por Unidade para esta unidade">sem mov.</span>' : '') + '</td>'
+            + '<td>' + fmtNum(u.frota) + '</td>'
+            + '<td>' + fmtNum(u.estoqueQtd) + '</td>'
+            + '<td>' + fmtNum(u.sucataQtd) + '</td>'
+            + '<td>' + fmtNum(u.borrachariaQtd) + '</td>'
+            + '<td>' + fmtNum(u.reformaExternaQtd) + '</td>'
+            + '<td>' + (u.sulcoPendente ? '<span class="badge b-critical">Pendente</span>' : '<span class="badge b-good">Em dia</span>') + '</td>'
+            + '<td>' + suprimentosStatusBadge(u.status) + '</td>'
+            + '</tr>'
+            + '<tr class="so-detail-row" data-sup-detail="' + i + '" style="display:none;"><td colspan="9">' + reformaExternaDetailHtml(u) + '</td></tr>';
+        }).join("")
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Quantidade por tipo (Medida do pneu)</h3>'
+      + '<div class="table-wrap"><table><thead><tr><th>Medida</th><th>Quantidade</th></tr></thead><tbody>'
+      + d.medidas.map(function(m){ return '<tr><td>' + escapeHtml(m.medida) + '</td><td>' + fmtNum(m.qtd) + '</td></tr>'; }).join("")
+      + '</tbody></table></div></div>';
+
+    html += legendBox("Como essas regras funcionam", [
+      { label:"Estoque", desc:'Todo pneu que está em algum "...- ESTOQUE X" na planilha "Pneus por Unidade", não importa o motivo da movimentação.' },
+      { label:"Liberado compra para unidade", desc:'<span class="badge b-good">verde</span> — a unidade está abaixo do estoque mínimo (' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus) mas está com a coleta de sulco em dia (sem plano vencido) — a necessidade é confiável.' },
+      { label:"Não autorizado compra", desc:'<span class="badge b-critical">vermelho</span> — a unidade está abaixo do estoque mínimo, mas tem coleta de sulco pendente (algum veículo rodou mais de ' + SUPRIMENTOS_COLETA_KM_LIMITE + ' km desde a última coleta) — a necessidade não está confirmada até a coleta ser feita.' },
+      { label:"Estoque OK", desc:'A unidade já tem ' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus ou mais em estoque — não entra na comparação de compra.' },
+      { label:"Reforma externa", desc:'Pneus enviados a reformadoras fora da empresa ("REF. EXTERNA"); "tempo lá" é contado da data do movimento até hoje.' },
+      { label:"Sem mov.", desc:'Unidade sem nenhum registro em "Pneus por Unidade" no momento — pode ser que ela use outro controle de pneus (ex.: frota alugada/terceirizada).' },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Pneus por Unidade, Base de Veículos - Pneus, Manutencao - PRV") + resolvedDatesNote(d.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    enableSortableTables(el);
+
+    el.querySelectorAll("[data-sup-toggle]").forEach(function(btn){
+      if(btn.disabled) return;
+      btn.addEventListener("click", function(){
+        const idx = btn.dataset.supToggle;
+        const row = el.querySelector('[data-sup-detail="' + idx + '"]');
+        if(!row) return;
+        const showing = row.style.display !== "none";
+        row.style.display = showing ? "none" : "table-row";
+        btn.classList.toggle("open", !showing);
+        btn.setAttribute("aria-expanded", String(!showing));
+      });
+    });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Suprimentos: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
