@@ -3320,7 +3320,6 @@ async function renderSuprimentos(newAsOf){
     };
 
     let html = unidadeFilterHtml("suprimentos", unidadesTodas, suprimentosUnidadeFiltro);
-    wireUnidadeFilter("suprimentos", function(v){ suprimentosUnidadeFiltro = v; renderSuprimentos(); });
     if(suprimentosUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(suprimentosUnidadeFiltro) + '</b>.</p>';
     }
@@ -3410,6 +3409,7 @@ async function renderSuprimentos(newAsOf){
     area.innerHTML = html;
     fitAllKpiValues(area);
     enableSortableTables(area);
+    wireUnidadeFilter("suprimentos", function(v){ suprimentosUnidadeFiltro = v; renderSuprimentos(); });
 
     area.querySelectorAll("[data-sup-toggle]").forEach(function(btn){
       btn.addEventListener("click", function(){
