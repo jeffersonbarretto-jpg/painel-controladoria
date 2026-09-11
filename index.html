@@ -4159,22 +4159,28 @@ function dashTelemetriaCidadeKeyFor(row){
 //   menos 1 medição registrada, por mês da medição mais recente de cada pneu (proxy de "desde
 //   quando esse pneu passou a ter coleta", já que só temos a leitura mais recente por pneu, não o
 //   histórico completo de medições).
-// - Telemetria: veículos com comunicação pendente (Base - TML, snapshot mais recente), agrupados
-//   pelo mês da própria "Dt. Verificação" de cada veículo — não é uma série histórica mês a mês,
-//   é a distribuição atual de "há quanto tempo cada veículo está sem ser reverificado".
+// - Telemetria: veículos verificados (Dt. Verificação), acumulado mês a mês desde abril/2026 — como
+//   Base - TML é a única fonte com histórico diário real sincronizado, junta TODOS os snapshots
+//   guardados (não só o mais recente) pra reconstruir a data de verificação de cada veículo mesmo
+//   depois que ele sai da lista de pendência (ou tem sua Dt. Verificação sobrescrita numa "zerada"
+//   em massa do boletim) — deduplicado por veículo+mês, então reverificações repetidas no mesmo mês
+//   não inflam a contagem.
 async function buildDashboardData(asOfDate){
   const hojeIso = asOfDate || todayStr();
 
-  const [veicSnap, abastSnap, osSnap, supSnap, rpvSnap, baseSnap] = await Promise.all([
+  const [veicSnap, abastSnap, osSnap, supSnap, rpvSnap, baseSnap, baseDatesResp] = await Promise.all([
     resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
     resolveSnapshotDate("Abastecimento - TML", asOfDate),
     resolveSnapshotDate("O.S Fechada - TML", asOfDate),
     resolveSnapshotDate("Pneus por Unidade", asOfDate),
     resolveSnapshotDate("Dados RPV - Pneus", asOfDate),
     resolveSnapshotDate("Base - TML", asOfDate),
+    rest("snapshot_dates?tab_name=eq." + encodeURIComponent("Base - TML") + "&snapshot_date=lte." + encodeURIComponent(hojeIso) + "&select=snapshot_date&order=snapshot_date.asc&limit=400"),
   ]);
+  const baseDatesRows = await baseDatesResp.json();
+  const baseDates = Array.from(new Set(baseDatesRows.map(function(r){ return r.snapshot_date; })));
 
-  const [veicRows, abastRows, osRows, supRows, rpvRows, baseRows, supSummary] = await Promise.all([
+  const [veicRows, abastRows, osRows, supRows, rpvRows, baseRows, supSummary, baseSnapshots] = await Promise.all([
     fetchAllRows("Base de Veiculos - Pneus", veicSnap),
     fetchAllRows("Abastecimento - TML", abastSnap),
     fetchAllRows("O.S Fechada - TML", osSnap),
@@ -4182,6 +4188,7 @@ async function buildDashboardData(asOfDate){
     fetchAllRows("Dados RPV - Pneus", rpvSnap),
     fetchAllRows("Base - TML", baseSnap),
     getSuprimentosData(asOfDate),
+    Promise.all(baseDates.map(function(dt){ return fetchAllRows("Base - TML", dt).then(function(rows){ return { date:dt, rows:rows }; }); })),
   ]);
 
   // Veículo -> unidade canônica (Base de Veículos - Pneus) — é a chave que liga Abastecimento e
@@ -4292,21 +4299,39 @@ async function buildDashboardData(asOfDate){
     }
   });
 
-  // ---- Telemetria (veículos com verificação pendente, por mês da Dt. Verificação) ----
-  const telemetriaPorMesUnidade = {}; // mk -> cidadeKey -> {qtd}
-  let telemetriaTotalPendentes = 0;
-  baseRows.forEach(function(r){
-    if(!r.Carro) return;
-    telemetriaTotalPendentes++;
-    const cidadeKey = dashTelemetriaCidadeKeyFor(r);
-    if(!cidadeKey) return;
-    const dtv = parseLenientDate(r["Dt. Verificação"]);
-    if(!dtv || isoDateOf(dtv) > hojeIso) return;
-    const mk = dashMonthKey(dtv);
-    if(!telemetriaPorMesUnidade[mk]) telemetriaPorMesUnidade[mk] = {};
-    if(!telemetriaPorMesUnidade[mk][cidadeKey]) telemetriaPorMesUnidade[mk][cidadeKey] = { qtd:0 };
-    telemetriaPorMesUnidade[mk][cidadeKey].qtd++;
+  // ---- Telemetria (veículos verificados, acumulado desde abril/2026 pela Dt. Verificação) ----
+  // Junta todos os snapshots guardados de Base - TML (não só o mais recente) porque essa lista de
+  // pendência encolhe/é "zerada" com o tempo (veículos saem quando resolvidos, e às vezes a Dt.
+  // Verificação de um lote inteiro é sobrescrita numa reconferência em massa) — usando só o
+  // snapshot mais recente perderíamos a maior parte do histórico. Deduplicado por veículo+mês
+  // (dashTelVistos) pra um veículo que aparece com a mesma Dt. Verificação em vários snapshots
+  // diários seguidos não ser contado mais de uma vez no mesmo mês.
+  const telemetriaAntesAbril = {}; // cidadeKey -> {novos}
+  const telemetriaPorMes = {}; // mk -> cidadeKey -> {novos}
+  const dashTelVistos = {};
+  baseSnapshots.forEach(function(snap){
+    snap.rows.forEach(function(r){
+      if(!r.Carro) return;
+      const cidadeKey = dashTelemetriaCidadeKeyFor(r);
+      if(!cidadeKey) return;
+      const dtv = parseLenientDate(r["Dt. Verificação"]);
+      if(!dtv || isoDateOf(dtv) > hojeIso) return;
+      const mk = dashMonthKey(dtv);
+      const carroKey = vehicleKey(r.Carro) || r.Carro;
+      const dedupeKey = cidadeKey + "|" + mk + "|" + carroKey;
+      if(dashTelVistos[dedupeKey]) return;
+      dashTelVistos[dedupeKey] = true;
+      if(mk < "2026-04"){
+        if(!telemetriaAntesAbril[cidadeKey]) telemetriaAntesAbril[cidadeKey] = { novos:0 };
+        telemetriaAntesAbril[cidadeKey].novos++;
+      } else {
+        if(!telemetriaPorMes[mk]) telemetriaPorMes[mk] = {};
+        if(!telemetriaPorMes[mk][cidadeKey]) telemetriaPorMes[mk][cidadeKey] = { novos:0 };
+        telemetriaPorMes[mk][cidadeKey].novos++;
+      }
+    });
   });
+  const telemetriaTotalPendentes = baseRows.filter(function(r){ return r.Carro; }).length;
 
   const unidadesFiltro = Object.keys(unidadesSet).sort().map(function(ck){
     return { cidadeKey: ck, label: unidadesSet[ck].replace(/^GARAGEM\s+/i, "") };
@@ -4321,7 +4346,8 @@ async function buildDashboardData(asOfDate){
     pneusCoberturaPorMes: pneusCoberturaPorMes,
     pneusCoberturaAntes2026: pneusCoberturaAntes2026,
     totalPneusRastreados: totalPneusRastreados,
-    telemetriaPorMesUnidade: telemetriaPorMesUnidade,
+    telemetriaAntesAbril: telemetriaAntesAbril,
+    telemetriaPorMes: telemetriaPorMes,
     telemetriaTotalPendentes: telemetriaTotalPendentes,
     telemetriaSnapDate: baseSnap,
     unidadesFiltro: unidadesFiltro,
@@ -4535,10 +4561,13 @@ async function renderDashboardEvolutivo(newAsOf){
     const covAnterior = coberturaSeries.length > 1 ? coberturaSeries[coberturaSeries.length-2] : (coberturaSeries.length === 1 ? (antesBucket ? antesBucket.novos||0 : null) : null);
     const covPct = (covAtual != null && d.totalPneusRastreados) ? Math.round((covAtual/d.totalPneusRastreados)*1000)/10 : null;
 
-    // ---- Telemetria: veículos por mês da última verificação ----
-    const telMonths = monthsOf(d.telemetriaPorMesUnidade);
-    const telQtd = telMonths.map(function(mk){ const b = pick(d.telemetriaPorMesUnidade[mk]); return b ? (b.qtd||0) : 0; });
-    const telTotal = telQtd.reduce(function(s,v){ return s + (v||0); }, 0);
+    // ---- Telemetria: veículos verificados, acumulado desde abril/2026 ----
+    const telMonths = monthsOf(d.telemetriaPorMes);
+    const telAntesBucket = pick(d.telemetriaAntesAbril);
+    let telCum = telAntesBucket ? (telAntesBucket.novos||0) : 0;
+    const telSeries = telMonths.map(function(mk){ const b = pick(d.telemetriaPorMes[mk]); telCum += (b ? (b.novos||0) : 0); return telCum; });
+    const telAtual = telSeries.length ? telSeries[telSeries.length-1] : (telAntesBucket ? telAntesBucket.novos||0 : null);
+    const telAnterior = telSeries.length > 1 ? telSeries[telSeries.length-2] : (telSeries.length === 1 ? (telAntesBucket ? telAntesBucket.novos||0 : null) : null);
 
     let html = "";
     if(cidadeKey){
@@ -4550,7 +4579,7 @@ async function renderDashboardEvolutivo(newAsOf){
       + kpiCard("Abastecimento — % fora da meta", abastAtual==null?"—":abastAtual+"%", abastAtual==null?"info":(abastAtual>0?"warning":"good"))
       + kpiCard("Abastecimento — custo do mês", custoAtual==null?"—":dashFmtBRL(custoAtual), "info")
       + kpiCard("O.S. — tempo médio de resolução", osTempoAtual==null?"—":osTempoAtual+"d", "info")
-      + kpiCard("Telemetria — veículos com verificação pendente", fmtNum(telTotal), telTotal>0?"warning":"good")
+      + kpiCard("Telemetria — pendentes agora / verificados (acum.)", fmtNum(d.telemetriaTotalPendentes) + " / " + fmtNum(telAtual), "info")
       + kpiCard("Suprimentos — unidades abaixo do estoque mínimo", fmtNum(totalUnidadesAbaixoMinimo), totalUnidadesAbaixoMinimo>0?"warning":"good")
       + '</div>';
 
@@ -4584,20 +4613,21 @@ async function renderDashboardEvolutivo(newAsOf){
       + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Cobertura atual' + (covPct!=null?" (" + covPct + "% do total rastreado)":"") + '</div><div class="dash-kpi-value">' + (covAtual==null?"—":fmtNum(covAtual)) + dashDeltaHtml(covAtual, covAnterior, { fmt:function(v){ return fmtNum(Math.round(v)); } }) + '</div></div></div>'
       + '</div>';
 
-    html += '<div class="dash-card"><h3>📡 Telemetria — veículos por mês da última verificação</h3>'
-      + '<p class="hint">Veículos com comunicação pendente (Base - TML, snapshot de ' + fmtDateBR(d.telemetriaSnapDate) + '), agrupados pelo mês da própria "Dt. Verificação" de cada um — mostra há quanto tempo cada veículo está sem ser reverificado. Não é uma série histórica mês a mês.</p>'
-      + dashLineChartSvg(telMonths, [{ label:"Veículos pendentes", color:"var(--serious)", values:telQtd }])
-      + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Total com verificação pendente</div><div class="dash-kpi-value">' + fmtNum(telTotal) + '</div></div></div>'
-      + '</div>';
+    html += '<div class="dash-card"><h3>📡 Telemetria — veículos verificados (acumulado)</h3>'
+      + '<p class="hint">Data / Mês / Unidade: quantidade acumulada de veículos com pelo menos 1 verificação registrada (campo "Dt. Verificação" de Base - TML, mês a mês, desde abril/2026), cruzando o histórico de todos os snapshots guardados — não só o mais recente, já que essa lista de pendência encolhe com o tempo. Filtra por unidade no seletor acima. Backlog pendente agora (snapshot de ' + fmtDateBR(d.telemetriaSnapDate) + '): ' + fmtNum(d.telemetriaTotalPendentes) + ' veículos.</p>'
+      + dashLineChartSvg(telMonths, [{ label:"Veículos verificados (acumulado)", color:"var(--good)", values:telSeries }])
+      + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Verificados (acumulado)</div><div class="dash-kpi-value">' + (telAtual==null?"—":fmtNum(telAtual)) + dashDeltaHtml(telAtual, telAnterior, { fmt:function(v){ return fmtNum(Math.round(v)); } }) + '</div></div>'
+      + '<div class="dash-kpi"><div class="dash-kpi-label">Pendentes agora</div><div class="dash-kpi-value">' + fmtNum(d.telemetriaTotalPendentes) + '</div></div>'
+      + '</div></div>';
 
     html += '</div>'; // .dash-grid
 
     html += legendBox("Como ler esse painel", [
-      { label:"% fora da meta / tempo de resolução / verificação pendente", desc:"quanto menor, melhor — são indicadores de problema." },
+      { label:"% fora da meta / tempo de resolução", desc:"quanto menor, melhor — são indicadores de problema." },
       { label:"O.S. abertas / movimentação de Suprimentos / custo de abastecimento", desc:"indicadores de volume/atividade, não são bons nem ruins por si só — olhe a tendência junto com os outros painéis." },
       { label:"Suprimentos (movimentação)", desc:"esse gráfico é volume de movimentação (quantos pneus mudaram de categoria naquele mês), não o nível de estoque ao longo do tempo — para a foto atual por unidade, veja o módulo Suprimentos." },
       { label:"Pneus (cobertura de sulco)", desc:"crescimento acumulado de pneus com pelo menos 1 medição registrada — como só temos a leitura mais recente por pneu, é uma aproximação, não o histórico completo de cada medição." },
-      { label:"Telemetria", desc:"agrupado pela data em que cada veículo foi verificado pela última vez (não pela data do snapshot) — mostra o tamanho do atraso de reverificação por mês, com base no snapshot mais recente de Base - TML (" + fmtDateBR(d.telemetriaSnapDate) + ")." },
+      { label:"Telemetria", desc:"crescimento é esperado (mais veículos acumulam verificação com o tempo) — cruza todo o histórico de snapshots de Base - TML pela própria Dt. Verificação de cada veículo, desde abril/2026; 'pendentes agora' é a foto do backlog no snapshot mais recente (" + fmtDateBR(d.telemetriaSnapDate) + ")." },
     ]);
     html += '<div class="section-footer">' + srcNote("Abastecimento - TML, O.S Fechada - TML, Pneus por Unidade, Dados RPV - Pneus, Base - TML, Base de Veículos - Pneus") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
