@@ -3147,24 +3147,25 @@ function parsePneusPorUnidade(unidadeRaw){
   return { categoria: categoria, cidadeRaw: resto, unidade: unidade };
 }
 
-let suprimentosCache = null;
-async function getSuprimentosData(force){
-  if(force || !suprimentosCache){
-    suprimentosCache = buildSuprimentosData().catch(function(err){ suprimentosCache = null; throw err; });
+const suprimentosCacheByDate = {};
+async function getSuprimentosData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !suprimentosCacheByDate[key]){
+    suprimentosCacheByDate[key] = buildSuprimentosData(asOfDate).catch(function(err){ delete suprimentosCacheByDate[key]; throw err; });
   }
-  return suprimentosCache;
+  return suprimentosCacheByDate[key];
 }
 
-async function buildSuprimentosData(){
+async function buildSuprimentosData(asOfDate){
   const [supSnap, veicSnap] = await Promise.all([
-    resolveSnapshotDate("Pneus por Unidade", null),
-    resolveSnapshotDate("Base de Veiculos - Pneus", null),
+    resolveSnapshotDate("Pneus por Unidade", asOfDate),
+    resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
   ]);
   const [supRows, veicRows, pneusFull] = await Promise.all([
     fetchAllRows("Pneus por Unidade", supSnap),
     fetchAllRows("Base de Veiculos - Pneus", veicSnap),
-    getPneusData(null, false), // reaproveita sulco/coleta já resolvidos no módulo de Pneus (mesma
-                                // fonte, mesmo vínculo veículo→unidade já testado ali)
+    getPneusData(asOfDate, false), // reaproveita sulco/coleta já resolvidos no módulo de Pneus (mesma
+                                    // fonte, mesmo vínculo veículo→unidade já testado ali)
   ]);
 
   const frotaPorUnidade = {};
@@ -3193,6 +3194,16 @@ async function buildSuprimentosData(){
     if(a.local) unidadesComSulcoPendente.add(normCidade(a.local));
   });
 
+  // Pneus (com sulco medido) agrupados por unidade, direto de "Dados RPV - Pneus" já resolvido no
+  // módulo de Pneus — usado pra listar o KM atual de cada pneu por unidade e pra identificar as
+  // unidades "zeradas" (sem nenhum dado de sulco pra confirmar a pendência de coleta).
+  const pneusPorUnidade = {};
+  (pneusFull.tiresAll || []).forEach(function(t){
+    if(!t.local || t.pneu === "S/PNEU") return;
+    const key = normCidade(t.local);
+    (pneusPorUnidade[key] = pneusPorUnidade[key] || []).push(t);
+  });
+
   const unidades = Object.keys(frotaPorUnidade).sort().map(function(nomeUnidade){
     const doUnidade = itens.filter(function(it){ return it.unidade === nomeUnidade; });
     const estoque = doUnidade.filter(function(it){ return it.categoria === "estoque"; });
@@ -3204,8 +3215,20 @@ async function buildSuprimentosData(){
     const frota = frotaPorUnidade[nomeUnidade] || 0;
     const sulcoPendente = unidadesComSulcoPendente.has(normCidade(nomeUnidade));
     const estoqueQtd = estoque.length;
+    const pneus = (pneusPorUnidade[normCidade(nomeUnidade)] || []).slice()
+      .sort(function(a,b){
+        const kmA = a.raw ? num(a.raw.KM_Total != null ? a.raw.KM_Total : a.raw.KM_Vida) : NaN;
+        const kmB = b.raw ? num(b.raw.KM_Total != null ? b.raw.KM_Total : b.raw.KM_Vida) : NaN;
+        return (isNaN(kmB)?0:kmB) - (isNaN(kmA)?0:kmA);
+      });
+    const temDadosSulco = pneus.length > 0;
+    // Estoque OK: já tem o mínimo. Abaixo do mínimo mas sem nenhum pneu com sulco medido nessa
+    // unidade (inclui as "zeradas"): não dá pra confirmar a pendência de coleta, então fica no meio
+    // termo "abaixo da média" em vez de liberar/travar a compra. Só com dado de sulco disponível é
+    // que Liberado/Não autorizado entram em jogo, conforme a coleta estar em dia ou vencida.
     let status;
     if(estoqueQtd >= SUPRIMENTOS_ESTOQUE_MINIMO) status = "ok";
+    else if(!temDadosSulco) status = "abaixo_media";
     else status = sulcoPendente ? "nao_autorizado" : "liberado";
     return {
       unidade: nomeUnidade, frota: frota,
@@ -3213,19 +3236,15 @@ async function buildSuprimentosData(){
       estoqueQtd: estoqueQtd, sucataQtd: sucata.length, borrachariaQtd: borracharia.length,
       reformaExternaQtd: reformaExterna.length, reformaInternaQtd: reformaInterna.length,
       semDadosMovimentacao: (estoqueQtd + sucata.length + borracharia.length + reformaExterna.length + reformaInterna.length) === 0,
-      sulcoPendente: sulcoPendente, status: status,
+      sulcoPendente: sulcoPendente, temDadosSulco: temDadosSulco, pneus: pneus, status: status,
     };
   });
 
-  const porMedida = {};
-  itens.forEach(function(it){ porMedida[it.medida] = (porMedida[it.medida]||0) + 1; });
-  const medidas = Object.keys(porMedida).map(function(m){ return { medida:m, qtd: porMedida[m] }; })
-    .sort(function(a,b){ return b.qtd - a.qtd; });
-
   return {
-    unidades: unidades, medidas: medidas, itensTotal: itens.length, semUnidadeCount: semUnidadeCount,
+    unidades: unidades, itensTotal: itens.length, semUnidadeCount: semUnidadeCount,
     resolvedDates: {
       "Pneus por Unidade": supSnap, "Base de Veiculos - Pneus": veicSnap,
+      "Dados RPV - Pneus": (pneusFull.resolvedDates || {})["Dados RPV - Pneus"] || null,
       "Manutencao - PRV": (pneusFull.resolvedDates || {})["Manutencao - PRV"] || null,
     },
   };
@@ -3233,8 +3252,9 @@ async function buildSuprimentosData(){
 
 function suprimentosStatusBadge(status){
   if(status === "ok") return '<span class="badge b-good">Estoque OK</span>';
-  if(status === "liberado") return '<span class="badge b-good">Liberado compra para unidade</span>';
-  return '<span class="badge b-critical">Não autorizado compra</span>';
+  if(status === "liberado") return '<span class="badge b-good">Liberado para compra</span>';
+  if(status === "abaixo_media") return '<span class="badge b-warning">Estoque abaixo da média</span>';
+  return '<span class="badge b-critical">Não autorizado para compra</span>';
 }
 
 function reformaExternaDetailHtml(u){
@@ -3259,20 +3279,62 @@ function reformaExternaDetailHtml(u){
     + '</div>';
 }
 
-async function renderSuprimentos(){
+// Painel expansível com o KM atual de cada pneu da unidade (Dados RPV - Pneus) — inclusive pra
+// unidades "zeradas", onde a tabela vem vazia com uma explicação do porquê do status intermediário.
+function suprimentosPneusDetailHtml(u){
+  if(!u.pneus.length){
+    return '<div class="so-detail-panel"><p class="empty-hint">Nenhum pneu com sulco medido encontrado para esta unidade em "Dados RPV - Pneus" — por isso, quando o estoque está abaixo do mínimo, ela entra como "Estoque abaixo da média" em vez de Liberado/Não autorizado (sem dado de sulco não dá pra confirmar a pendência de coleta).</p></div>';
+  }
+  const rows = u.pneus.map(function(t){
+    const kmAtual = t.raw ? num(t.raw.KM_Total != null ? t.raw.KM_Total : t.raw.KM_Vida) : NaN;
+    return '<tr>'
+      + '<td>' + escapeHtml(t.veiculoRaw) + '</td>'
+      + '<td>' + escapeHtml(t.placa || "—") + '</td>'
+      + '<td>' + escapeHtml(t.posicao || "—") + '</td>'
+      + '<td>' + escapeHtml(t.pneu || "—") + '</td>'
+      + '<td>' + sulcoBadge(t) + '</td>'
+      + '<td>' + (isNaN(kmAtual) ? "—" : fmtNum(kmAtual) + " km") + '</td>'
+      + '<td>' + (t.dtSulco ? t.dtSulco.toLocaleDateString("pt-BR") : "—") + '</td>'
+      + '</tr>';
+  }).join("");
+  return '<div class="so-detail-panel">'
+    + '<div class="so-detail-head">Pneus — KM atual — ' + escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,"")) + ' <span class="badge b-info">' + u.pneus.length + ' pneu(s)</span></div>'
+    + '<div class="table-wrap"><table class="so-detail-table"><thead><tr><th>Veículo</th><th>Placa</th><th>Posição</th><th>Pneu</th><th>Sulco</th><th>KM atual</th><th>Data medição</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + '</div>';
+}
+
+let suprimentosAsOf = null;
+let suprimentosUnidadeFiltro = null;
+async function renderSuprimentos(newAsOf){
+  if(newAsOf !== undefined) suprimentosAsOf = newAsOf;
   const el = document.getElementById("suprimentos-body");
-  el.innerHTML = '<div class="spinner">Carregando dados de suprimentos...</div>';
+  el.innerHTML = periodToolbarHtml("suprimentos", suprimentosAsOf) + '<div id="suprimentos-data-area"><div class="spinner">Carregando dados de suprimentos...</div></div>';
+  wirePeriodToolbar("suprimentos", function(v){ renderSuprimentos(v); });
+  const area = document.getElementById("suprimentos-data-area");
   try{
-    const d = await getSuprimentosData(false);
+    const full = await getSuprimentosData(suprimentosAsOf, newAsOf !== undefined);
+    const unidadesTodas = full.unidades.map(function(u){ return u.unidade; });
+    if(suprimentosUnidadeFiltro && unidadesTodas.indexOf(suprimentosUnidadeFiltro) === -1) suprimentosUnidadeFiltro = null;
+    const d = {
+      unidades: suprimentosUnidadeFiltro ? full.unidades.filter(function(u){ return u.unidade === suprimentosUnidadeFiltro; }) : full.unidades,
+    };
+
+    let html = unidadeFilterHtml("suprimentos", unidadesTodas, suprimentosUnidadeFiltro);
+    wireUnidadeFilter("suprimentos", function(v){ suprimentosUnidadeFiltro = v; renderSuprimentos(); });
+    if(suprimentosUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(suprimentosUnidadeFiltro) + '</b>.</p>';
+    }
 
     const totalUnidadesPrecisando = d.unidades.filter(function(u){ return u.status !== "ok"; }).length;
+    const totalAbaixoMedia = d.unidades.filter(function(u){ return u.status === "abaixo_media"; }).length;
     const totalSulcoPendente = d.unidades.filter(function(u){ return u.sulcoPendente; }).length;
     const totalReformaExterna = d.unidades.reduce(function(s,u){ return s + u.reformaExternaQtd; }, 0);
 
-    let html = '<div class="kpi-grid">'
+    html += '<div class="kpi-grid">'
       + kpiCard("Unidades", fmtNum(d.unidades.length), "info")
-      + kpiCard("Itens fora de circulação (Pneus por Unidade)", fmtNum(d.itensTotal), "info")
+      + kpiCard("Itens fora de circulação (Pneus por Unidade)", fmtNum(full.itensTotal), "info")
       + kpiCard("Unidades abaixo do estoque mínimo (" + SUPRIMENTOS_ESTOQUE_MINIMO + ")", fmtNum(totalUnidadesPrecisando), totalUnidadesPrecisando?"warning":"good")
+      + kpiCard("Sem dado de sulco (abaixo da média)", fmtNum(totalAbaixoMedia), totalAbaixoMedia?"warning":"good")
       + kpiCard("Unidades com sulco pendente", fmtNum(totalSulcoPendente), totalSulcoPendente?"critical":"good")
       + kpiCard("Pneus em reforma externa (todas unidades)", fmtNum(totalReformaExterna), "info")
       + '</div>';
@@ -3293,49 +3355,77 @@ async function renderSuprimentos(){
       + '<div><p class="hint" style="margin-bottom:8px;"><b>Mais precisando (menos estoque)</b></p>' + confrontoTable(porEstoqueAsc) + '</div>'
       + '</div></div>';
 
-    html += '<div class="subsection"><h3>Quantidade por unidade</h3>'
-      + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Unidade</th><th>Frota</th><th>Estoque</th><th>Sucata</th><th>Borracharia</th><th>Reforma externa</th><th>Sulco</th><th>Status</th></tr></thead><tbody>'
+    // Reforma externa — só as unidades que têm pelo menos 1 pneu lá agora (pedido do Jefferson).
+    const comReformaExterna = d.unidades.filter(function(u){ return u.reformaExternaQtd > 0; });
+    html += '<div class="subsection"><h3>Reforma externa por unidade</h3>';
+    if(!comReformaExterna.length){
+      html += '<p class="empty-hint">Nenhuma unidade com pneu em reforma externa no momento.</p>';
+    } else {
+      html += '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Unidade</th><th>Reforma externa</th></tr></thead><tbody>'
+        + comReformaExterna.map(function(u){
+            const i = d.unidades.indexOf(u);
+            const nomeCurto = escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,""));
+            return '<tr class="so-row">'
+              + '<td><button type="button" class="so-expand-btn" data-sup-reforma-toggle="' + i + '" aria-expanded="false" title="Ver pneus em reforma externa"></button></td>'
+              + '<td>' + nomeCurto + '</td>'
+              + '<td>' + fmtNum(u.reformaExternaQtd) + '</td>'
+              + '</tr>'
+              + '<tr class="so-detail-row" data-sup-reforma-detail="' + i + '" style="display:none;"><td colspan="3">' + reformaExternaDetailHtml(u) + '</td></tr>';
+          }).join("")
+        + '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    // Estoque, borracharia e KM por unidade — todas as unidades, inclusive as "zeradas".
+    html += '<div class="subsection"><h3>Estoque, borracharia e KM por unidade</h3>'
+      + '<p class="hint" style="margin-bottom:10px;">Status conforme o estoque mínimo (' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus) e a pendência de sulco da unidade — clique numa linha pra ver o KM atual de cada pneu.</p>'
+      + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Unidade</th><th>Frota</th><th>Estoque</th><th>Borracharia</th><th>Sulco</th><th>Status</th></tr></thead><tbody>'
       + d.unidades.map(function(u, i){
           const nomeCurto = escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,""));
           return '<tr class="so-row">'
-            + '<td><button type="button" class="so-expand-btn" data-sup-toggle="' + i + '" aria-expanded="false" title="Ver pneus em reforma externa"' + (u.reformaExternaQtd?'':' disabled style="opacity:.3;cursor:default;"') + '></button></td>'
+            + '<td><button type="button" class="so-expand-btn" data-sup-toggle="' + i + '" aria-expanded="false" title="Ver KM atual de cada pneu"></button></td>'
             + '<td>' + nomeCurto + (u.semDadosMovimentacao ? ' <span class="badge b-info" title="Nenhuma movimentação encontrada em Pneus por Unidade para esta unidade">sem mov.</span>' : '') + '</td>'
             + '<td>' + fmtNum(u.frota) + '</td>'
             + '<td>' + fmtNum(u.estoqueQtd) + '</td>'
-            + '<td>' + fmtNum(u.sucataQtd) + '</td>'
             + '<td>' + fmtNum(u.borrachariaQtd) + '</td>'
-            + '<td>' + fmtNum(u.reformaExternaQtd) + '</td>'
-            + '<td>' + (u.sulcoPendente ? '<span class="badge b-critical">Pendente</span>' : '<span class="badge b-good">Em dia</span>') + '</td>'
+            + '<td>' + (!u.temDadosSulco ? '<span class="badge b-info">Sem dado</span>' : (u.sulcoPendente ? '<span class="badge b-critical">Pendente</span>' : '<span class="badge b-good">Em dia</span>')) + '</td>'
             + '<td>' + suprimentosStatusBadge(u.status) + '</td>'
             + '</tr>'
-            + '<tr class="so-detail-row" data-sup-detail="' + i + '" style="display:none;"><td colspan="9">' + reformaExternaDetailHtml(u) + '</td></tr>';
+            + '<tr class="so-detail-row" data-sup-detail="' + i + '" style="display:none;"><td colspan="7">' + suprimentosPneusDetailHtml(u) + '</td></tr>';
         }).join("")
-      + '</tbody></table></div></div>';
-
-    html += '<div class="subsection"><h3>Quantidade por tipo (Medida do pneu)</h3>'
-      + '<div class="table-wrap"><table><thead><tr><th>Medida</th><th>Quantidade</th></tr></thead><tbody>'
-      + d.medidas.map(function(m){ return '<tr><td>' + escapeHtml(m.medida) + '</td><td>' + fmtNum(m.qtd) + '</td></tr>'; }).join("")
       + '</tbody></table></div></div>';
 
     html += legendBox("Como essas regras funcionam", [
       { label:"Estoque", desc:'Todo pneu que está em algum "...- ESTOQUE X" na planilha "Pneus por Unidade", não importa o motivo da movimentação.' },
-      { label:"Liberado compra para unidade", desc:'<span class="badge b-good">verde</span> — a unidade está abaixo do estoque mínimo (' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus) mas está com a coleta de sulco em dia (sem plano vencido) — a necessidade é confiável.' },
-      { label:"Não autorizado compra", desc:'<span class="badge b-critical">vermelho</span> — a unidade está abaixo do estoque mínimo, mas tem coleta de sulco pendente (algum veículo rodou mais de ' + SUPRIMENTOS_COLETA_KM_LIMITE + ' km desde a última coleta) — a necessidade não está confirmada até a coleta ser feita.' },
       { label:"Estoque OK", desc:'A unidade já tem ' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus ou mais em estoque — não entra na comparação de compra.' },
+      { label:"Estoque abaixo da média", desc:'<span class="badge b-warning">amarelo</span> — a unidade está abaixo do estoque mínimo (' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus), mas não tem nenhum pneu com sulco medido em "Dados RPV - Pneus" (inclui as unidades "zeradas") — sem esse dado não dá pra confirmar se a coleta de sulco está em dia, então ela fica nesse status intermediário em vez de Liberado/Não autorizado.' },
+      { label:"Liberado para compra", desc:'<span class="badge b-good">verde</span> — a unidade está abaixo do estoque mínimo, tem dado de sulco disponível, e está com a coleta em dia (sem plano vencido) — a necessidade é confiável.' },
+      { label:"Não autorizado para compra", desc:'<span class="badge b-critical">vermelho</span> — a unidade está abaixo do estoque mínimo, mas tem coleta de sulco pendente (algum veículo rodou mais de ' + SUPRIMENTOS_COLETA_KM_LIMITE + ' km desde a última coleta) — a necessidade não está confirmada até a coleta ser feita.' },
       { label:"Reforma externa", desc:'Pneus enviados a reformadoras fora da empresa ("REF. EXTERNA"); "tempo lá" é contado da data do movimento até hoje.' },
+      { label:"KM atual", desc:'KM total do pneu na última medição (campo KM_Total, ou KM_Vida quando KM_Total não vem preenchido), direto de "Dados RPV - Pneus".' },
       { label:"Sem mov.", desc:'Unidade sem nenhum registro em "Pneus por Unidade" no momento — pode ser que ela use outro controle de pneus (ex.: frota alugada/terceirizada).' },
     ]);
-    html += '<div class="section-footer">' + srcNote("Pneus por Unidade, Base de Veículos - Pneus, Manutencao - PRV") + resolvedDatesNote(d.resolvedDates) + '</div>';
+    html += '<div class="section-footer">' + srcNote("Pneus por Unidade, Base de Veículos - Pneus, Dados RPV - Pneus, Manutencao - PRV") + resolvedDatesNote(full.resolvedDates) + '</div>';
 
-    el.innerHTML = html;
-    fitAllKpiValues(el);
-    enableSortableTables(el);
+    area.innerHTML = html;
+    fitAllKpiValues(area);
+    enableSortableTables(area);
 
-    el.querySelectorAll("[data-sup-toggle]").forEach(function(btn){
-      if(btn.disabled) return;
+    area.querySelectorAll("[data-sup-toggle]").forEach(function(btn){
       btn.addEventListener("click", function(){
         const idx = btn.dataset.supToggle;
-        const row = el.querySelector('[data-sup-detail="' + idx + '"]');
+        const row = area.querySelector('[data-sup-detail="' + idx + '"]');
+        if(!row) return;
+        const showing = row.style.display !== "none";
+        row.style.display = showing ? "none" : "table-row";
+        btn.classList.toggle("open", !showing);
+        btn.setAttribute("aria-expanded", String(!showing));
+      });
+    });
+    area.querySelectorAll("[data-sup-reforma-toggle]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const idx = btn.dataset.supReformaToggle;
+        const row = area.querySelector('[data-sup-reforma-detail="' + idx + '"]');
         if(!row) return;
         const showing = row.style.display !== "none";
         row.style.display = showing ? "none" : "table-row";
@@ -3344,7 +3434,7 @@ async function renderSuprimentos(){
       });
     });
   }catch(err){
-    el.innerHTML = '<p>Erro ao carregar Suprimentos: ' + escapeHtml(err.message) + '</p>';
+    area.innerHTML = '<p>Erro ao carregar Suprimentos: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
