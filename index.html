@@ -4154,7 +4154,7 @@ function dashTelemetriaCidadeKeyFor(row){
 // - O.S.: volume de O.S. abertas por mês + tempo médio de resolução (Fechamento - Abertura).
 // - Suprimentos: como só existe 1 snapshot de "Pneus por Unidade" (sem histórico de nível de
 //   estoque), o evolutivo aqui é volume de MOVIMENTAÇÃO por categoria e por mês (não é "nível de
-//   estoque no tempo") — mais um ranking por unidade (sucata/borracharia/estoque) na foto atual.
+//   estoque no tempo").
 // - Pneus: cobertura acumulada de coleta de sulco — quantos pneus (Dados RPV - Pneus) já têm pelo
 //   menos 1 medição registrada, por mês da medição mais recente de cada pneu (proxy de "desde
 //   quando esse pneu passou a ter coleta", já que só temos a leitura mais recente por pneu, não o
@@ -4456,32 +4456,6 @@ function dashDeltaHtml(atual, anterior, opts){
   return '<span class="dash-kpi-delta ' + cls + '">' + seta + ' ' + txt + ' vs mês anterior</span>';
 }
 
-// Ranking por unidade de sucata/borracharia/estoque (Suprimentos) — foto atual, não depende do
-// filtro de período/unidade do Dashboard (o objetivo é comparar unidades entre si). Reaproveita
-// diretamente o snapshot já calculado pelo módulo Suprimentos (getSuprimentosData), sem duplicar
-// a lógica de categorização.
-function dashSuprimentosRankingHtml(unidades){
-  if(!unidades || !unidades.length) return '<p class="empty-hint">Sem dados de Suprimentos ainda.</p>';
-  const comSucata = unidades.filter(function(u){ return u.sucataQtd > 0; });
-  const avgSucata = comSucata.length ? comSucata.reduce(function(s,u){ return s+u.sucataQtd; }, 0) / comSucata.length : 0;
-  const comBorr = unidades.filter(function(u){ return u.borrachariaQtd > 0; });
-  const avgBorr = comBorr.length ? comBorr.reduce(function(s,u){ return s+u.borrachariaQtd; }, 0) / comBorr.length : 0;
-  const sorted = unidades.slice().sort(function(a,b){ return b.sucataQtd - a.sucataQtd; });
-  const rows = sorted.map(function(u){
-    const nome = escapeHtml(u.unidade.replace(/^GARAGEM\s+/i, ""));
-    const sucataFlag = (u.sucataQtd > 0 && avgSucata > 0 && u.sucataQtd >= avgSucata*1.6) ? ' <span class="badge b-warning">acima da média</span>' : "";
-    const borrFlag = (u.borrachariaQtd > 0 && avgBorr > 0 && u.borrachariaQtd >= avgBorr*1.6) ? ' <span class="badge b-warning">acima da média</span>' : "";
-    return '<tr>'
-      + '<td class="dash-rank-unit">' + nome + '</td>'
-      + '<td>' + fmtNum(u.sucataQtd) + sucataFlag + '</td>'
-      + '<td>' + fmtNum(u.borrachariaQtd) + borrFlag + '</td>'
-      + '<td>' + fmtNum(u.estoqueQtd) + '</td>'
-      + '<td>' + suprimentosStatusBadge(u.status) + '</td>'
-      + '</tr>';
-  }).join("");
-  return '<div class="table-wrap"><table class="so-ranking-table dash-rank-table"><thead><tr><th>Unidade</th><th>Sucata</th><th>Borracharia</th><th>Estoque</th><th>Status do estoque</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-}
-
 let dashboardAsOf = null;
 let dashboardUnidadeFiltro = null;
 async function renderDashboardEvolutivo(newAsOf){
@@ -4568,7 +4542,7 @@ async function renderDashboardEvolutivo(newAsOf){
 
     let html = "";
     if(cidadeKey){
-      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml((d.unidadesFiltro.find(function(u){ return u.cidadeKey === cidadeKey; })||{}).label || "") + '</b>. O ranking de Suprimentos por unidade (mais abaixo) não é afetado por esse filtro.</p>';
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml((d.unidadesFiltro.find(function(u){ return u.cidadeKey === cidadeKey; })||{}).label || "") + '</b>.</p>';
     }
 
     // ---- Tira de KPIs executivos ----
@@ -4600,7 +4574,7 @@ async function renderDashboardEvolutivo(newAsOf){
       + '</div></div>';
 
     html += '<div class="dash-card"><h3>📦 Suprimentos — movimentação por mês</h3>'
-      + '<p class="hint">Quantidade de pneus movimentados por categoria e mês (reforma externa, sucata, estoque, borracharia) — fonte: Pneus por Unidade. Isso mostra <b>atividade</b>, não o nível de estoque no tempo (só temos a foto atual do estoque — ver o ranking por unidade mais abaixo).</p>'
+      + '<p class="hint">Quantidade de pneus movimentados por categoria e mês (reforma externa, sucata, estoque, borracharia) — fonte: Pneus por Unidade. Isso mostra <b>atividade</b>, não o nível de estoque no tempo (só temos a foto atual do estoque).</p>'
       + dashStackedBarSvg(supMonths, supSeries)
       + '</div>';
 
@@ -4612,13 +4586,8 @@ async function renderDashboardEvolutivo(newAsOf){
 
     html += '<div class="dash-card"><h3>📡 Telemetria — veículos por mês da última verificação</h3>'
       + '<p class="hint">Veículos com comunicação pendente (Base - TML, snapshot de ' + fmtDateBR(d.telemetriaSnapDate) + '), agrupados pelo mês da própria "Dt. Verificação" de cada um — mostra há quanto tempo cada veículo está sem ser reverificado. Não é uma série histórica mês a mês.</p>'
-      + dashStackedBarSvg(telMonths, [{ label:"Veículos pendentes", color:"var(--serious)", values:telQtd }])
+      + dashLineChartSvg(telMonths, [{ label:"Veículos pendentes", color:"var(--serious)", values:telQtd }])
       + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Total com verificação pendente</div><div class="dash-kpi-value">' + fmtNum(telTotal) + '</div></div></div>'
-      + '</div>';
-
-    html += '<div class="dash-card dash-card-full"><h3>📦 Suprimentos — ranking por unidade (sucata, borracharia e estoque)</h3>'
-      + '<p class="hint">Foto atual — não é afetada pelo filtro de unidade acima, pois o objetivo aqui é comparar unidades entre si. Sucata e borracharia seguem a categorização em "Pneus por Unidade"; estoque e status seguem a mesma regra do módulo Suprimentos (mínimo de ' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus). "Acima da média" sinaliza unidades bem acima da média das unidades que têm alguma quantidade nessa categoria — é um sinal pra investigar, não uma regra fechada de "demais".</p>'
-      + dashSuprimentosRankingHtml(d.supUnidades)
       + '</div>';
 
     html += '</div>'; // .dash-grid
@@ -4626,7 +4595,7 @@ async function renderDashboardEvolutivo(newAsOf){
     html += legendBox("Como ler esse painel", [
       { label:"% fora da meta / tempo de resolução / verificação pendente", desc:"quanto menor, melhor — são indicadores de problema." },
       { label:"O.S. abertas / movimentação de Suprimentos / custo de abastecimento", desc:"indicadores de volume/atividade, não são bons nem ruins por si só — olhe a tendência junto com os outros painéis." },
-      { label:"Suprimentos (movimentação)", desc:"esse gráfico é volume de movimentação (quantos pneus mudaram de categoria naquele mês), não o nível de estoque ao longo do tempo — para a foto atual por unidade, veja o ranking." },
+      { label:"Suprimentos (movimentação)", desc:"esse gráfico é volume de movimentação (quantos pneus mudaram de categoria naquele mês), não o nível de estoque ao longo do tempo — para a foto atual por unidade, veja o módulo Suprimentos." },
       { label:"Pneus (cobertura de sulco)", desc:"crescimento acumulado de pneus com pelo menos 1 medição registrada — como só temos a leitura mais recente por pneu, é uma aproximação, não o histórico completo de cada medição." },
       { label:"Telemetria", desc:"agrupado pela data em que cada veículo foi verificado pela última vez (não pela data do snapshot) — mostra o tamanho do atraso de reverificação por mês, com base no snapshot mais recente de Base - TML (" + fmtDateBR(d.telemetriaSnapDate) + ")." },
     ]);
