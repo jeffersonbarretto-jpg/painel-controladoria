@@ -332,6 +332,24 @@
   .so-chip.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .so-detail-table{ font-size:12.5px; }
 
+  .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .dash-card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
+  .dash-card h3{ margin:0 0 4px; font-size:15px; }
+  .dash-card .hint{ margin:0 0 6px; }
+  .dash-chart-wrap{ margin:10px 0 4px; }
+  .dash-legend{ display:flex; flex-wrap:wrap; gap:14px; margin-top:6px; font-size:12px; color:var(--text-secondary); }
+  .dash-legend-item{ display:inline-flex; align-items:center; gap:6px; }
+  .dash-legend-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; flex:none; }
+  .dash-kpi-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .dash-kpi{ flex:1; min-width:140px; background:var(--surface-1); border-radius:10px; padding:10px 14px; }
+  .dash-kpi-label{ font-size:11.5px; color:var(--text-secondary); margin-bottom:4px; }
+  .dash-kpi-value{ font-size:20px; font-weight:700; }
+  .dash-kpi-delta{ font-size:11.5px; font-weight:600; margin-left:6px; }
+  .dash-kpi-delta.good{ color:var(--good); }
+  .dash-kpi-delta.bad{ color:var(--critical); }
+  .dash-kpi-delta.flat{ color:var(--text-muted); }
+  @media (max-width: 900px){ .dash-grid{ grid-template-columns:1fr; } }
+
   @media (max-width: 760px){
     .so-kpi-row{ flex-direction:column; }
     .so-bar-cell{ min-width:0; }
@@ -584,7 +602,7 @@
         <button class="nav-btn soon" data-soon="Preventiva"><span class="ico">🛠️</span> Preventiva <span class="soon-tag">em breve</span></button>
         <button class="nav-btn" data-section="abastecimento"><span class="ico">⛽</span> Abastecimento</button>
         <button class="nav-btn" data-section="suprimentos"><span class="ico">📦</span> Suprimentos</button>
-        <button class="nav-btn soon" data-soon="Dashboard"><span class="ico">📊</span> Dashboard <span class="soon-tag">em breve</span></button>
+        <button class="nav-btn" data-section="dashboard"><span class="ico">📊</span> Dashboard</button>
         <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Base de Dados</button>
       </nav>
       <div class="side-foot">
@@ -753,6 +771,14 @@
             <p>Estoque, sucata, borracharia e reforma externa de pneus por unidade — cruzando "Pneus por Unidade" com a frota cadastrada e a coleta de sulco (Manutencao - PRV).</p>
           </div>
           <div id="suprimentos-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-dashboard">
+          <div class="section-head">
+            <h2>Dashboard</h2>
+            <p>Painel executivo evolutivo — Abastecimento, O.S., Pneus/Suprimentos e Telemetria mês a mês, desde janeiro/2026 (quando a fonte permite).</p>
+          </div>
+          <div id="dashboard-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dados">
@@ -1696,9 +1722,10 @@ const SECTION_TITLES = {
   retencao: "Retenção",
   abastecimento: "Abastecimento",
   suprimentos: "Suprimentos",
+  dashboard: "Dashboard",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, retencao:false, abastecimento:false, suprimentos:false, dados:false };
+const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, retencao:false, abastecimento:false, suprimentos:false, dashboard:false, dados:false };
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -1728,6 +1755,7 @@ function activateSection(section){
     if(section === "retencao") renderRetencao();
     if(section === "abastecimento") renderAbastecimentoPanel();
     if(section === "suprimentos") renderSuprimentos();
+    if(section === "dashboard") renderDashboardEvolutivo();
     if(section === "dados") renderDadosGeral();
   }
 }
@@ -4054,6 +4082,426 @@ function exportCsv(){
   a.download = dataState.tabName + "_" + dataState.snapshotDate + ".csv";
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// =====================================================================
+// DASHBOARD EVOLUTIVO (visão executiva com gráficos — jan/2026 até hoje, por unidade)
+// =====================================================================
+// Normalizador de "cidade" comum às fontes deste painel — reaproveita normUnidade() (acentos,
+// caixa, prefixo GARAGEM) e ainda remove o prefixo "OFICINA " (campo Oficina de O.S Fechada -
+// TML) e pontuação, pra bater com a mesma chave já usada no Suprimentos/Pneus.
+function dashCidadeKey(s){
+  return normUnidade(s).replace(/^OFICINA\s+/, "").replace(/\./g, "").replace(/\s+/g, " ").trim();
+}
+function dashMonthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); }
+const DASH_MONTH_NAMES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+function dashMonthLabel(mk){
+  const parts = mk.split("-"), y = parts[0], m = parts[1];
+  return DASH_MONTH_NAMES[parseInt(m,10)-1] + "/" + y.slice(2);
+}
+// Mesma lista de 15 setores "oficiais" de abastecimento usada na classificação de Meta do painel
+// de Abastecimento — copiada aqui (em vez de referenciar o script daquele painel) pra este módulo
+// não depender de identificadores internos de um script que não deve ser tocado/acoplado.
+const DASH_ABAST_TARGET_SECTORS = [
+  '001-SALVADOR - ABASTECIMENTO','002-CAMACARI - ABASTECIMENTO','003-S.F. DO CONDE - ABASTECIMENTO',
+  '004-POJUCA - ABASTECIMENTO','005-PAULO AFONSO - ABASTECIMENTO','006-PETROLINA - ABASTECIMENTO',
+  '007-V. CONQUISTA - ABASTECIMENTO','008-ITABUNA - ABASTECIMENTO','009-L DE FREITAS - ABASTECIMENTO',
+  '019-JUAZEIRO - ABASTECIMENTO','101-S.S.PASSE - ABASTECIMENTO','107-ARAGUAINA - ABASTECIMENTO',
+  '108-PALMAS - ABASTECIMENTO','134-TOCANTINIA - ABASTECIMENTO','135-ARACAJU - ABASTECIMENTO'
+];
+function dashNormSetor(s){
+  if(!s) return "";
+  return s.toString().trim().toUpperCase().replace(/\s*-\s*/g,'-').replace(/\s+/g,' ').trim();
+}
+const DASH_ABAST_TARGET_NORM = new Set(DASH_ABAST_TARGET_SECTORS.map(dashNormSetor));
+
+const dashboardCacheByDate = {};
+async function getDashboardData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !dashboardCacheByDate[key]){
+    dashboardCacheByDate[key] = buildDashboardData(asOfDate).catch(function(err){ delete dashboardCacheByDate[key]; throw err; });
+  }
+  return dashboardCacheByDate[key];
+}
+
+// Monta as 4 séries evolutivas (mês a mês, por unidade) a partir das fontes já sincronizadas:
+// - Abastecimento: % da frota fora da meta por mês (mesma classificação do painel de Meta —
+//   média de Dif_Pct por veículo-mês, < 0 = fora da meta), desde que a data em cada linha permita.
+// - O.S.: volume de O.S. abertas por mês + tempo médio de resolução (Fechamento - Abertura).
+// - Pneus/Suprimentos: como só existe 1 snapshot (sem histórico de nível de estoque), o evolutivo
+//   aqui é volume de MOVIMENTAÇÃO por categoria e por mês (não é "nível de estoque no tempo").
+// - Telemetria: única fonte com histórico diário real sincronizado (Base - TML) — roda a mesma
+//   lógica de Setor Operacional já usada em Telemetria em cada snapshot diário disponível.
+async function buildDashboardData(asOfDate){
+  const hojeIso = asOfDate || todayStr();
+
+  const [veicSnap, abastSnap, osSnap, supSnap, baseDatesResp] = await Promise.all([
+    resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
+    resolveSnapshotDate("Abastecimento - TML", asOfDate),
+    resolveSnapshotDate("O.S Fechada - TML", asOfDate),
+    resolveSnapshotDate("Pneus por Unidade", asOfDate),
+    rest("snapshot_dates?tab_name=eq." + encodeURIComponent("Base - TML") + "&snapshot_date=lte." + encodeURIComponent(hojeIso) + "&select=snapshot_date&order=snapshot_date.asc&limit=400"),
+  ]);
+  const baseDatesRows = await baseDatesResp.json();
+  const baseDates = Array.from(new Set(baseDatesRows.map(function(r){ return r.snapshot_date; })));
+
+  const [veicRows, abastRows, osRows, supRows, baseSnapshots] = await Promise.all([
+    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
+    fetchAllRows("Abastecimento - TML", abastSnap),
+    fetchAllRows("O.S Fechada - TML", osSnap),
+    fetchAllRows("Pneus por Unidade", supSnap),
+    Promise.all(baseDates.map(function(d){ return fetchAllRows("Base - TML", d).then(function(rows){ return { date:d, rows:rows }; }); })),
+  ]);
+
+  // Veículo -> unidade canônica (Base de Veículos - Pneus) — é a chave que liga Abastecimento a
+  // uma unidade real; o setor de abastecimento (St_Abast) só filtra "posto oficial", não é a
+  // unidade em si (mesmo critério do painel de Meta de Abastecimento).
+  const unidadePorVeic = {};
+  const unidadesSet = {};
+  veicRows.forEach(function(r){
+    const key = vehicleKey(r["Nº de Ordem"]);
+    const u = (r.Unidade || "").trim();
+    if(key && u){ unidadePorVeic[key] = u; unidadesSet[dashCidadeKey(u)] = u; }
+  });
+  if(!unidadesSet[dashCidadeKey("GARAGEM ARACAJU")]) unidadesSet[dashCidadeKey("GARAGEM ARACAJU")] = "GARAGEM ARACAJU";
+
+  // ---- Abastecimento ----
+  const abastVM = {}; // "veiculoKey|mk" -> {soma, count, cidadeKey}
+  abastRows.forEach(function(r){
+    const comb = num(r.Comb);
+    if(!comb || comb <= 0) return;
+    if(!DASH_ABAST_TARGET_NORM.has(dashNormSetor(r.St_Abast))) return;
+    const data = parseLenientDate(r.Data);
+    if(!data || isoDateOf(data) > hojeIso) return;
+    const key = vehicleKey(r.Veiculo);
+    if(!key) return;
+    const unidade = unidadePorVeic[key];
+    if(!unidade) return;
+    const mk = dashMonthKey(data);
+    const vk = key + "|" + mk;
+    if(!abastVM[vk]) abastVM[vk] = { soma:0, count:0, cidadeKey: dashCidadeKey(unidade) };
+    abastVM[vk].soma += (num(r.Dif_Pct) || 0);
+    abastVM[vk].count++;
+  });
+  const abastPorMesUnidade = {}; // mk -> cidadeKey -> {dentro,fora}
+  Object.keys(abastVM).forEach(function(vk){
+    const v = abastVM[vk];
+    const mk = vk.split("|")[1];
+    const status = (v.soma / v.count) < 0 ? "fora" : "dentro";
+    if(!abastPorMesUnidade[mk]) abastPorMesUnidade[mk] = {};
+    if(!abastPorMesUnidade[mk][v.cidadeKey]) abastPorMesUnidade[mk][v.cidadeKey] = { dentro:0, fora:0 };
+    abastPorMesUnidade[mk][v.cidadeKey][status]++;
+  });
+
+  // ---- O.S. (volume + tempo de resolução) ----
+  const osPorMesUnidade = {}; // mk -> cidadeKey -> {qtd, somaDias, countDias}
+  osRows.forEach(function(r){
+    if(!r.OS) return;
+    const abertura = parseLenientDate(r.Abertura);
+    if(!abertura || isoDateOf(abertura) > hojeIso) return;
+    const cidadeKey = dashCidadeKey(r.Oficina || "");
+    if(!cidadeKey) return;
+    const mk = dashMonthKey(abertura);
+    if(!osPorMesUnidade[mk]) osPorMesUnidade[mk] = {};
+    if(!osPorMesUnidade[mk][cidadeKey]) osPorMesUnidade[mk][cidadeKey] = { qtd:0, somaDias:0, countDias:0 };
+    osPorMesUnidade[mk][cidadeKey].qtd++;
+    const fechamento = parseLenientDate(r.Fechamento);
+    if(fechamento){
+      const dias = daysSince(abertura, fechamento);
+      if(dias != null && dias >= 0){
+        osPorMesUnidade[mk][cidadeKey].somaDias += dias;
+        osPorMesUnidade[mk][cidadeKey].countDias++;
+      }
+    }
+  });
+
+  // ---- Pneus/Suprimentos (volume de movimentação por categoria) ----
+  const pneusPorMesUnidade = {}; // mk -> cidadeKey -> {estoque,sucata,borracharia,reforma_externa,reforma_interna,outro}
+  supRows.forEach(function(r){
+    const data = parseLenientDate(r.Data);
+    if(!data || isoDateOf(data) > hojeIso) return;
+    const parsed = parsePneusPorUnidade(r.Unidade);
+    if(!parsed.unidade) return;
+    const mk = dashMonthKey(data);
+    const cidadeKey = dashCidadeKey(parsed.unidade);
+    if(!pneusPorMesUnidade[mk]) pneusPorMesUnidade[mk] = {};
+    if(!pneusPorMesUnidade[mk][cidadeKey]) pneusPorMesUnidade[mk][cidadeKey] = { estoque:0, sucata:0, borracharia:0, reforma_externa:0, reforma_interna:0, outro:0 };
+    pneusPorMesUnidade[mk][cidadeKey][parsed.categoria]++;
+  });
+
+  // ---- Telemetria (veículos sem comunicação — reaproveita buildSetorOperacionalRows por snapshot) ----
+  const telemetriaPorMesUnidade = {}; // mk -> cidadeKey -> {somaSem, somaFrota, amostras}
+  baseSnapshots.forEach(function(snap){
+    const d = new Date(snap.date + "T00:00:00");
+    if(isNaN(d.getTime())) return;
+    const mk = dashMonthKey(d);
+    const vehicles = snap.rows.filter(function(r){ return r.Carro; }).map(function(r){
+      return { carro: r.Carro, unidade: r.Unidade || "Sem unidade" };
+    });
+    const agg = buildSetorOperacionalRows({ vehicles: vehicles, osAbertaByVeh:{}, abastByVeh:{} }, null);
+    agg.rows.forEach(function(row){
+      const cidadeKey = row.normKey;
+      if(!telemetriaPorMesUnidade[mk]) telemetriaPorMesUnidade[mk] = {};
+      if(!telemetriaPorMesUnidade[mk][cidadeKey]) telemetriaPorMesUnidade[mk][cidadeKey] = { somaSem:0, somaFrota:0, amostras:0 };
+      telemetriaPorMesUnidade[mk][cidadeKey].somaSem += row.semComunicacao;
+      telemetriaPorMesUnidade[mk][cidadeKey].somaFrota += row.frota;
+      telemetriaPorMesUnidade[mk][cidadeKey].amostras++;
+    });
+  });
+
+  const unidadesFiltro = Object.keys(unidadesSet).sort().map(function(ck){
+    return { cidadeKey: ck, label: unidadesSet[ck].replace(/^GARAGEM\s+/i, "") };
+  });
+
+  return {
+    abastPorMesUnidade: abastPorMesUnidade,
+    osPorMesUnidade: osPorMesUnidade,
+    pneusPorMesUnidade: pneusPorMesUnidade,
+    telemetriaPorMesUnidade: telemetriaPorMesUnidade,
+    unidadesFiltro: unidadesFiltro,
+    baseDates: baseDates,
+    resolvedDates: {
+      "Abastecimento - TML": abastSnap, "O.S Fechada - TML": osSnap,
+      "Pneus por Unidade": supSnap, "Base de Veiculos - Pneus": veicSnap,
+    },
+  };
+}
+
+// ---------- gráficos (SVG inline, sem biblioteca externa) ----------
+function dashLineChartSvg(months, series, opts){
+  opts = opts || {};
+  const w = opts.width || 720, h = opts.height || 200;
+  const padL = 42, padR = 16, padT = 16, padB = 26;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const n = months.length;
+  const allVals = [];
+  series.forEach(function(s){ (s.values||[]).forEach(function(v){ if(v != null && !isNaN(v)) allVals.push(v); }); });
+  let yMin = opts.yMin != null ? opts.yMin : Math.min(0, allVals.length ? Math.min.apply(null, allVals) : 0);
+  let yMax = opts.yMax != null ? opts.yMax : (allVals.length ? Math.max.apply(null, allVals) : 1);
+  if(yMax <= yMin) yMax = yMin + 1;
+  yMax = yMax + (yMax - yMin) * 0.1;
+  function xAt(i){ return n <= 1 ? padL + plotW/2 : padL + (plotW * i / (n - 1)); }
+  function yAt(v){ return padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH; }
+
+  if(!n || !allVals.length){
+    return '<p class="empty-hint">Sem dados suficientes pra montar esse gráfico ainda.</p>';
+  }
+
+  let gridSvg = "";
+  const gridLines = 4;
+  for(let g=0; g<=gridLines; g++){
+    const v = yMin + (yMax - yMin) * g / gridLines;
+    const y = yAt(v);
+    gridSvg += '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (w-padR) + '" y2="' + y.toFixed(1) + '" stroke="var(--gridline)" stroke-width="1"/>';
+    gridSvg += '<text x="' + (padL-6) + '" y="' + (y+3).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--text-muted)">' + escapeHtml(opts.yFormat ? opts.yFormat(v) : String(Math.round(v))) + '</text>';
+  }
+
+  const step = n > 10 ? Math.ceil(n/10) : 1;
+  let xLabelsSvg = "";
+  months.forEach(function(mk, i){
+    if(i % step !== 0 && i !== n-1) return;
+    xLabelsSvg += '<text x="' + xAt(i).toFixed(1) + '" y="' + (h-8) + '" text-anchor="middle" font-size="10" fill="var(--text-muted)">' + escapeHtml(dashMonthLabel(mk)) + '</text>';
+  });
+
+  let seriesSvg = "";
+  series.forEach(function(s){
+    const pts = [];
+    (s.values||[]).forEach(function(v, i){ if(v != null && !isNaN(v)) pts.push(xAt(i).toFixed(1) + "," + yAt(v).toFixed(1)); });
+    if(pts.length > 1) seriesSvg += '<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + s.color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    (s.values||[]).forEach(function(v, i){
+      if(v == null || isNaN(v)) return;
+      seriesSvg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(v).toFixed(1) + '" r="3.2" fill="' + s.color + '"><title>' + escapeHtml(dashMonthLabel(months[i])) + ": " + escapeHtml(opts.yFormat ? opts.yFormat(v) : String(v)) + '</title></circle>';
+    });
+  });
+
+  const legend = series.length > 1 ? '<div class="dash-legend">' + series.map(function(s){
+    return '<span class="dash-legend-item"><span class="dash-legend-dot" style="background:' + s.color + ';"></span>' + escapeHtml(s.label) + '</span>';
+  }).join("") + '</div>' : "";
+
+  return '<div class="dash-chart-wrap"><svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;max-width:' + w + 'px;display:block;">'
+    + gridSvg + seriesSvg + xLabelsSvg + '</svg></div>' + legend;
+}
+
+function dashStackedBarSvg(months, series, opts){
+  opts = opts || {};
+  const w = opts.width || 720, h = opts.height || 220;
+  const padL = 42, padR = 16, padT = 16, padB = 26;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const n = months.length;
+  const activeSeries = series.filter(function(s){ return (s.values||[]).some(function(v){ return v > 0; }); });
+  const totals = months.map(function(_, i){ return activeSeries.reduce(function(sum, s){ return sum + (s.values[i]||0); }, 0); });
+  const maxTotal = Math.max.apply(null, totals.concat([0]));
+
+  if(!n || !activeSeries.length || maxTotal <= 0){
+    return '<p class="empty-hint">Sem dados suficientes pra montar esse gráfico ainda.</p>';
+  }
+
+  const yMax = maxTotal * 1.1;
+  function yAt(v){ return padT + plotH - (v / yMax) * plotH; }
+  const bandW = plotW / n;
+  const barW = Math.min(30, bandW * 0.55);
+
+  let gridSvg = "";
+  const gridLines = 4;
+  for(let g=0; g<=gridLines; g++){
+    const v = yMax * g / gridLines;
+    const y = yAt(v);
+    gridSvg += '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (w-padR) + '" y2="' + y.toFixed(1) + '" stroke="var(--gridline)" stroke-width="1"/>';
+    gridSvg += '<text x="' + (padL-6) + '" y="' + (y+3).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--text-muted)">' + Math.round(v) + '</text>';
+  }
+
+  const step = n > 10 ? Math.ceil(n/10) : 1;
+  let xLabelsSvg = "", barsSvg = "";
+  months.forEach(function(mk, i){
+    if(i % step === 0 || i === n-1){
+      xLabelsSvg += '<text x="' + (padL + bandW*i + bandW/2).toFixed(1) + '" y="' + (h-8) + '" text-anchor="middle" font-size="10" fill="var(--text-muted)">' + escapeHtml(dashMonthLabel(mk)) + '</text>';
+    }
+    const cx = padL + bandW*i + bandW/2;
+    let cum = 0;
+    activeSeries.forEach(function(s){
+      const v = s.values[i] || 0;
+      if(v <= 0) return;
+      const y0 = yAt(cum), y1 = yAt(cum+v);
+      barsSvg += '<rect x="' + (cx-barW/2).toFixed(1) + '" y="' + y1.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(0,(y0-y1)).toFixed(1) + '" fill="' + s.color + '"><title>' + escapeHtml(dashMonthLabel(mk)) + " — " + escapeHtml(s.label) + ": " + v + '</title></rect>';
+      cum += v;
+    });
+  });
+
+  const legend = '<div class="dash-legend">' + activeSeries.map(function(s){
+    return '<span class="dash-legend-item"><span class="dash-legend-dot" style="background:' + s.color + ';"></span>' + escapeHtml(s.label) + '</span>';
+  }).join("") + '</div>';
+
+  return '<div class="dash-chart-wrap"><svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;max-width:' + w + 'px;display:block;">'
+    + gridSvg + barsSvg + xLabelsSvg + '</svg></div>' + legend;
+}
+
+function dashDeltaHtml(atual, anterior, opts){
+  opts = opts || {};
+  if(atual == null || anterior == null || isNaN(atual) || isNaN(anterior)) return "";
+  const diff = atual - anterior;
+  if(Math.abs(diff) < (opts.epsilon || 0.05)) return '<span class="dash-kpi-delta flat">estável vs mês anterior</span>';
+  const melhorou = opts.lowerIsBetter ? diff < 0 : diff > 0;
+  const seta = diff > 0 ? "▲" : "▼";
+  const cls = melhorou ? "good" : "bad";
+  const txt = (opts.fmt ? opts.fmt(Math.abs(diff)) : Math.abs(diff).toFixed(1));
+  return '<span class="dash-kpi-delta ' + cls + '">' + seta + ' ' + txt + ' vs mês anterior</span>';
+}
+
+let dashboardAsOf = null;
+let dashboardUnidadeFiltro = null;
+async function renderDashboardEvolutivo(newAsOf){
+  if(newAsOf !== undefined) dashboardAsOf = newAsOf;
+  const el = document.getElementById("dashboard-body");
+  el.innerHTML = periodToolbarHtml("dashboardevo", dashboardAsOf, "Evolutivo até a data selecionada:") + '<div id="dashboardevo-data-area"><div class="spinner">Carregando dashboard evolutivo...</div></div>';
+  wirePeriodToolbar("dashboardevo", function(v){ renderDashboardEvolutivo(v); });
+  const area = document.getElementById("dashboardevo-data-area");
+  try{
+    const d = await getDashboardData(dashboardAsOf, newAsOf !== undefined);
+    if(dashboardUnidadeFiltro && !d.unidadesFiltro.some(function(u){ return u.cidadeKey === dashboardUnidadeFiltro; })) dashboardUnidadeFiltro = null;
+    const cidadeKey = dashboardUnidadeFiltro;
+
+    function monthsOf(porMesUnidade){ return Object.keys(porMesUnidade).sort(); }
+    function pick(bucket){
+      // soma todas as unidades (sem filtro) ou só a unidade selecionada
+      if(!bucket) return null;
+      if(cidadeKey) return bucket[cidadeKey] || null;
+      const out = {};
+      Object.keys(bucket).forEach(function(ck){
+        Object.keys(bucket[ck]).forEach(function(f){ out[f] = (out[f]||0) + bucket[ck][f]; });
+      });
+      return out;
+    }
+
+    let html = unidadeFilterHtml("dashboardevo", d.unidadesFiltro.map(function(u){ return u.label; }), dashboardUnidadeFiltro ? (d.unidadesFiltro.find(function(u){ return u.cidadeKey === dashboardUnidadeFiltro; })||{}).label : null);
+    if(cidadeKey){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml((d.unidadesFiltro.find(function(u){ return u.cidadeKey === cidadeKey; })||{}).label || "") + '</b>.</p>';
+    }
+
+    // ---- Abastecimento ----
+    const abastMonths = monthsOf(d.abastPorMesUnidade);
+    const abastPct = abastMonths.map(function(mk){
+      const b = pick(d.abastPorMesUnidade[mk]);
+      const total = b ? (b.dentro||0) + (b.fora||0) : 0;
+      return total ? Math.round((b.fora/total)*1000)/10 : null;
+    });
+    const abastAtual = abastPct.length ? abastPct[abastPct.length-1] : null;
+    const abastAnterior = abastPct.length > 1 ? abastPct[abastPct.length-2] : null;
+
+    html += '<div class="dash-grid">';
+    html += '<div class="dash-card"><h3>⛽ Abastecimento — % da frota fora da meta</h3>'
+      + '<p class="hint">Km/Lt médio abaixo da Meta no mês, por veículo — mesma classificação do painel de Meta de Abastecimento.</p>'
+      + dashLineChartSvg(abastMonths, [{ label:"% fora da meta", color:"var(--critical)", values:abastPct }], { yFormat:function(v){ return Math.round(v)+"%"; } })
+      + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Mês mais recente</div><div class="dash-kpi-value">' + (abastAtual==null?"—":abastAtual+"%") + dashDeltaHtml(abastAtual, abastAnterior, { lowerIsBetter:true, fmt:function(v){ return v.toFixed(1)+"pp"; } }) + '</div></div></div>'
+      + '</div>';
+
+    // ---- O.S. ----
+    const osMonths = monthsOf(d.osPorMesUnidade);
+    const osVolume = osMonths.map(function(mk){ const b = pick(d.osPorMesUnidade[mk]); return b ? (b.qtd||0) : null; });
+    const osTempo = osMonths.map(function(mk){ const b = pick(d.osPorMesUnidade[mk]); return (b && b.countDias) ? Math.round((b.somaDias/b.countDias)*10)/10 : null; });
+    const osVolAtual = osVolume.length ? osVolume[osVolume.length-1] : null;
+    const osVolAnterior = osVolume.length > 1 ? osVolume[osVolume.length-2] : null;
+    const osTempoAtual = osTempo.length ? osTempo[osTempo.length-1] : null;
+    const osTempoAnterior = osTempo.length > 1 ? osTempo[osTempo.length-2] : null;
+
+    html += '<div class="dash-card"><h3>🔧 O.S. — volume e tempo de resolução</h3>'
+      + '<p class="hint">Quantidade de O.S. abertas por mês, e tempo médio até o fechamento (dias) — fonte: O.S Fechada - TML.</p>'
+      + dashLineChartSvg(osMonths, [{ label:"O.S. abertas", color:"var(--accent)", values:osVolume }])
+      + '<div class="dash-kpi-row">'
+      + '<div class="dash-kpi"><div class="dash-kpi-label">O.S. no mês mais recente</div><div class="dash-kpi-value">' + (osVolAtual==null?"—":fmtNum(osVolAtual)) + dashDeltaHtml(osVolAtual, osVolAnterior, { lowerIsBetter:true, fmt:function(v){ return fmtNum(Math.round(v)); } }) + '</div></div>'
+      + '<div class="dash-kpi"><div class="dash-kpi-label">Tempo médio de resolução</div><div class="dash-kpi-value">' + (osTempoAtual==null?"—":osTempoAtual+"d") + dashDeltaHtml(osTempoAtual, osTempoAnterior, { lowerIsBetter:true, fmt:function(v){ return v.toFixed(1)+"d"; } }) + '</div></div>'
+      + '</div></div>';
+
+    // ---- Pneus/Suprimentos ----
+    const pneusMonths = monthsOf(d.pneusPorMesUnidade);
+    const PNEUS_CATS = [
+      { key:"reforma_externa", label:"Reforma externa", color:"var(--warning)" },
+      { key:"sucata", label:"Sucata", color:"var(--critical)" },
+      { key:"estoque", label:"Estoque", color:"var(--good)" },
+      { key:"borracharia", label:"Borracharia", color:"var(--accent)" },
+    ];
+    const pneusSeries = PNEUS_CATS.map(function(c){
+      return { label:c.label, color:c.color, values: pneusMonths.map(function(mk){ const b = pick(d.pneusPorMesUnidade[mk]); return b ? (b[c.key]||0) : 0; }) };
+    });
+
+    html += '<div class="dash-card"><h3>🛞 Pneus/Suprimentos — movimentação por mês</h3>'
+      + '<p class="hint">Quantidade de pneus movimentados por categoria e mês (reforma externa, sucata, estoque, borracharia) — fonte: Pneus por Unidade. Isso mostra <b>atividade</b>, não o nível de estoque no tempo (só temos a foto atual do estoque).</p>'
+      + dashStackedBarSvg(pneusMonths, pneusSeries)
+      + '</div>';
+
+    // ---- Telemetria ----
+    const telMonths = monthsOf(d.telemetriaPorMesUnidade);
+    const telSem = telMonths.map(function(mk){
+      const b = pick(d.telemetriaPorMesUnidade[mk]);
+      return (b && b.amostras) ? Math.round(b.somaSem/b.amostras) : null;
+    });
+    const telAtual = telSem.length ? telSem[telSem.length-1] : null;
+    const telAnterior = telSem.length > 1 ? telSem[telSem.length-2] : null;
+
+    html += '<div class="dash-card"><h3>📡 Telemetria — veículos sem comunicação</h3>'
+      + '<p class="hint">Média mensal de veículos sem comunicação — única fonte com histórico diário real sincronizado (Base - TML), disponível desde ' + (d.baseDates.length ? fmtDateBR(d.baseDates[0]) : "—") + '. Não dá pra reconstruir antes disso.</p>'
+      + dashLineChartSvg(telMonths, [{ label:"Sem comunicação", color:"var(--serious)", values:telSem }])
+      + '<div class="dash-kpi-row"><div class="dash-kpi"><div class="dash-kpi-label">Mês mais recente</div><div class="dash-kpi-value">' + (telAtual==null?"—":fmtNum(telAtual)) + dashDeltaHtml(telAtual, telAnterior, { lowerIsBetter:true, fmt:function(v){ return fmtNum(Math.round(v)); } }) + '</div></div></div>'
+      + '</div>';
+
+    html += '</div>'; // .dash-grid
+
+    html += legendBox("Como ler esse painel", [
+      { label:"% fora da meta / tempo de resolução / sem comunicação", desc:"quanto menor, melhor — são indicadores de problema." },
+      { label:"O.S. abertas / movimentação de pneus", desc:"indicadores de volume/atividade, não são bons nem ruins por si só — olhe a tendência junto com os outros painéis." },
+      { label:"Pneus/Suprimentos", desc:"esse gráfico é volume de movimentação (quantos pneus mudaram de categoria naquele mês), não o nível de estoque ao longo do tempo — hoje só temos a foto atual do estoque (ver módulo Suprimentos)." },
+      { label:"Telemetria", desc:"o evolutivo começa em " + (d.baseDates.length ? fmtDateBR(d.baseDates[0]) : "—") + " porque é a única fonte com sync diário guardado desde então — não dá pra reconstruir meses anteriores." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Abastecimento - TML, O.S Fechada - TML, Pneus por Unidade, Base - TML, Base de Veículos - Pneus") + resolvedDatesNote(d.resolvedDates) + '</div>';
+
+    area.innerHTML = html;
+    wireUnidadeFilter("dashboardevo", function(v){
+      const found = d.unidadesFiltro.find(function(u){ return u.label === v; });
+      dashboardUnidadeFiltro = found ? found.cidadeKey : null;
+      renderDashboardEvolutivo();
+    });
+  }catch(err){
+    area.innerHTML = '<p>Erro ao carregar o Dashboard evolutivo: ' + escapeHtml(err.message) + '</p>';
+  }
 }
 
 // ---------- boot ----------
