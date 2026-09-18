@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Painel Controladoria</title>
+<!-- Fontes do "Boletim Preventivo" (Manutenção → Preventiva) — carregadas via <link> (paralelo),
+     não @import (bloqueante), pra não pesar no tempo de carregamento da página. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     color-scheme: light;
@@ -392,6 +397,154 @@
     .so-bar-cell{ min-width:0; }
   }
 </style>
+<style id="manut-boletim-styles">
+  /* =====================================================================
+     "Boletim Preventivo" (Manutenção → Preventiva) — layout portado 1:1 do
+     HTML de referência que Jefferson enviou (boletim_preventiva_42.html),
+     com as MESMAS classes/estrutura, só escopadas sob .mpb pra nunca vazar
+     pro resto do site nem colidir com nada (inclusive #abast-panel, que já
+     usa nomes genéricos como .pill/.filter-bar — sempre escopados sob
+     #abast-panel, então convivem sem conflito com os .pill/.filter-bar
+     escopados aqui sob .mpb).
+     Paleta: valores abaixo = idênticos ao HTML de referência (modo claro).
+     Em modo escuro, os mesmos papéis (papel/tinta/dourado/crítico/atenção/
+     ok) são redefinidos com tons ajustados pro fundo escuro, mantendo a
+     identidade visual do boletim (serifada, cream/verde-escuro/dourado)
+     em vez de herdar o azul do tema padrão do site. */
+  .mpb{
+    --mpb-ink:#0a1f2e; --mpb-ink-soft:#7a7a72; --mpb-paper:#f5f2ea; --mpb-surface:#f5f2ea;
+    --mpb-surface-2:#ebe6d8; --mpb-surface-line:#cfc9b8; --mpb-brand:#0a1f2e; --mpb-brand-ink:#f5f2ea;
+    --mpb-gold:#a07820;
+    --mpb-ok:#0f4c3a; --mpb-warn:#a07820; --mpb-crit:#a02828;
+    --mpb-ok-bg:#d8e8df; --mpb-warn-bg:#f5ebcc; --mpb-crit-bg:#fbeae9;
+    background:var(--mpb-paper); color:var(--mpb-ink); font-family:'Inter Tight',sans-serif;
+    font-size:14.5px; padding:2px; border-radius:8px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .mpb{
+      --mpb-ink:#f2f0e8; --mpb-ink-soft:#a8a599; --mpb-paper:#161f1b; --mpb-surface:#1c2621;
+      --mpb-surface-2:#252f29; --mpb-surface-line:#3a453d; --mpb-brand:#0e1613; --mpb-brand-ink:#f2f0e8;
+      --mpb-gold:#d7ab52;
+      --mpb-ok:#52b68d; --mpb-warn:#d7ab52; --mpb-crit:#e2685f;
+      --mpb-ok-bg:rgba(82,182,141,.16); --mpb-warn-bg:rgba(215,171,82,.16); --mpb-crit-bg:rgba(226,104,95,.16);
+    }
+  }
+  :root[data-theme="dark"] .mpb{
+    --mpb-ink:#f2f0e8; --mpb-ink-soft:#a8a599; --mpb-paper:#161f1b; --mpb-surface:#1c2621;
+    --mpb-surface-2:#252f29; --mpb-surface-line:#3a453d; --mpb-brand:#0e1613; --mpb-brand-ink:#f2f0e8;
+    --mpb-gold:#d7ab52;
+    --mpb-ok:#52b68d; --mpb-warn:#d7ab52; --mpb-crit:#e2685f;
+    --mpb-ok-bg:rgba(82,182,141,.16); --mpb-warn-bg:rgba(215,171,82,.16); --mpb-crit-bg:rgba(226,104,95,.16);
+  }
+  .mpb h1,.mpb h3{ font-family:'Fraunces',serif; font-weight:700; letter-spacing:-.01em; }
+  .mpb .num{ font-variant-numeric:tabular-nums; }
+
+  .mpb .uhero{ display:flex; justify-content:space-between; align-items:flex-end; gap:20px; background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); padding:20px 22px; margin-bottom:14px; flex-wrap:wrap; border-radius:8px; }
+  .mpb .uhero .ttl{ font-family:'Fraunces',serif; font-weight:700; font-size:22px; letter-spacing:-.01em; color:var(--mpb-ink); }
+  .mpb .uhero .sub{ font-size:12.5px; color:var(--mpb-ink-soft); margin-top:5px; }
+  .mpb .uhero-r{ text-align:right; flex:none; }
+  .mpb .bign{ font-family:'Fraunces',serif; font-weight:900; font-size:38px; line-height:1; color:var(--mpb-crit); letter-spacing:-.02em; }
+  .mpb .bigl{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--mpb-ink-soft); margin-top:2px; }
+
+  .mpb .usec-export{ display:flex; align-items:center; gap:8px; margin:0 0 14px; flex-wrap:wrap; }
+  .mpb .usec-export-l{ font-size:10.5px; color:var(--mpb-ink-soft); text-transform:uppercase; letter-spacing:.08em; margin-right:2px; }
+  .mpb .ubtn{ cursor:pointer; font-family:'Inter Tight',sans-serif; font-size:11px; font-weight:700; letter-spacing:.03em; color:var(--mpb-ink); background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); border-radius:5px; padding:5px 11px; transition:.12s; }
+  .mpb .ubtn:hover{ background:var(--mpb-surface-2); border-color:var(--mpb-ink); }
+
+  .mpb .ust{ display:grid; grid-template-columns:repeat(5,1fr); gap:0; background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); margin-bottom:14px; overflow:hidden; border-radius:8px; }
+  .mpb .usi{ padding:13px 15px; border-right:1px solid var(--mpb-surface-line); }
+  .mpb .usi:last-child{ border-right:none; }
+  .mpb .usl{ font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--mpb-ink-soft); margin-bottom:4px; }
+  .mpb .usv{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:21px; color:var(--mpb-ink); }
+  .mpb .usi.crit .usv{ color:var(--mpb-crit); }
+  .mpb .usi.warn .usv{ color:var(--mpb-warn); }
+  .mpb .uss{ font-size:9px; color:var(--mpb-ink-soft); margin-top:2px; }
+  @media (max-width:760px){ .mpb .ust{ grid-template-columns:repeat(2,1fr); } .mpb .usi{ border-bottom:1px solid var(--mpb-surface-line); } }
+
+  .mpb .rng-bar-wrap{ margin-bottom:20px; }
+  .mpb .rng-bar-title{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--mpb-ink-soft); font-weight:600; margin-bottom:8px; }
+  .mpb .rng-bar{ display:flex; height:30px; width:100%; overflow:hidden; border:1px solid var(--mpb-surface-line); background:var(--mpb-surface-2); border-radius:4px; }
+  .mpb .rng-seg{ height:100%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; border-right:2px solid var(--mpb-paper); }
+  .mpb .rng-seg:last-child{ border-right:none; }
+  .mpb .rng-legend{ display:flex; gap:20px; margin-top:9px; flex-wrap:wrap; font-size:12px; color:var(--mpb-ink-soft); }
+  .mpb .rng-legend .dot{ width:9px; height:9px; display:inline-block; margin-right:6px; vertical-align:-1px; border-radius:2px; }
+  .mpb .rng-legend b{ color:var(--mpb-ink); margin-left:4px; }
+
+  .mpb .analise{ background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); padding:16px 18px; margin-bottom:14px; border-radius:8px; }
+  .mpb .ana-t{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--mpb-ink-soft); font-weight:600; margin-bottom:12px; }
+  .mpb .ana-g{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  @media (max-width:760px){ .mpb .ana-g{ grid-template-columns:1fr 1fr; } }
+  .mpb .aci{ border-left:3px solid var(--mpb-surface-line); padding:2px 0 2px 12px; }
+  .mpb .aci.cr{ border-left-color:var(--mpb-crit); }
+  .mpb .aci.wn{ border-left-color:var(--mpb-warn); }
+  .mpb .acl{ font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--mpb-ink-soft); margin-bottom:3px; }
+  .mpb .acv{ font-family:'Fraunces',serif; font-weight:700; font-size:19px; color:var(--mpb-ink); line-height:1.2; }
+  .mpb .acv.cr{ color:var(--mpb-crit); }
+  .mpb .acv.wn{ color:var(--mpb-warn); }
+  .mpb .acd{ font-size:10.5px; color:var(--mpb-ink-soft); margin-top:2px; }
+
+  .mpb .oind-wrap{ margin-bottom:18px; }
+  .mpb .oind-t{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; color:var(--mpb-ink); margin-bottom:3px; letter-spacing:-.005em; }
+  .mpb .oind-d{ font-size:11px; color:var(--mpb-ink-soft); font-style:italic; margin-bottom:10px; }
+  .mpb .oind-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+  .mpb .oind{ background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); border-top:3px solid var(--mpb-surface-line); padding:11px 12px; border-radius:4px; }
+  .mpb .oind.crit{ border-top-color:var(--mpb-crit); }
+  .mpb .oind.warn{ border-top-color:var(--mpb-warn); }
+  .mpb .oind.zero{ opacity:.62; }
+  .mpb .oind-l{ font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--mpb-ink-soft); margin-bottom:5px; }
+  .mpb .oind-v{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:22px; color:var(--mpb-ink); line-height:1; }
+  .mpb .oind.crit .oind-v{ color:var(--mpb-crit); }
+  .mpb .oind.warn .oind-v{ color:var(--mpb-warn); }
+  .mpb .oind-s{ font-size:9px; color:var(--mpb-ink-soft); margin-top:4px; }
+  @media (max-width:900px){ .mpb .oind-grid{ grid-template-columns:repeat(3,1fr); } }
+  @media (max-width:560px){ .mpb .oind-grid{ grid-template-columns:repeat(2,1fr); } }
+
+  .mpb .vhdr{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px; }
+  .mpb .vhdr h3{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; margin:0; color:var(--mpb-ink); }
+  .mpb .vcnt{ font-size:11.5px; color:var(--mpb-ink-soft); }
+  .mpb .usearch{ width:100%; box-sizing:border-box; padding:9px 12px; margin-bottom:12px; border:1px solid var(--mpb-surface-line); border-radius:6px; background:var(--mpb-surface); font:inherit; font-size:13px; color:var(--mpb-ink); }
+  .mpb .usearch::placeholder{ color:var(--mpb-ink-soft); }
+  .mpb .usearch:focus{ outline:none; border-color:var(--mpb-ok); }
+
+  .mpb .filter-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:18px; background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); padding:14px 18px; margin-bottom:16px; border-radius:8px; }
+  .mpb .filter-group{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .mpb .filter-group-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--mpb-ink-soft); font-weight:600; margin-right:2px; }
+  .mpb .pill{ font-family:'Inter Tight',sans-serif; font-size:11.5px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; border:1px solid var(--mpb-surface-line); background:var(--mpb-surface); color:var(--mpb-ink-soft); padding:6px 13px; cursor:pointer; transition:.12s; border-radius:999px; }
+  .mpb .pill:hover{ border-color:var(--mpb-ink-soft); }
+  .mpb .pill.active{ background:var(--mpb-brand); border-color:var(--mpb-brand); color:var(--mpb-brand-ink); }
+  .mpb .filter-count{ margin-left:auto; font-size:12.5px; color:var(--mpb-ink-soft); }
+
+  .mpb .vlist{ display:flex; flex-direction:column; gap:0; }
+  .mpb .vrow{ background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); margin-bottom:0; border-bottom:none; overflow:hidden; }
+  .mpb .vrow:last-of-type{ border-bottom:1px solid var(--mpb-surface-line); }
+  .mpb .vrow[open]{ border-color:var(--mpb-ink-soft); }
+  .mpb .vrow summary{ list-style:none; cursor:pointer; display:grid; grid-template-columns:96px 1fr 220px 90px 20px; align-items:center; gap:14px; padding:13px 18px; }
+  .mpb .vrow summary::-webkit-details-marker{ display:none; }
+  .mpb .vtag{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; background:var(--mpb-surface-2); border-radius:6px; padding:6px 4px; text-align:center; }
+  .mpb .vinfo-os{ font-weight:600; font-size:13.5px; }
+  .mpb .vinfo-of{ font-size:11.5px; color:var(--mpb-ink-soft); }
+  .mpb .venc-sum{ font-size:12.5px; color:var(--mpb-ink-soft); }
+  .mpb .venc-vrow.hascrit{ border-left:3px solid var(--mpb-crit); }
+  .mpb .crit-tag{ display:inline-block; font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; letter-spacing:.04em; color:var(--mpb-crit); background:var(--mpb-crit-bg); border-radius:4px; padding:2px 7px; white-space:nowrap; justify-self:start; }
+  .mpb .vrow-chevron{ color:var(--mpb-ink-soft); transition:transform .15s; justify-self:end; }
+  .mpb .vrow[open] .vrow-chevron{ transform:rotate(180deg); }
+  .mpb .vrow-body{ padding:0 18px 18px; border-top:1px solid var(--mpb-surface-line); }
+  @media (max-width:760px){ .mpb .vrow summary{ grid-template-columns:70px 1fr; } }
+
+  .mpb .plan-table-wrap{ overflow-x:auto; margin-top:14px; border-top:1px solid var(--mpb-surface-line); }
+  .mpb table.plan-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; }
+  .mpb table.plan-table thead th{ text-align:left; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--mpb-ink-soft); background:var(--mpb-surface-2); padding:8px 10px; }
+  .mpb table.plan-table td{ padding:8px 10px; border-top:1px solid var(--mpb-surface-line); vertical-align:top; }
+  .mpb .cell-plano{ min-width:220px; }
+  .mpb .cell-num{ color:var(--mpb-ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .mpb .vtab-row.vencido{ border-left:3px solid var(--mpb-crit); background:var(--mpb-crit-bg); }
+  .mpb .vtab-row.limite{ border-left:3px solid var(--mpb-warn); background:var(--mpb-warn-bg); }
+  .mpb .vtab-note{ font-size:10px; font-style:italic; color:var(--mpb-ink-soft); margin-right:8px; }
+  .mpb .chip-code{ font-family:'JetBrains Mono',monospace; font-size:10px; background:var(--mpb-surface-2); border-radius:3px; padding:1px 5px; color:var(--mpb-ink-soft); }
+  .mpb .sit-tag{ font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.03em; white-space:nowrap; }
+  .mpb .sit-tag.sit-vencido{ color:var(--mpb-crit); }
+  .mpb .sit-tag.sit-limite{ color:var(--mpb-warn); }
+</style>
 <style id="abast-styles">
 /* Este bloco não define mais uma paleta/fonte própria — ele só remapeia as
    variáveis que o restante das regras abaixo usa para os tokens reais do
@@ -727,10 +880,6 @@
             <p>Conformidade de consumo (Km/Lt vs Meta) por veículo, mês e unidade — cruzando Abastecimento-TML, Base de Veículos - Pneus e Exp. Abst. Fonte: dados sincronizados da base.</p>
           </div>
 <div id="abast-panel" class="wrap">
-
-  <div class="filters filters-right" style="margin-bottom:18px;">
-    <button class="ghost" id="abastRefreshBtn">Atualizar dados</button>
-  </div>
 
   <div id="emptyState" class="empty-state">
     <div class="spinner">Carregando dados de abastecimento...</div>
@@ -1107,44 +1256,100 @@ function resolvedDatesNote(resolvedDates){
   return '<p class="hint">Dados sincronizados usados — ' + parts.join(" &nbsp;·&nbsp; ") + '</p>';
 }
 
-async function fetchAllRows(tabName, snapshotDate){
-  const out = [];
-  if(!snapshotDate) return out;
-  let offset = 0;
-  const pageSize = 5000;
-  let total = null;
+// Busca 1 página (com retry) de sheet_records. Fatorado pra fora do loop original pra poder ser
+// chamado tanto sequencialmente (fallback de total desconhecido) quanto em paralelo (abaixo).
+async function fetchRowsPage(tabName, snapshotDate, from, to){
+  let resp, rows, attempt = 0;
   while(true){
-    const from = offset, to = offset + pageSize - 1;
-    let resp, rows, attempt = 0;
-    while(true){
-      resp = await rest(
-        "sheet_records?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=eq." + encodeURIComponent(snapshotDate) + "&select=row_data&order=id.asc",
-        { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
-      );
-      if(resp.ok){
-        try{ rows = await resp.json(); }catch(e){ rows = null; }
-        if(Array.isArray(rows)) break;
-      }
-      attempt++;
-      if(attempt >= 3){
-        let detail = "";
-        try{ const body = await resp.clone().json(); detail = (body && (body.message || body.hint)) || ""; }catch(e){}
-        throw new Error("Falha ao buscar " + tabName + " (HTTP " + resp.status + (detail ? ": " + detail : "") + ")");
-      }
-      await new Promise(function(r){ setTimeout(r, 500 * attempt); });
+    resp = await rest(
+      "sheet_records?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=eq." + encodeURIComponent(snapshotDate) + "&select=row_data&order=id.asc",
+      { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
+    );
+    if(resp.ok){
+      try{ rows = await resp.json(); }catch(e){ rows = null; }
+      if(Array.isArray(rows)) return { rows: rows, resp: resp };
     }
-    const cr = resp.headers.get("content-range");
-    if(cr){ const t = cr.split("/")[1]; total = t === "*" ? null : parseInt(t, 10); }
-    rows.forEach(function(r){ out.push(r.row_data || {}); });
-    offset += rows.length;
-    if(rows.length === 0) break;
-    // O Supabase/PostgREST pode aplicar um limite de linhas por requisição (ex.: 1000) menor
-    // que o pageSize pedido no Range. Nesse caso uma pagina "cheia" (limite do servidor) ainda
-    // retorna rows.length < pageSize, e parar aqui truncaria a busca. Só paramos quando o
-    // total (Content-Range) confirma que não ha mais linhas, ou quando o total é desconhecido
-    // e a pagina realmente veio menor que o pedido.
-    if(total !== null){ if(offset >= total) break; }
-    else if(rows.length < pageSize){ break; }
+    attempt++;
+    if(attempt >= 3){
+      let detail = "";
+      try{ const body = await resp.clone().json(); detail = (body && (body.message || body.hint)) || ""; }catch(e){}
+      throw new Error("Falha ao buscar " + tabName + " (HTTP " + resp.status + (detail ? ": " + detail : "") + ")");
+    }
+    await new Promise(function(r){ setTimeout(r, 500 * attempt); });
+  }
+}
+// Cache de coalescência: quando duas chamadas pedem exatamente a mesma (tabName, snapshotDate)
+// enquanto a primeira ainda está em andamento — típico ao abrir a Home, que carrega Telemetria e
+// Abastecimento em paralelo e ambos buscam "Abastecimento - TML" (~74 mil linhas) — a segunda
+// reaproveita a mesma requisição em vez de duplicar a busca inteira. Não é um cache persistente:
+// assim que a busca termina (sucesso ou erro), a entrada é removida, então uma chamada seguinte
+// de verdade (fora dessa janela) sempre busca os dados de novo.
+const inFlightRowFetches = {};
+async function fetchAllRows(tabName, snapshotDate){
+  if(!snapshotDate) return [];
+  const key = tabName + "|" + snapshotDate;
+  if(inFlightRowFetches[key]) return inFlightRowFetches[key];
+  const promise = (async function(){
+    try{
+      return await fetchAllRowsUncached(tabName, snapshotDate);
+    } finally {
+      delete inFlightRowFetches[key];
+    }
+  })();
+  inFlightRowFetches[key] = promise;
+  return promise;
+}
+async function fetchAllRowsUncached(tabName, snapshotDate){
+  const out = [];
+  const pageSize = 5000;
+  const maxConcurrent = 6; // limite de requisições simultâneas — paraleliza sem sobrecarregar o Supabase
+
+  // Primeira página: também traz o total via Content-Range (Prefer: count=exact), usado abaixo
+  // pra disparar as páginas restantes em paralelo em vez de uma de cada vez — era o principal
+  // gargalo em tabelas grandes (ex.: Abastecimento-TML, ~74 mil linhas / 15 páginas sequenciais
+  // levava boa parte do ~1min30 que o painel demorava pra abrir).
+  const first = await fetchRowsPage(tabName, snapshotDate, 0, pageSize - 1);
+  first.rows.forEach(function(r){ out.push(r.row_data || {}); });
+  const cr = first.resp.headers.get("content-range");
+  let total = null;
+  if(cr){ const t = cr.split("/")[1]; total = t === "*" ? null : parseInt(t, 10); }
+
+  if(total !== null && total > pageSize){
+    // Total conhecido — busca as páginas restantes em paralelo (pool de workers, limite
+    // maxConcurrent) preservando a ordem original (cada página guarda seu índice de destino,
+    // concatenado no final em ordem — não na ordem em que cada requisição termina).
+    const pageStarts = [];
+    for(let offset = pageSize; offset < total; offset += pageSize) pageStarts.push(offset);
+    const pageResults = new Array(pageStarts.length);
+    let cursor = 0;
+    async function worker(){
+      while(cursor < pageStarts.length){
+        const idx = cursor++;
+        const from = pageStarts[idx], to = from + pageSize - 1;
+        const page = await fetchRowsPage(tabName, snapshotDate, from, to);
+        pageResults[idx] = page.rows;
+      }
+    }
+    const workers = [];
+    for(let i = 0; i < Math.min(maxConcurrent, pageStarts.length); i++) workers.push(worker());
+    await Promise.all(workers);
+    pageResults.forEach(function(rows){
+      rows.forEach(function(r){ out.push(r.row_data || {}); });
+    });
+  } else if(total === null && first.rows.length === pageSize){
+    // O Supabase/PostgREST pode aplicar um limite de linhas por requisição menor que o pageSize
+    // pedido no Range, ou simplesmente não informar o Content-Range — nesses casos o total fica
+    // desconhecido e não dá pra paralelizar com segurança (não sabemos quantas páginas existem).
+    // Fallback: mesmo comportamento sequencial de antes, avançando até vir uma página vazia/menor
+    // que o pedido.
+    let offset = pageSize;
+    while(true){
+      const from = offset, to = offset + pageSize - 1;
+      const page = await fetchRowsPage(tabName, snapshotDate, from, to);
+      page.rows.forEach(function(r){ out.push(r.row_data || {}); });
+      offset += page.rows.length;
+      if(page.rows.length < pageSize) break;
+    }
   }
   return out;
 }
@@ -3326,25 +3531,403 @@ function manutRanking(porUnidade){
   }).filter(function(r){ return r.totalFrota > 0; }).sort(function(a,b){ return b.pct - a.pct; });
 }
 
-function manutVehicleDetailTable(v){
-  const order = { vencido:0, limite:1 };
-  const rows = v.items.slice().sort(function(a,b){ return (order[a.status]-order[b.status]) || ((b.pct||0)-(a.pct||0)); }).map(function(i){
-    const critTag = MANUT_CRITICAL_CODES[i.code] ? ' <span class="badge b-critical" style="margin-left:6px;">crítico</span>' : '';
-    const statusBadge = i.status === "vencido" ? '<span class="badge b-critical">Vencido</span>' : '<span class="badge b-warning">No limite' + (i.sub ? " (" + i.sub + ")" : "") + '</span>';
-    const intervalo = i.intKm ? fmtNum(i.intKm) + "km" : (i.intDias ? fmtNum(i.intDias) + "d" : "—");
-    const excParts = [];
-    if(i.kmDiferenca) excParts.push(fmtNum(i.kmDiferenca) + "km");
-    if(i.diasDiferenca) excParts.push(fmtNum(i.diasDiferenca) + "d");
-    const excedente = excParts.length ? excParts.join(" / ") : "—";
-    const pctTxt = (i.pct !== null && i.pct !== undefined && !isNaN(i.pct)) ? i.pct.toFixed(1).replace(".", ",") + "%" : "—";
-    return '<tr><td><span style="font-family:monospace;">' + escapeHtml(i.code) + '</span> ' + escapeHtml(i.label) + critTag + '</td>'
-      + '<td>' + intervalo + '</td>'
-      + '<td>' + escapeHtml(i.ultData || "—") + '</td>'
-      + '<td>' + excedente + '</td>'
-      + '<td>' + pctTxt + '</td>'
-      + '<td>' + statusBadge + '</td></tr>';
+// =====================================================================
+// "Boletim Preventivo" — layout por unidade, portado 1:1 do HTML de referência
+// (boletim_preventiva_42.html) que Jefferson enviou: mesmos cálculos, mesma
+// estrutura visual (classes .uhero/.ust/.analise/.oind-*/.rng-*/.vrow etc.,
+// estilizadas em .mpb no <style> principal), só trocando a fonte dos dados
+// (Supabase, via buildManutData já existente) e o menu de navegação por
+// unidade (barra lateral secundária do site em vez da barra lateral própria
+// do boletim). Cascata de Manutenção por Km e Matriz Categoria×Unidade do
+// HTML de referência ficaram de fora desta primeira versão — sinalizado
+// para Jefferson na entrega.
+const MANUT_CAT_MAP = {
+  "001":"Óleo Motor", "214":"Óleo Motor",
+  "007":"Filtro Lubrificante",
+  "009":"Filtro de Ar",
+  "002":"Óleo Câmbio", "260":"Óleo Câmbio", "280":"Óleo Câmbio",
+  "003":"Óleo Diferencial", "261":"Óleo Diferencial", "305":"Óleo Diferencial",
+  "008":"Filtros Combustível", "010":"Filtros Combustível", "217":"Filtros Combustível",
+  "004":"Lubrificação", "005":"Lubrificação", "006":"Lubrificação", "011":"Lubrificação",
+  "259":"Ar Condicionado", "311":"Ar Condicionado", "312":"Ar Condicionado",
+};
+const MANUT_CAT_ORDER = ["Óleo Motor","Filtro Lubrificante","Óleo Câmbio","Óleo Diferencial","Filtro de Ar","Filtros Combustível","Lubrificação","Ar Condicionado","Outros"];
+const MANUT_OIL_INDICATORS = [
+  ["Óleo Motor", {"001":1,"214":1}],
+  ["Óleo Câmbio", {"002":1,"260":1,"280":1}],
+  ["Óleo Diferencial", {"003":1,"261":1,"305":1}],
+  ["Lubrificação", {"004":1,"005":1,"006":1,"011":1}],
+  ["Filtros", {"007":1,"008":1,"009":1,"010":1,"217":1}],
+  ["Ar Condicionado", {"259":1,"311":1,"312":1}],
+];
+const MANUT_SIT_HTML = {
+  vencido: '<span class="sit-tag sit-vencido">VENCIDO</span>',
+  limite: '<span class="sit-tag sit-limite">NO LIMITE</span>',
+};
+const MANUT_STATUS_ORDER = { vencido:0, limite:1 };
+// Sentinela de "sem registro de última manutenção" na base de origem (Tr@nsnet) — mesmo valor
+// do boletim de referência ('01/01/2022'), só com hífen em vez de barra (formato já normalizado
+// pelo sync-sheets). Confirmado nos dados reais sincronizados (185 linhas com esse valor exato
+// em Manutencao - PRV).
+const MANUT_SENTINEL_ULTIMA = "01-01-2022";
+const MANUT_PCT_INCONSISTENTE = 2000;
+
+function manutRangeBarHtml(title, segments){
+  let total = 0;
+  segments.forEach(function(s){ total += s[1]; });
+  total = total || 1;
+  let segsHtml = "";
+  segments.forEach(function(s){
+    const label = s[0], count = s[1], color = s[2];
+    if(count <= 0) return;
+    const pct = 100 * count / total;
+    const showLabel = pct >= 8 ? (count + " · " + Math.round(pct) + "%") : (pct >= 3 ? String(count) : "");
+    segsHtml += '<div class="rng-seg" style="width:' + pct.toFixed(3) + '%;background:' + color + ';" title="' + escapeHtml(label) + ': ' + count + ' (' + Math.round(pct) + '%)">' + showLabel + '</div>';
+  });
+  let legendHtml = "";
+  segments.forEach(function(s){
+    const label = s[0], count = s[1], color = s[2];
+    if(count <= 0) return;
+    legendHtml += '<span><span class="dot" style="background:' + color + '"></span>' + escapeHtml(label) + '<b class="num">' + count + '</b></span>';
+  });
+  return '<div class="rng-bar-wrap">'
+    + '<div class="rng-bar-title">' + title + '</div>'
+    + '<div class="rng-bar">' + segsHtml + '</div>'
+    + '<div class="rng-legend">' + legendHtml + '</div>'
+    + '</div>';
+}
+
+function manutPlanRowHtml(i){
+  const intKm = i.intKm || 0, intDias = i.intDias || 0;
+  const intervalo = intKm ? (fmtNum(intKm) + "km") : (intDias ? (fmtNum(intDias) + "d") : "—");
+  const semRegistro = i.ultData === MANUT_SENTINEL_ULTIMA;
+  const ult = semRegistro ? "sem registro" : (i.ultData || "—");
+  const excKm = i.kmDiferenca ? (fmtNum(i.kmDiferenca) + "km") : "—";
+  const excDias = i.diasDiferenca ? (fmtNum(i.diasDiferenca) + "d") : "—";
+  const pctV = i.pct;
+  const pctValid = typeof pctV === "number" && !isNaN(pctV);
+  const pctInconsistente = pctValid && pctV > MANUT_PCT_INCONSISTENTE;
+  let pct;
+  if(semRegistro){
+    pct = '<span title="Sem registro de última manutenção na base de origem — % não apurável">sem registro</span>';
+  } else if(pctInconsistente){
+    pct = '<span title="Percentual incompatível com o hodômetro recente do veículo na base de origem — verificar este item (possível divergência de apontamento) — valor bruto: ' + Math.round(pctV) + '%">verificar</span>';
+  } else if(pctValid){
+    pct = pctV.toFixed(1).replace(".", ",") + "%";
+  } else {
+    pct = "—";
+  }
+  const critTag = MANUT_CRITICAL_CODES[i.code] ? ' <span class="crit-tag">CRÍTICO</span>' : '';
+  const subNote = i.sub ? '<span class="vtab-note">' + escapeHtml(i.sub) + '</span>' : '';
+  const ofParts = [];
+  if(i.os) ofParts.push("O.S. " + escapeHtml(String(i.os)));
+  if(i.oficina) ofParts.push("of. " + escapeHtml(String(i.oficina)));
+  const ofTag = ofParts.length ? '<span class="vtab-note">' + ofParts.join(" · ") + '</span>' : "";
+  return '<tr class="vtab-row ' + i.status + '">'
+    + '<td class="cell-plano"><span class="chip-code">' + escapeHtml(i.code) + '</span> ' + escapeHtml(i.label) + critTag + subNote + (ofTag ? '<br>' + ofTag : '') + '</td>'
+    + '<td class="cell-num">' + intervalo + '</td>'
+    + '<td class="cell-num">' + escapeHtml(ult) + '</td>'
+    + '<td class="cell-num">' + excKm + '</td>'
+    + '<td class="cell-num">' + excDias + '</td>'
+    + '<td class="cell-num">' + pct + '</td>'
+    + '<td>' + MANUT_SIT_HTML[i.status] + '</td>'
+    + '</tr>';
+}
+
+function manutVehicleRowHtml(veicLabel, localLabel, items){
+  let nV = 0, nS = 0, hasCrit = false;
+  const catsSet = {};
+  items.forEach(function(i){
+    if(i.status === "vencido") nV++;
+    if(i.status === "limite") nS++;
+    if(MANUT_CRITICAL_CODES[i.code]) hasCrit = true;
+    catsSet[MANUT_CAT_MAP[i.code] || "Outros"] = 1;
+  });
+  const catsHere = Object.keys(catsSet).sort();
+  const sumParts = [];
+  if(nV) sumParts.push('<b class="num">' + nV + '</b> vencido' + (nV !== 1 ? "s" : ""));
+  if(nS) sumParts.push('<b class="num">' + nS + '</b> no limite');
+  const sumTxt = sumParts.join(" · ");
+  const itemsSorted = items.slice().sort(function(a,b){
+    const sa = MANUT_STATUS_ORDER[a.status], sb = MANUT_STATUS_ORDER[b.status];
+    if(sa !== sb) return sa - sb;
+    return a.code < b.code ? -1 : (a.code > b.code ? 1 : 0);
+  });
+  const itemRows = itemsSorted.map(manutPlanRowHtml).join("");
+  const searchKey = escapeHtml((veicLabel + " " + localLabel).toLowerCase());
+  return '<details class="vrow venc-vrow' + (hasCrit ? " hascrit" : "") + '" data-cats="' + escapeHtml(catsHere.join(",")) + '" data-search="' + searchKey + '">'
+    + '<summary>'
+    + '<div class="vtag">' + escapeHtml(veicLabel) + '</div>'
+    + '<div class="vinfo">'
+    + '<div class="vinfo-os">' + items.length + ' plano' + (items.length !== 1 ? "s" : "") + ' pendente' + (items.length !== 1 ? "s" : "") + '</div>'
+    + '<div class="vinfo-of">' + escapeHtml(localLabel) + '</div>'
+    + '</div>'
+    + '<div class="venc-sum">' + sumTxt + '</div>'
+    + (hasCrit ? '<span class="crit-tag">CRÍTICO</span>' : '<span></span>')
+    + '<span class="vrow-chevron">▾</span>'
+    + '</summary>'
+    + '<div class="vrow-body">'
+    + '<div class="plan-table-wrap"><table class="plan-table">'
+    + '<thead><tr><th>Plano de manutenção</th><th>Intervalo</th><th>Últ. manut.</th><th>Excede km</th><th>Excede dias</th><th>%</th><th>Situação</th></tr></thead>'
+    + '<tbody>' + itemRows + '</tbody>'
+    + '</table></div>'
+    + '</div>'
+    + '</details>';
+}
+
+function manutOilIndicatorsHtml(items){
+  const parts = MANUT_OIL_INDICATORS.map(function(oi){
+    const label = oi[0], codes = oi[1];
+    let v = 0, s = 0;
+    items.forEach(function(i){
+      if(!codes[i.code]) return;
+      if(i.status === "vencido") v++; else if(i.status === "limite") s++;
+    });
+    const tot = v + s;
+    const cls = v ? "crit" : (s ? "warn" : "zero");
+    const sub = tot ? ((v + " vencido" + (v !== 1 ? "s" : "")) + (s ? (" · " + s + " no limite") : "")) : "em dia";
+    return '<div class="oind ' + cls + '">'
+      + '<div class="oind-l">' + escapeHtml(label) + '</div>'
+      + '<div class="oind-v">' + tot + '</div>'
+      + '<div class="oind-s">' + sub + '</div>'
+      + '</div>';
+  });
+  return '<div class="oind-grid">' + parts.join("") + '</div>';
+}
+
+// Monta o cartão completo do boletim de uma unidade — mesmos 6 blocos do HTML de referência
+// (cabeçalho, exportar, KPIs, 2 range bars, análise crítica, indicadores por tipo) + lista de
+// veículos com filtro por categoria e busca.
+function manutBuildUnidadeCard(ck, d){
+  const info = d.porUnidade[ck] || { label: ck, totalFrota: 0 };
+  const nome = titleCaseUnidade(info.label || ck);
+  const frotaTotal = info.totalFrota || 0;
+  const veiculos = Object.keys(d.porVeiculo).map(function(vk){ return Object.assign({ vKey: vk }, d.porVeiculo[vk]); })
+    .filter(function(v){ return v.cidadeKey === ck; });
+  let allItems = [];
+  veiculos.forEach(function(v){ allItems = allItems.concat(v.items); });
+  const nVeic = veiculos.length;
+  let nV = 0, nS = 0, nCrit = 0;
+  allItems.forEach(function(i){
+    if(i.status === "vencido") nV++;
+    if(i.status === "limite") nS++;
+    if(MANUT_CRITICAL_CODES[i.code]) nCrit++;
+  });
+  const pctFrota = frotaTotal ? Math.round(1000 * nVeic / frotaTotal) / 10 : null;
+  let nVeicVU = 0, nVeicSU = 0;
+  veiculos.forEach(function(v){
+    if(v.items.some(function(i){ return i.status === "vencido"; })) nVeicVU++;
+    else if(v.items.some(function(i){ return i.status === "limite"; })) nVeicSU++;
+  });
+  const nVeicOkU = Math.max(0, frotaTotal - nVeicVU - nVeicSU);
+  const pctVencida = frotaTotal ? Math.round(1000 * nVeicVU / frotaTotal) / 10 : null;
+
+  const uheroHtml = '<div class="uhero">'
+    + '<div><div class="ttl">' + escapeHtml(nome) + '</div><div class="sub">' + nVeicVU + ' de ' + frotaTotal + ' veículo' + (frotaTotal !== 1 ? "s" : "") + ' com ao menos um plano vencido'
+    + (pctFrota !== null ? (' · ' + nVeic + ' veíc. (' + pctFrota + '% da frota de ' + frotaTotal + ') com alguma pendência') : '') + '</div></div>'
+    + '<div class="uhero-r"><div class="bign">' + (pctVencida !== null ? (pctVencida + '%') : fmtNum(nV + nS)) + '</div><div class="bigl">' + (pctVencida !== null ? 'FROTA VENCIDA' : 'planos pendentes') + '</div></div>'
+    + '</div>';
+
+  const exportHtml = '<div class="usec-export">'
+    + '<span class="usec-export-l">Exportar este boletim (só ' + escapeHtml(nome) + '):</span>'
+    + '<button type="button" class="ubtn" data-manut-export="html" data-ck="' + escapeHtml(ck) + '">&#8681; HTML</button>'
+    + '<button type="button" class="ubtn" data-manut-export="pdf" data-ck="' + escapeHtml(ck) + '">&#8681; PDF</button>'
+    + '</div>';
+
+  const ustHtml = '<div class="ust">'
+    + '<div class="usi"><div class="usl">Frota Total</div><div class="usv">' + (frotaTotal || '—') + '</div></div>'
+    + '<div class="usi crit"><div class="usl">Veíc. Vencidos</div><div class="usv">' + nVeicVU + '</div></div>'
+    + '<div class="usi warn"><div class="usl">Veíc. Lim. Superior</div><div class="usv">' + nVeicSU + '</div></div>'
+    + '<div class="usi crit"><div class="usl">Planos Vencidos</div><div class="usv">' + nV + '</div></div>'
+    + '<div class="usi crit"><div class="usl">Planos Críticos</div><div class="usv">' + nCrit + '</div><div class="uss">óleo · câmbio · difer.</div></div>'
+    + '</div>';
+
+  const rngFrotaUHtml = manutRangeBarHtml(
+    frotaTotal ? ('Range da frota · situação dos veículos (' + frotaTotal + ' veíc.)') : 'Range da frota · situação dos veículos',
+    [["Sem pendências", nVeicOkU, "var(--mpb-ok)"], ["No limite", nVeicSU, "var(--mpb-warn)"], ["Vencido", nVeicVU, "var(--mpb-crit)"]]
+  );
+  const rngHtml = manutRangeBarHtml(
+    fmtNum(nV + nS) + " planos pendentes nesta unidade",
+    [["Vencido", nV, "var(--mpb-crit)"], ["No limite", nS, "var(--mpb-warn)"]]
+  );
+
+  let nVeicCrit = 0;
+  veiculos.forEach(function(v){ if(v.items.some(function(i){ return MANUT_CRITICAL_CODES[i.code]; })) nVeicCrit++; });
+  let maiorAtraso = null;
+  allItems.forEach(function(i){
+    const pct = i.pct;
+    if(typeof pct === "number" && !isNaN(pct) && i.ultData !== MANUT_SENTINEL_ULTIMA && pct <= MANUT_PCT_INCONSISTENTE){
+      if(maiorAtraso === null || pct > maiorAtraso) maiorAtraso = pct;
+    }
+  });
+  let criticidadeGeral, criticidadeCls;
+  if((pctVencida !== null && pctVencida >= 30) || nCrit >= 5){ criticidadeGeral = "Alta"; criticidadeCls = "cr"; }
+  else if((pctVencida !== null && pctVencida >= 10) || nCrit >= 1){ criticidadeGeral = "Média"; criticidadeCls = "wn"; }
+  else { criticidadeGeral = "Baixa"; criticidadeCls = ""; }
+
+  const analiseHtml = '<div class="analise">'
+    + '<div class="ana-t">Análise Crítica</div>'
+    + '<div class="ana-g">'
+    + '<div class="aci ' + criticidadeCls + '"><div class="acl">Criticidade Geral</div><div class="acv ' + criticidadeCls + '">' + criticidadeGeral + '</div><div class="acd">com base no % da frota vencida e planos críticos</div></div>'
+    + '<div class="aci cr"><div class="acl">Planos Críticos</div><div class="acv cr">' + nCrit + '</div><div class="acd">óleo motor · câmbio · diferencial</div></div>'
+    + '<div class="aci ' + (nVeicCrit ? "cr" : "") + '"><div class="acl">Veíc. c/ Crítico</div><div class="acv ' + (nVeicCrit ? "cr" : "") + '">' + nVeicCrit + '</div><div class="acd">veículo' + (nVeicCrit !== 1 ? "s" : "") + ' com item crítico vencido</div></div>'
+    + '<div class="aci wn"><div class="acl">Maior Percentual</div><div class="acv wn">' + (maiorAtraso !== null ? (Math.round(maiorAtraso) + "%") : "—") + '</div><div class="acd">% acima do intervalo do plano</div></div>'
+    + '<div class="aci cr"><div class="acl">Total Planos Vencidos</div><div class="acv cr">' + nV + '</div><div class="acd">já ultrapassaram o intervalo</div></div>'
+    + '<div class="aci wn"><div class="acl">Lim. Superior</div><div class="acv wn">' + nS + '</div><div class="acd">no limite, ainda não vencidos</div></div>'
+    + '</div>'
+    + '</div>';
+
+  const uOindHtml = '<div class="oind-wrap">'
+    + '<div class="oind-t">Indicadores por Tipo · ' + escapeHtml(nome) + '</div>'
+    + '<div class="oind-d">planos vencidos/no limite desta unidade, por tipo de serviço</div>'
+    + manutOilIndicatorsHtml(allItems)
+    + '</div>';
+
+  const veiculosOrdenados = veiculos.slice().sort(function(a,b){
+    const av = a.items.some(function(i){ return i.status === "vencido"; }) ? 0 : 1;
+    const bv = b.items.some(function(i){ return i.status === "vencido"; }) ? 0 : 1;
+    if(av !== bv) return av - bv;
+    return b.items.length - a.items.length;
+  });
+  const vlistHtml = veiculosOrdenados.map(function(v){
+    const veicLabel = (v.veiculoRaw || "").split("/").pop().trim();
+    return manutVehicleRowHtml(veicLabel, nome, v.items);
   }).join("");
-  return '<div class="table-wrap"><table><thead><tr><th>Plano</th><th>Intervalo</th><th>Última manut.</th><th>Excedente</th><th>%</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  const uCatPillsHtml = '<div class="filter-bar u-filter-bar"><div class="filter-group">'
+    + '<span class="filter-group-label">Tipo de Plano</span>'
+    + '<button type="button" class="pill active" data-manut-cat="all">Todos</button>'
+    + MANUT_CAT_ORDER.map(function(cat){ return '<button type="button" class="pill" data-manut-cat="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</button>'; }).join("")
+    + '</div><span class="filter-count" id="manutprv-cat-count"></span></div>';
+
+  return '<div class="mpb">'
+    + uheroHtml + exportHtml + ustHtml + rngFrotaUHtml + rngHtml + analiseHtml + uOindHtml
+    + '<div class="vhdr"><h3>Veículos da Unidade</h3><span class="vcnt">' + nVeic + ' veículo' + (nVeic !== 1 ? "s" : "") + '</span></div>'
+    + uCatPillsHtml
+    + '<input type="text" class="usearch" id="manutprv-usearch" placeholder="Buscar por ordem/prefixo do veículo...">'
+    + '<div class="vlist">' + (vlistHtml || '<p class="hint">Nenhum veículo com plano vencido ou no limite nesta unidade.</p>') + '</div>'
+    + '</div>';
+}
+
+// Filtro de categoria + busca dentro do cartão do boletim (equivalente a setCat/applyCatFilter
+// do HTML de referência, simplificado — sem o filtro por marco de km da cascata, que não foi
+// portado nesta versão).
+let manutCurCat = "all";
+function manutApplyCatFilter(container){
+  container.querySelectorAll("[data-manut-cat]").forEach(function(b){
+    b.classList.toggle("active", b.dataset.manutCat === manutCurCat);
+  });
+  const searchEl = container.querySelector("#manutprv-usearch");
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : "";
+  const rows = container.querySelectorAll(".venc-vrow");
+  let shown = 0;
+  rows.forEach(function(row){
+    const cats = (row.dataset.cats || "").split(",");
+    const catOk = manutCurCat === "all" || cats.indexOf(manutCurCat) !== -1;
+    const searchOk = !q || (row.dataset.search || "").indexOf(q) !== -1;
+    const visible = catOk && searchOk;
+    row.hidden = !visible;
+    if(visible) shown++;
+  });
+  const cEl = container.querySelector("#manutprv-cat-count");
+  if(cEl) cEl.textContent = (manutCurCat === "all" && !q) ? "" : ("Mostrando " + shown + " de " + rows.length + " veículos nesta unidade");
+}
+
+// Exportação do boletim de 1 unidade como HTML (download) ou PDF (imprimir) — mesma técnica do
+// HTML de referência (clona o cartão, remove o que só faz sentido na tela — exportar/busca/
+// pills —, força os veículos abertos, e monta um documento standalone com CSS de impressão
+// próprio), com o cabeçalho/rodapé trocados para identificar o Painel Controladoria em vez de
+// datas fixas do arquivo original.
+function manutUnidadeStandaloneDoc(ck, d){
+  const info = d.porUnidade[ck] || { label: ck };
+  const title = titleCaseUnidade(info.label || ck);
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = manutBuildUnidadeCard(ck, d);
+  const root = wrapper.firstElementChild;
+  const exportBar = root.querySelector(".usec-export");
+  if(exportBar) exportBar.remove();
+  const searchBox = root.querySelector(".usearch");
+  if(searchBox) searchBox.remove();
+  const pillBar = root.querySelector(".u-filter-bar");
+  if(pillBar) pillBar.remove();
+  root.querySelectorAll(".venc-vrow").forEach(function(row){ row.setAttribute("open", ""); });
+
+  const geradoEm = new Date().toLocaleDateString("pt-BR");
+  const dataRef = (d.resolvedDates && d.resolvedDates[MANUT_PRV_TAB]) ? fmtDateBR(d.resolvedDates[MANUT_PRV_TAB]) : "—";
+  const printHeader = '<div class="pdf-cover"><div class="pdf-cover-l">'
+    + '<div class="pdf-cover-brand"><b>Painel Controladoria</b> · Atlântico Transportes · Manutenção Preventiva</div>'
+    + '<h1>Relatório de Planos Vencidos</h1><div class="pdf-cover-sub">' + escapeHtml(title) + '</div></div>'
+    + '<div class="pdf-cover-r"><span>Dados sincronizados de <b>' + escapeHtml(dataRef) + '</b></span><span>Documento gerado em <b>' + geradoEm + '</b></span></div></div>';
+  const printFooter = '<footer class="pdf-endfoot">Documento gerado em ' + geradoEm + ' pelo Painel Controladoria · Atlântico Transportes · ' + escapeHtml(title) + '</footer>';
+
+  const mpbStyleEl = document.getElementById("manut-boletim-styles");
+  const styleTag = mpbStyleEl ? mpbStyleEl.outerHTML : "";
+  const printCss = '<style>'
+    + '@page{size:A4;margin:11mm 10mm;}'
+    + '*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;box-shadow:none !important;}'
+    + 'body{max-width:1180px;margin:0 auto;padding:16px;background:var(--mpb-paper,#f5f2ea);}'
+    + '.aci,.oind,.usi{break-inside:avoid;page-break-inside:avoid;}'
+    + '.vtab-row{break-inside:avoid;page-break-inside:avoid;}'
+    + '.venc-vrow summary{break-after:avoid;page-break-after:avoid;}'
+    + 'table.plan-table thead{display:table-header-group;}'
+    + '.oind-t{break-after:avoid;page-break-after:avoid;}'
+    + '.vhdr{page-break-before:always;padding-top:2mm;}'
+    + '.plan-table-wrap{overflow-x:visible !important;margin-top:6px;}'
+    + 'table.plan-table{min-width:0 !important;width:100%;table-layout:auto;font-size:8.5px;}'
+    + 'table.plan-table td,table.plan-table thead th{padding:3.5px 5px !important;}'
+    + '.cell-plano{min-width:0 !important;}'
+    + '.vtab-note{font-size:8.5px;}'
+    + '.vrow summary{padding:7px 12px !important;}'
+    + '.venc-vrow{margin-bottom:6px;border-bottom:1px solid var(--mpb-surface-line) !important;}'
+    + '.uhero,.ust,.analise,.oind-wrap{margin-bottom:10px !important;}'
+    + '.pdf-cover{border-bottom:3px double var(--mpb-ink,#0a1f2e);padding-bottom:14px;margin-bottom:22px;}'
+    + '.pdf-cover-brand{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mpb-ink-soft,#7a7a72);margin-bottom:10px;}'
+    + '.pdf-cover-brand b{color:var(--mpb-ink,#0a1f2e);}'
+    + '.pdf-cover h1{font-family:\'Fraunces\',serif;font-weight:700;font-size:26px;letter-spacing:-.01em;color:var(--mpb-ink,#0a1f2e);margin:0 0 4px;}'
+    + '.pdf-cover-sub{font-family:\'Fraunces\',serif;font-style:italic;font-size:16px;color:var(--mpb-ink,#0a1f2e);opacity:.7;margin-bottom:14px;}'
+    + '.pdf-cover-r{display:flex;gap:26px;flex-wrap:wrap;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--mpb-ink-soft,#7a7a72);}'
+    + '.pdf-cover-r b{color:var(--mpb-ink,#0a1f2e);font-family:\'JetBrains Mono\',monospace;letter-spacing:0;text-transform:none;margin-left:4px;}'
+    + '.pdf-endfoot{margin-top:24px;padding-top:10px;border-top:1px solid var(--mpb-surface-line,#cfc9b8);font-size:9.5px;color:var(--mpb-ink-soft,#7a7a72);text-align:center;}'
+    + '</style>';
+
+  return '<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>Relatório · Boletim Preventivo · ' + escapeHtml(title) + '</title>'
+    + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">'
+    + styleTag + printCss
+    + '</head><body>' + printHeader + '<div id="conteudo">' + root.outerHTML + '</div>' + printFooter + '</body></html>';
+}
+async function manutExportUnidadeHTML(ck){
+  try{
+    const data = await getManutData(manutAsOf, false);
+    const doc = manutUnidadeStandaloneDoc(ck, data);
+    const blob = new Blob([doc], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "boletim_preventiva_" + ck + ".html";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }catch(err){
+    alert("Erro ao exportar em HTML: " + err.message);
+  }
+}
+async function manutExportUnidadePDF(ck){
+  try{
+    const data = await getManutData(manutAsOf, false);
+    const doc = manutUnidadeStandaloneDoc(ck, data);
+    const w = window.open("", "_blank");
+    if(!w){ alert("Permita pop-ups nesse site pra exportar em PDF."); return; }
+    w.document.open();
+    w.document.write(doc);
+    w.document.close();
+    w.onload = function(){ setTimeout(function(){ w.focus(); w.print(); }, 450); };
+  }catch(err){
+    alert("Erro ao exportar em PDF: " + err.message);
+  }
 }
 
 let manutAsOf = null;
@@ -3399,85 +3982,60 @@ async function renderManutPreventiva(newAsOf){
   const area = document.getElementById("manutprv-data-area");
   try{
     const d = await getManutData(manutAsOf, newAsOf !== undefined);
+
+    // Unidade efetiva: a selecionada (barra lateral secundária ou dropdown) ou, na ausência de
+    // seleção, a unidade com mais veículos com pendência — mesmo critério da barra lateral — pra
+    // que o boletim sempre mostre alguma unidade, igual ao HTML de referência (que também sempre
+    // parte de uma unidade ativa, nunca de uma visão "todas").
+    if(manutUnidadeFiltro && !d.porUnidade[manutUnidadeFiltro]) manutUnidadeFiltro = null;
+    let ck = manutUnidadeFiltro;
+    if(!ck){
+      const ranked = Object.keys(d.porUnidade).map(function(k){ return Object.assign({ cidadeKey:k }, d.porUnidade[k]); })
+        .filter(function(u){ return u.veiculosComPendencia > 0; })
+        .sort(function(a,b){ return b.veiculosComPendencia - a.veiculosComPendencia; });
+      ck = ranked.length ? ranked[0].cidadeKey : null;
+    }
+    manutUnidadeFiltro = ck;
+    sidebarSecondaryUnidadeFiltro = ck;
     renderSidebarSecondaryUnidades();
 
     const unidadeLabelOptions = d.unidadesFiltro.map(function(u){ return u.label; });
-    const currentUnidadeInfo = manutUnidadeFiltro ? d.porUnidade[manutUnidadeFiltro] : null;
-    if(manutUnidadeFiltro && !currentUnidadeInfo) manutUnidadeFiltro = null;
+    const currentUnidadeInfo = ck ? d.porUnidade[ck] : null;
 
     let html = unidadeFilterHtml("manutprv", unidadeLabelOptions, currentUnidadeInfo ? currentUnidadeInfo.label : null);
-    if(currentUnidadeInfo){
-      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(titleCaseUnidade(currentUnidadeInfo.label)) + '</b>.</p>';
+
+    if(!ck || !currentUnidadeInfo){
+      html += '<p class="hint">Nenhum veículo com plano vencido ou no limite no momento.</p>';
+    } else {
+      html += manutBuildUnidadeCard(ck, d);
     }
 
-    const veiculos = Object.keys(d.porVeiculo).map(function(vk){ return Object.assign({ vKey: vk }, d.porVeiculo[vk]); })
-      .filter(function(v){ return !manutUnidadeFiltro || v.cidadeKey === manutUnidadeFiltro; });
-    const veiculosVencido = veiculos.filter(function(v){ return v.hasVencido; });
-    const veiculosSoLimite = veiculos.filter(function(v){ return !v.hasVencido && v.hasLimite; });
-    const totalItensVencido = veiculos.reduce(function(s,v){ return s + v.items.filter(function(i){ return i.status==="vencido"; }).length; }, 0);
-    const totalItensLimite = veiculos.reduce(function(s,v){ return s + v.items.filter(function(i){ return i.status==="limite"; }).length; }, 0);
-
-    html += '<div class="kpi-grid">'
-      + kpiCard("Veículos com pendência", fmtNum(veiculos.length), veiculos.length ? "warning" : "good")
-      + kpiCard("— com item vencido", fmtNum(veiculosVencido.length), veiculosVencido.length ? "critical" : "good")
-      + kpiCard("— só no limite", fmtNum(veiculosSoLimite.length), "info")
-      + kpiCard("Itens vencidos", fmtNum(totalItensVencido), "info")
-      + kpiCard("Itens no limite", fmtNum(totalItensLimite), "info")
-      + '</div>';
-
-    const grupos = {};
-    veiculos.forEach(function(v){
-      const ck = v.cidadeKey || "__sem_unidade__";
-      if(!grupos[ck]) grupos[ck] = { label: v.unidadeLabel || "Sem unidade identificada", veiculos: [] };
-      grupos[ck].veiculos.push(v);
-    });
-    const gruposOrdenados = Object.keys(grupos).map(function(ck){ return grupos[ck]; }).sort(function(a,b){ return b.veiculos.length - a.veiculos.length; });
-
-    if(!gruposOrdenados.length){
-      html += '<p class="hint">Nenhum veículo com plano vencido ou no limite' + (currentUnidadeInfo ? " nesta unidade" : "") + '.</p>';
-    }
-    gruposOrdenados.forEach(function(g, gi){
-      html += '<div class="subsection"><h3>' + escapeHtml(titleCaseUnidade(g.label)) + ' <span class="hint" style="font-weight:400;display:inline;">(' + g.veiculos.length + ' veículo(s))</span></h3>';
-      html += '<div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Vencidos</th><th>No limite</th><th>Itens</th></tr></thead><tbody>';
-      g.veiculos.slice().sort(function(a,b){
-        const av = a.items.filter(function(i){ return i.status==="vencido"; }).length, bv = b.items.filter(function(i){ return i.status==="vencido"; }).length;
-        return bv - av;
-      }).forEach(function(v, idx){
-        const nv = v.items.filter(function(i){ return i.status==="vencido"; }).length;
-        const nl = v.items.filter(function(i){ return i.status==="limite"; }).length;
-        const rowId = "manutprv-v-" + gi + "-" + idx;
-        html += '<tr><td><button type="button" class="os-link" data-manut-toggle="' + rowId + '">' + escapeHtml(v.veiculoRaw) + '<span class="os-caret">▾</span></button></td>'
-          + '<td>' + (nv ? '<span class="badge b-critical">' + nv + '</span>' : '0') + '</td>'
-          + '<td>' + (nl ? '<span class="badge b-warning">' + nl + '</span>' : '0') + '</td>'
-          + '<td>' + fmtNum(v.items.length) + '</td></tr>';
-        html += '<tr class="os-detail-row" data-manut-detail="' + rowId + '" style="display:none;"><td colspan="4">' + manutVehicleDetailTable(v) + '</td></tr>';
-      });
-      html += '</tbody></table></div></div>';
-    });
-
-    html += legendBox("Como ler esse painel", [
-      { label:"Vencido", desc:"o item de plano já passou do intervalo previsto (km ou dias) sem ser feito." },
-      { label:"No limite", desc:"o item está se aproximando do intervalo previsto (limite inferior/superior) — ainda não venceu, mas está no radar." },
-      { label:"Itens", desc:"um mesmo veículo pode ter vários itens de plano pendentes ao mesmo tempo (troca de óleo, filtros etc.) — cada um conta separadamente; clique no veículo para ver o detalhe." },
-    ]);
     html += '<div class="section-footer">' + srcNote(MANUT_PRV_TAB + " (planos por veículo), " + MANUT_VEIC_TAB + " (vínculo veículo → unidade)") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
-    enableSortableTables(area);
+
     wireUnidadeFilter("manutprv", function(v){
       const found = d.unidadesFiltro.find(function(u){ return u.label === v; });
       manutUnidadeFiltro = found ? found.cidadeKey : null;
       renderManutPreventiva();
     });
-    area.querySelectorAll("[data-manut-toggle]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        const row = area.querySelector('[data-manut-detail="' + btn.dataset.manutToggle + '"]');
-        if(!row) return;
-        const showing = row.style.display !== "none";
-        row.style.display = showing ? "none" : "table-row";
-        btn.classList.toggle("open", !showing);
+
+    if(ck && currentUnidadeInfo){
+      manutCurCat = "all";
+      manutApplyCatFilter(area);
+      area.querySelectorAll("[data-manut-cat]").forEach(function(btn){
+        btn.addEventListener("click", function(){ manutCurCat = btn.dataset.manutCat; manutApplyCatFilter(area); });
       });
-    });
+      const searchEl = area.querySelector("#manutprv-usearch");
+      if(searchEl) searchEl.addEventListener("input", function(){ manutApplyCatFilter(area); });
+      area.querySelectorAll("[data-manut-export]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          const exportCk = btn.dataset.ck;
+          if(btn.dataset.manutExport === "pdf") manutExportUnidadePDF(exportCk);
+          else manutExportUnidadeHTML(exportCk);
+        });
+      });
+    }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Preventiva: ' + escapeHtml(err.message) + '</p>';
   }
@@ -5433,8 +5991,6 @@ async function renderAbastecimentoPanel(){
     emptyState.innerHTML = '<p>Erro ao carregar Abastecimento: ' + escapeHtml(err.message) + '</p>';
   }
 }
-document.getElementById('abastRefreshBtn').addEventListener('click', function(){ renderAbastecimentoPanel(); });
-
 function renderKpis(){
   const total = STATE.globalAllList.length;
   const fora = STATE.globalForaList.length;
