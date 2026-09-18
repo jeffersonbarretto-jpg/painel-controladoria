@@ -3712,6 +3712,7 @@ async function renderRetencao(newAsOf){
     const full = await getRetencaoData(retencaoAsOf, newAsOf !== undefined);
     const unidadesTodas = Array.from(new Set(full.rowsAll.map(function(r){ return r.oficina; }))).sort();
     if(retencaoUnidadeFiltro && unidadesTodas.indexOf(retencaoUnidadeFiltro) === -1) retencaoUnidadeFiltro = null;
+    renderSidebarSecondaryUnidades(); // mantém a lista de unidades da barra lateral sincronizada com o filtro atual
     const d = retencaoUnidadeFiltro
       ? Object.assign(computeRetencaoAggregates(full.rowsAll.filter(function(r){ return r.oficina === retencaoUnidadeFiltro; })), { resolvedDates: full.resolvedDates })
       : full;
@@ -4680,7 +4681,6 @@ async function renderManutPreventiva(newAsOf){
       ck = ranked.length ? ranked[0].cidadeKey : null;
     }
     manutUnidadeFiltro = ck;
-    sidebarSecondaryUnidadeFiltro = ck;
     renderSidebarSecondaryUnidades();
 
     const unidadeLabelOptions = d.unidadesFiltro.map(function(u){ return u.label; });
@@ -4727,10 +4727,68 @@ async function renderManutPreventiva(newAsOf){
 
 // ---------- barra lateral secundária (Unidades) ----------
 // Componente genérico pensado pra ser reaproveitado por outros módulos (Telemetria, Pneus etc.)
-// mais adiante — por enquanto só o grupo Manutenção o alimenta, sempre com a pendência de
-// Preventiva (é a métrica mais direta pra badge de unidade; Retenção/Visão Macro não têm filtro
-// de unidade próprio nesta primeira versão, então um clique nelas manda pra Preventiva filtrada).
-let sidebarSecondaryUnidadeFiltro = null;
+// mais adiante. Dentro de Manutenção, cada seção que tem filtro de unidade próprio mostra a SUA
+// própria lista (Preventiva: veículos com pendência; Retenção: O.S. abertas) — clicar numa unidade
+// filtra a seção em que você já está, sem pular pra outra. Pedido explícito do Jefferson: antes,
+// clicar numa unidade em Retenção "voltava pra Preventiva" (era um fallback deliberado da primeira
+// versão, quando só Preventiva tinha filtro próprio). Visão Macro ainda não tem filtro de unidade
+// próprio, então continua mostrando a lista de Preventiva e pulando pra lá no clique.
+async function renderSidebarSecondaryUnidades(){
+  const aside = document.getElementById("sidebar-secondary");
+  if(!aside || !aside.classList.contains("open")) return;
+  const activeSection = document.querySelector(".section.active");
+  const sid = activeSection ? activeSection.id : "";
+  try{
+    if(sid === "sec-manut-retencao"){
+      const full = await getRetencaoData(retencaoAsOf, false);
+      const counts = {};
+      full.rows.forEach(function(r){ counts[r.oficina] = (counts[r.oficina]||0) + 1; });
+      const items = Object.keys(counts).map(function(of){ return { key: of, label: of, count: counts[of] }; })
+        .sort(function(a,b){ return b.count - a.count; });
+      sidebarSecondaryRenderList(aside, items, retencaoUnidadeFiltro, "Sem O.S. em aberto.", function(key){
+        retencaoUnidadeFiltro = (retencaoUnidadeFiltro === key) ? null : key;
+        renderRetencao();
+      });
+      return;
+    }
+    // Preventiva e Visão Macro usam a lista de pendência de Preventiva (mesma fonte de sempre).
+    const d = await getManutData(manutAsOf, false);
+    const rows = Object.keys(d.porUnidade).map(function(ck){ return Object.assign({ cidadeKey: ck }, d.porUnidade[ck]); })
+      .filter(function(r){ return r.veiculosComPendencia > 0; })
+      .sort(function(a,b){ return b.veiculosComPendencia - a.veiculosComPendencia; });
+    const items = rows.map(function(r){ return { key: r.cidadeKey, label: titleCaseUnidade(r.label), count: r.veiculosComPendencia }; });
+    sidebarSecondaryRenderList(aside, items, manutUnidadeFiltro, "Sem pendências de Preventiva.", function(key){
+      manutUnidadeFiltro = key;
+      if(sid === "sec-manut-preventiva"){
+        renderManutPreventiva();
+      } else if(key){
+        activateSection("manut-preventiva");
+        renderManutPreventiva();
+      } else {
+        renderSidebarSecondaryUnidades();
+      }
+    });
+  }catch(err){
+    aside.innerHTML = '<div class="sec2-label">Unidades</div><div class="sec2-empty">Erro ao carregar.</div>';
+  }
+}
+// Desenha a lista + liga o clique — usado tanto pela lista de Preventiva quanto pela de Retenção,
+// cada uma passando seus próprios itens/chave-ativa/callback (mesmo HTML/CSS sec2-*, dados independentes).
+function sidebarSecondaryRenderList(aside, items, activeKey, emptyMsg, onToggle){
+  const itemsHtml = items.length ? items.map(function(r){
+    return '<button type="button" class="sec2-item' + (activeKey === r.key ? " active" : "") + '" data-key="' + escapeHtml(r.key) + '">'
+      + '<span class="sec2-nm">' + escapeHtml(r.label) + '</span>'
+      + '<span class="sec2-badge">' + fmtNum(r.count) + '</span>'
+      + '</button>';
+  }).join("") : '<div class="sec2-empty">' + emptyMsg + '</div>';
+  aside.innerHTML = '<div class="sec2-label">Unidades <span class="sec2-count">' + items.length + '</span></div><div class="sec2-list">' + itemsHtml + '</div>';
+  aside.querySelectorAll(".sec2-item").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      const key = btn.dataset.key;
+      onToggle((activeKey === key) ? null : key);
+    });
+  });
+}
 function updateSidebarSecondary(section){
   const aside = document.getElementById("sidebar-secondary");
   if(!aside) return;
@@ -4740,42 +4798,6 @@ function updateSidebarSecondary(section){
     return;
   }
   aside.classList.add("open");
-  renderSidebarSecondaryUnidades();
-}
-async function renderSidebarSecondaryUnidades(){
-  const aside = document.getElementById("sidebar-secondary");
-  if(!aside || !aside.classList.contains("open")) return;
-  try{
-    const d = await getManutData(manutAsOf, false);
-    const rows = Object.keys(d.porUnidade).map(function(ck){ return Object.assign({ cidadeKey: ck }, d.porUnidade[ck]); })
-      .filter(function(r){ return r.veiculosComPendencia > 0; })
-      .sort(function(a,b){ return b.veiculosComPendencia - a.veiculosComPendencia; });
-    const itemsHtml = rows.length ? rows.map(function(r){
-      return '<button type="button" class="sec2-item' + (sidebarSecondaryUnidadeFiltro === r.cidadeKey ? " active" : "") + '" data-cidade-key="' + escapeHtml(r.cidadeKey) + '">'
-        + '<span class="sec2-nm">' + escapeHtml(titleCaseUnidade(r.label)) + '</span>'
-        + '<span class="sec2-badge">' + fmtNum(r.veiculosComPendencia) + '</span>'
-        + '</button>';
-    }).join("") : '<div class="sec2-empty">Sem pendências de Preventiva.</div>';
-    aside.innerHTML = '<div class="sec2-label">Unidades <span class="sec2-count">' + rows.length + '</span></div><div class="sec2-list">' + itemsHtml + '</div>';
-    aside.querySelectorAll(".sec2-item").forEach(function(btn){
-      btn.addEventListener("click", function(){ onSidebarSecondaryUnidadeClick(btn.dataset.cidadeKey); });
-    });
-  }catch(err){
-    aside.innerHTML = '<div class="sec2-label">Unidades</div><div class="sec2-empty">Erro ao carregar.</div>';
-  }
-}
-function onSidebarSecondaryUnidadeClick(ck){
-  sidebarSecondaryUnidadeFiltro = (sidebarSecondaryUnidadeFiltro === ck) ? null : ck;
-  const activeSection = document.querySelector(".section.active");
-  const sid = activeSection ? activeSection.id : "";
-  if(sid === "sec-manut-preventiva"){
-    manutUnidadeFiltro = sidebarSecondaryUnidadeFiltro;
-    renderManutPreventiva();
-  } else if(sidebarSecondaryUnidadeFiltro){
-    manutUnidadeFiltro = sidebarSecondaryUnidadeFiltro;
-    activateSection("manut-preventiva");
-    renderManutPreventiva();
-  }
   renderSidebarSecondaryUnidades();
 }
 
