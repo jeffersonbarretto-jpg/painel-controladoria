@@ -544,6 +544,184 @@
   .mpb .sit-tag{ font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.03em; white-space:nowrap; }
   .mpb .sit-tag.sit-vencido{ color:var(--mpb-crit); }
   .mpb .sit-tag.sit-limite{ color:var(--mpb-warn); }
+
+  /* =====================================================================
+     Visão Macro ("Panorama Geral") — mesmo porte 1:1 do resto do .mpb: KPI
+     strip, Ranking de Unidades, Matriz Categorias×Unidades, Frota por
+     Unidade e Cascata de Manutenção por Km, todos escopados sob .mpb.
+     --mpb-info é novo aqui (o resto da paleta já existia) porque o HTML de
+     referência usa uma 5ª cor (azul-marinho) só nesses widgets do Panorama;
+     a versão escura segue o mesmo critério das outras (clareada pro fundo
+     escuro) das demais variáveis --mpb-*. */
+  .mpb{ --mpb-info:#1e3a5f; }
+  :root:not([data-theme="light"]) .mpb, :root[data-theme="dark"] .mpb{ --mpb-info:#6f9bd1; }
+
+  .mpb .pg-kbar{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--mpb-surface-line); border:1px solid var(--mpb-surface-line); margin-bottom:22px; border-radius:8px; overflow:hidden; }
+  @media (max-width:760px){ .mpb .pg-kbar{ grid-template-columns:repeat(2,1fr); } }
+  .mpb .pg-kpi{ background:var(--mpb-ink); color:var(--mpb-brand-ink); padding:14px 16px; }
+  .mpb .pg-kpi .kpi-l{ font-size:9.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--mpb-ink-soft); margin-bottom:6px; }
+  .mpb .pg-kpi .kpi-v{ font-family:'JetBrains Mono',monospace; font-size:23px; font-weight:600; }
+  .mpb .pg-kpi.al .kpi-v{ color:#ff8a80; }
+  .mpb .pg-kpi.wn .kpi-v{ color:var(--mpb-gold); }
+
+  .mpb .pg-section-t{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; margin:0 0 10px; color:var(--mpb-ink); }
+
+  .mpb .pano-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  @media (max-width:900px){ .mpb .pano-grid{ grid-template-columns:1fr; } }
+  .mpb .pano-card{ background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); padding:16px 18px; border-radius:8px; }
+  .mpb .pano-card-top-row{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+  .mpb .pano-card-t{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; color:var(--mpb-ink); margin-bottom:3px; letter-spacing:-.005em; }
+  .mpb .pano-card-d{ font-size:10.5px; color:var(--mpb-ink-soft); font-style:italic; margin-bottom:12px; }
+
+  .mpb .rk-list{ max-height:420px; overflow-y:auto; }
+  .mpb .rk-row{ display:grid; grid-template-columns:26px 1fr auto auto; gap:10px; align-items:center; padding:6px 0; border-bottom:1px solid var(--mpb-surface-line); font-size:12px; }
+  .mpb .rk-row:last-child{ border-bottom:none; }
+  .mpb .rk-pos{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--mpb-ink-soft); }
+  .mpb .rk-row.top .rk-pos{ color:var(--mpb-crit); }
+  .mpb .rk-nm{ font-weight:600; color:var(--mpb-ink); font-size:11.5px; }
+  .mpb .rk-bar{ height:5px; background:var(--mpb-surface-2); width:90px; position:relative; border-radius:3px; overflow:hidden; }
+  .mpb .rk-bf{ position:absolute; inset:0; background:var(--mpb-info); }
+  .mpb .rk-row.top .rk-bf{ background:var(--mpb-crit); }
+  .mpb .rk-p{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; min-width:44px; text-align:right; color:var(--mpb-ink); }
+  .mpb .rk-row.top .rk-p{ color:var(--mpb-crit); }
+
+  .mpb .mtz-w{ overflow-x:auto; }
+  .mpb table.mtz{ width:100%; border-collapse:collapse; font-size:10px; font-family:'JetBrains Mono',monospace; }
+  .mpb table.mtz th, .mpb table.mtz td{ padding:6px 4px; text-align:center; border:1px solid var(--mpb-surface-line); }
+  .mpb table.mtz thead th{ background:var(--mpb-ink); color:var(--mpb-brand-ink); font-family:'Inter Tight',sans-serif; font-size:8px; letter-spacing:.05em; text-transform:uppercase; font-weight:600; writing-mode:vertical-rl; transform:rotate(180deg); padding:9px 3px; white-space:nowrap; min-width:20px; }
+  .mpb table.mtz thead th.cc{ writing-mode:horizontal-tb; transform:none; text-align:left; padding:6px 9px; min-width:120px; }
+  .mpb table.mtz thead th.tc{ writing-mode:horizontal-tb; transform:none; background:var(--mpb-ok); min-width:38px; }
+  .mpb table.mtz td.cl{ text-align:left; font-family:'Inter Tight',sans-serif; font-weight:600; font-size:10px; padding:6px 9px; background:var(--mpb-surface); }
+  .mpb table.mtz tr.crit td.cl{ background:var(--mpb-crit-bg); color:var(--mpb-crit); }
+  .mpb table.mtz tr.crit td:not(.cl){ background:var(--mpb-crit-bg); }
+  .mpb table.mtz td.tc{ background:var(--mpb-ok-bg); font-weight:700; color:var(--mpb-ok); }
+  .mpb table.mtz tr.trow td{ background:var(--mpb-ink); color:var(--mpb-brand-ink); font-weight:700; font-size:10px; }
+  .mpb table.mtz tr.trow td.tc{ background:var(--mpb-ok); color:var(--mpb-brand-ink); }
+  .mpb table.mtz td.zero{ color:var(--mpb-ink-soft); opacity:.55; }
+
+  .mpb table.ftbl td.cell-num, .mpb table.ftbl th{ text-align:right; }
+  .mpb table.ftbl th:first-child, .mpb table.ftbl td:first-child{ text-align:left; }
+  .mpb tr.ftbl-total td{ font-weight:700; background:var(--mpb-surface-2); border-top:2px solid var(--mpb-ink); }
+
+  .mpb .cf-wrap{ background:var(--mpb-surface); border:1px solid var(--mpb-surface-line); padding:16px 18px; margin-bottom:18px; border-radius:8px; }
+  .mpb .cf-t{ font-family:'Fraunces',serif; font-weight:700; font-size:15px; color:var(--mpb-ink); margin-bottom:3px; letter-spacing:-.005em; }
+  .mpb .cf-d{ font-size:10.5px; color:var(--mpb-ink-soft); font-style:italic; margin-bottom:14px; }
+  .mpb .cascflow{ display:flex; align-items:stretch; gap:6px; overflow-x:auto; padding-bottom:4px; }
+  .mpb .cf-node{ flex:1 1 150px; min-width:150px; background:var(--mpb-surface-2); border:1px solid var(--mpb-surface-line); border-top:3px solid var(--mpb-crit); padding:10px 12px; border-radius:0 0 4px 4px; }
+  .mpb .cf-node.empty{ border-top-color:var(--mpb-surface-line); opacity:.6; }
+  .mpb .cf-km{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:16px; color:var(--mpb-ink); }
+  .mpb .cf-anchor{ font-size:9.5px; color:var(--mpb-ink-soft); line-height:1.35; margin:4px 0 8px; min-height:27px; }
+  .mpb .cf-counts{ display:flex; flex-direction:column; gap:2px; font-size:11px; font-weight:600; }
+  .mpb .cf-v{ color:var(--mpb-crit); }
+  .mpb .cf-l{ color:var(--mpb-warn); }
+  .mpb .cf-node.empty .cf-v, .mpb .cf-node.empty .cf-l{ color:var(--mpb-ink-soft); }
+  .mpb .cf-cum{ font-size:9px; color:var(--mpb-ink-soft); margin-top:8px; padding-top:6px; border-top:1px dashed var(--mpb-surface-line); }
+  .mpb .cf-arrow{ flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--mpb-ink-soft); padding:0 2px; }
+  .mpb .cf-arrow-outros{ opacity:.6; }
+  .mpb .cf-note{ font-size:10px; color:var(--mpb-ink-soft); font-style:italic; margin-top:10px; }
+  .mpb .cf-codes{ display:flex; flex-direction:column; gap:2px; margin-top:8px; padding-top:8px; border-top:1px solid var(--mpb-surface-line); }
+  .mpb .cf-code-row{ font-size:9.5px; color:var(--mpb-ink-soft); display:flex; align-items:baseline; gap:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mpb .cf-code-row .chip-code{ flex-shrink:0; }
+  .mpb .cf-code-row b{ margin-left:auto; flex-shrink:0; font-weight:700; }
+  .mpb .cf-code-more{ font-style:italic; }
+  .mpb .cf-node.cf-outros{ border-top-color:var(--mpb-ink-soft); }
+  .mpb .cf-node.cf-outros.empty{ opacity:.5; }
+  @media (max-width:760px){ .mpb .cascflow{ flex-direction:column; overflow-x:visible; } .mpb .cf-arrow{ transform:rotate(90deg); padding:2px 0; } }
+
+  /* ============================================================
+     .rtb — Retenção Boletim: porte visual do boletim de Retenção de
+     referência (Panorama + Mapa do Brasil) para dentro da aba Retenção.
+     Identidade própria (navy/creme/ciano), tipografia reaproveitada do
+     site (Fraunces/Inter Tight/JetBrains Mono) em vez de carregar fonte
+     nova — mesma lógica de "paleta própria" já usada em .mpb, mas com
+     tokens --rtb-* independentes (nenhuma variável --mpb-* é lida aqui). */
+  .rtb{
+    --rtb-ink:#1a1d2e; --rtb-ink-soft:#8a96a8; --rtb-paper:#f0ece3; --rtb-surface:#fff;
+    --rtb-surface-2:#e8e3d8; --rtb-surface-line:#d4cfc4;
+    --rtb-navy:#0d1f35; --rtb-navy2:#1b3a5c; --rtb-cyan:#00b8d4;
+    --rtb-crit:#c0392b; --rtb-crit2:#dc2626; --rtb-warn:#e8a94a; --rtb-ok:#4aae8a;
+    --rtb-crit-bg:#fbeae9; --rtb-warn-bg:#faf0dd; --rtb-ok-bg:#e3f3ec;
+    background:var(--rtb-paper); color:var(--rtb-ink); font-family:'Inter Tight',sans-serif;
+    border-radius:8px; padding:16px; margin-bottom:16px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .rtb{
+      --rtb-ink:#e7e5e0; --rtb-ink-soft:#7c8592; --rtb-paper:#161b24; --rtb-surface:#1f2530;
+      --rtb-surface-2:#1c2230; --rtb-surface-line:#323a48;
+      --rtb-crit-bg:rgba(192,57,43,.18); --rtb-warn-bg:rgba(232,169,74,.16); --rtb-ok-bg:rgba(74,174,138,.16);
+    }
+  }
+  :root[data-theme="dark"] .rtb{
+    --rtb-ink:#e7e5e0; --rtb-ink-soft:#7c8592; --rtb-paper:#161b24; --rtb-surface:#1f2530;
+    --rtb-surface-2:#1c2230; --rtb-surface-line:#323a48;
+    --rtb-crit-bg:rgba(192,57,43,.18); --rtb-warn-bg:rgba(232,169,74,.16); --rtb-ok-bg:rgba(74,174,138,.16);
+  }
+  .rtb h1,.rtb h3{ font-family:'Fraunces',serif; font-weight:700; letter-spacing:-.01em; }
+  .rtb .rtb-title{ font-family:'Fraunces',serif; font-weight:700; font-size:17px; color:var(--rtb-ink); margin-bottom:2px; letter-spacing:-.005em; }
+  .rtb .rtb-sub{ font-size:11.5px; color:var(--rtb-ink-soft); font-style:italic; margin-bottom:14px; }
+
+  .rtb .rtb-strip{ background:var(--rtb-navy); border-radius:8px; padding:16px 18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); column-gap:16px; row-gap:14px; margin-bottom:16px; }
+  .rtb .rtb-si{ min-width:0; }
+  .rtb .rtb-sl{ font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.45); margin-bottom:4px; }
+  .rtb .rtb-sv{ font-family:'Fraunces',serif; font-size:24px; font-weight:700; line-height:1; color:rgba(255,255,255,.55); }
+  .rtb .rtb-sv.red{ color:var(--rtb-crit2); } .rtb .rtb-sv.amber{ color:var(--rtb-warn); } .rtb .rtb-sv.green{ color:var(--rtb-ok); } .rtb .rtb-sv.white{ color:#fff; } .rtb .rtb-sv.neutral{ color:rgba(255,255,255,.5); }
+
+  .rtb .rtb-dash-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-bottom:16px; }
+  .rtb .rtb-card{ background:var(--rtb-surface); border:1px solid var(--rtb-surface-line); border-radius:8px; padding:14px 16px; }
+  .rtb .rtb-card-t{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--rtb-ink-soft); margin-bottom:10px; }
+  .rtb .rtb-card-f{ font-size:10.5px; color:var(--rtb-ink-soft); margin-top:8px; text-align:center; }
+
+  .rtb .rtb-donut-wrap{ display:flex; justify-content:center; }
+  .rtb .rtb-donut{ width:132px; height:132px; }
+  .rtb .rtb-donut-num{ font-family:'Fraunces',serif; font-size:24px; font-weight:900; fill:var(--rtb-ink); }
+  .rtb .rtb-donut-sub{ font-size:7px; letter-spacing:.05em; fill:var(--rtb-ink-soft); }
+
+  .rtb .rtb-rank-row{ display:grid; grid-template-columns:22px 1fr 90px 34px; align-items:center; gap:8px; padding:5px 0; font-size:11.5px; }
+  .rtb .rtb-rank-row.clickable{ cursor:pointer; border-radius:5px; }
+  .rtb .rtb-rank-row.clickable:hover{ background:var(--rtb-surface-2); }
+  .rtb .rr-pos{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--rtb-ink-soft); text-align:right; }
+  .rtb .rr-nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .rtb .rr-bw{ height:9px; background:var(--rtb-surface-2); border-radius:5px; overflow:hidden; }
+  .rtb .rr-bf{ height:100%; border-radius:5px; background:var(--rtb-navy2); }
+  .rtb .rr-bf.venc{ background:var(--rtb-crit2); }
+  .rtb .rr-ct{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; text-align:right; color:var(--rtb-ink); }
+  .rtb .rr-ct.red{ color:var(--rtb-crit2); }
+
+  .rtb .rtb-compare-row{ display:grid; grid-template-columns:64px 1fr 32px; align-items:center; gap:8px; font-size:11px; padding:5px 0; }
+  .rtb .rtb-compare-bw{ height:14px; background:var(--rtb-surface-2); border-radius:5px; overflow:hidden; }
+  .rtb .rtb-compare-bf{ height:100%; border-radius:5px; }
+  .rtb .rtb-compare-bf.corr{ background:var(--rtb-crit2); } .rtb .rtb-compare-bf.prev{ background:var(--rtb-ok); }
+  .rtb .rtb-compare-val{ font-family:'JetBrains Mono',monospace; font-weight:700; text-align:right; }
+
+  .rtb .rtb-activity{ display:flex; align-items:flex-end; justify-content:space-between; gap:6px; height:76px; padding-top:6px; }
+  .rtb .rtb-activity-col{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .rtb .rtb-activity-bar{ width:100%; max-width:26px; background:var(--rtb-crit2); border-radius:3px 3px 0 0; min-height:2px; }
+  .rtb .rtb-activity-n{ font-family:'JetBrains Mono',monospace; font-size:10.5px; font-weight:700; }
+  .rtb .rtb-activity-lbl{ font-size:8.5px; color:var(--rtb-ink-soft); text-transform:uppercase; }
+
+  .rtb .rtb-indicator{ text-align:center; cursor:pointer; }
+  .rtb .rtb-indicator:hover{ border-color:var(--rtb-cyan); }
+  .rtb .rtb-indicator-num{ font-family:'Fraunces',serif; font-size:30px; font-weight:900; color:var(--rtb-cyan); }
+  .rtb .rtb-indicator-hint{ font-size:10px; color:var(--rtb-ink-soft); margin-top:4px; }
+
+  .rtb .rtb-mapa-row{ display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; }
+  .rtb .rtb-mapa-svg-wrap{ flex:1 1 260px; max-width:340px; }
+  .rtb .rtb-mapa-svg-wrap svg{ width:100%; height:auto; }
+  .rtb .uf-path{ transition:opacity .12s; }
+  .rtb .uf-path.clickable{ cursor:pointer; }
+  .rtb .uf-path.clickable:hover{ opacity:.8; }
+  .rtb .uf-label{ font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; text-anchor:middle; pointer-events:none; }
+  .rtb .rtb-mapa-tiles{ display:flex; gap:10px; margin-top:10px; }
+  .rtb .rtb-mapa-tile{ flex:1; background:var(--rtb-surface-2); border-radius:6px; padding:8px; text-align:center; }
+  .rtb .rtb-mapa-tile-val{ font-family:'Fraunces',serif; font-size:19px; font-weight:700; }
+  .rtb .rtb-mapa-tile-lbl{ font-size:9px; color:var(--rtb-ink-soft); text-transform:uppercase; }
+  .rtb .rtb-mapa-list{ flex:1 1 220px; min-width:200px; }
+  .rtb .rtb-mapa-estado-hdr{ display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .rtb .rtb-btn-voltar{ cursor:pointer; font-size:10.5px; font-weight:700; color:var(--rtb-navy2); background:none; border:1px solid var(--rtb-surface-line); border-radius:5px; padding:4px 9px; }
+  :root[data-theme="dark"] .rtb .rtb-btn-voltar, .rtb .rtb-btn-voltar{ color:var(--rtb-cyan); }
+  .rtb .rtb-mapa-estado-nome{ font-family:'Fraunces',serif; font-weight:700; font-size:14px; }
+  .rtb .rtb-mapa-diag{ font-size:10px; color:var(--rtb-ink-soft); font-style:italic; margin-top:8px; }
+  @media (max-width:640px){ .rtb .rtb-mapa-row{ flex-direction:column; } .rtb .rtb-mapa-svg-wrap{ max-width:none; } }
 </style>
 <style id="abast-styles">
 /* Este bloco não define mais uma paleta/fonte própria — ele só remapeia as
@@ -3086,7 +3264,16 @@ async function getRetencaoData(asOfDate, force){
 
 async function buildRetencaoData(asOfDate){
   const snap = await resolveSnapshotDate(RETENCAO_TAB, asOfDate);
-  const rawRows = await fetchAllRows(RETENCAO_TAB, snap);
+  // As duas buscas abaixo (linhas do snapshot atual + histórico de prazo de N snapshots) são
+  // independentes — rodam em paralelo via Promise.all em vez de uma esperar a outra. Como o
+  // snapshot atual quase sempre está incluído no próprio histórico (buildPrazoHistory busca os
+  // snapshots <= snap), o cache de coalescência do fetchAllRows (mesma tabName+snapshotDate em
+  // voo ao mesmo tempo) acaba reaproveitando essa mesma requisição pras duas, em vez de buscar o
+  // snapshot atual duas vezes.
+  const [rawRows, prazoHistPorOs] = await Promise.all([
+    fetchAllRows(RETENCAO_TAB, snap),
+    buildPrazoHistory(snap),
+  ]);
   // Filtro defensivo: o parser genérico "os_grouped" (compartilhado com O.S Aberta/Fechada - TML,
   // por isso não mexido) pode deixar passar linhas de rodapé/resumo de grupo da planilha (ex.:
   // "Total Inicial: 0" na coluna Veículo, sem número de O.S.) — uma O.S. de verdade sempre tem
@@ -3097,7 +3284,6 @@ async function buildRetencaoData(asOfDate){
   // e, pra cada O.S., detecta quando o valor de prazo extraído da observação mudou de um dia pro
   // outro — sem precisar de nenhuma anotação manual, é só comparar o que já está sincronizado.
   // Fica anexado em cada linha porque independe de qualquer filtro de unidade aplicado depois.
-  const prazoHistPorOs = await buildPrazoHistory(snap);
   rows.forEach(function(r){ r.prazoHistorico = prazoHistPorOs[r.os] || []; });
 
   return Object.assign(computeRetencaoAggregates(rows), {
@@ -3150,9 +3336,27 @@ async function buildPrazoHistory(uptoSnapshot){
   const dateRows = await resp.json();
   const dates = dateRows.map(function(r){ return r.snapshot_date; }).sort(); // ascendente
 
+  // Busca os N snapshots em paralelo (pool de workers, mesmo padrão do fetchAllRowsUncached) em
+  // vez de um de cada vez — com RETENCAO_HISTORY_LOOKBACK_DAYS=30 dias (hoje ~19 snapshots reais
+  // de Oficina - RT), a versão sequencial era um gargalo real: essa função roda em toda abertura
+  // do painel (buildRetencaoData → getRetencaoData, pré-carregado pela Home), somando ~19
+  // requisições de rede uma atrás da outra antes mesmo de desenhar a tela.
+  const rawByDate = new Array(dates.length);
+  const maxConcurrent = 6;
+  let cursor = 0;
+  async function worker(){
+    while(cursor < dates.length){
+      const idx = cursor++;
+      rawByDate[idx] = await fetchAllRows(RETENCAO_TAB, dates[idx]);
+    }
+  }
+  const workers = [];
+  for(let i = 0; i < Math.min(maxConcurrent, dates.length); i++) workers.push(worker());
+  await Promise.all(workers);
+
   const byOs = {}; // os -> [{date, prazo}]
-  for(const d of dates){
-    const raw = await fetchAllRows(RETENCAO_TAB, d);
+  dates.forEach(function(d, idx){
+    const raw = rawByDate[idx] || [];
     raw.forEach(function(row){
       const os = String(row.OS||"").trim();
       if(!os) return;
@@ -3162,7 +3366,7 @@ async function buildPrazoHistory(uptoSnapshot){
       if(!byOs[os]) byOs[os] = [];
       byOs[os].push({ date: d, prazo: prazo });
     });
-  }
+  });
   const histPorOs = {};
   Object.keys(byOs).forEach(function(os){
     const seq = byOs[os];
@@ -3234,6 +3438,270 @@ function buildRetencaoVizItems(rows, groupFieldKey){
     };
   });
 }
+// ============================================================
+// .rtb — Retenção Boletim: porta o Panorama visual + Mapa do Brasil do
+// boletim de Retenção de referência pra dentro da aba Manutenção > Retenção.
+// Mesmo rigor da Visão Macro (.mpb): os números vêm 1:1 do que já é
+// calculado por computeRetencaoAggregates/extrairPrazo/isImpeditivaObs —
+// SEM nenhuma classificação manual/localStorage. O boletim de referência
+// tinha edição manual de impeditiva/anexo/prazo por O.S. (localStorage,
+// por navegador) — isso não faz sentido aqui: o site já auto-detecta
+// impeditiva (palavra-chave na observação) e prazo (texto da observação)
+// direto do Supabase, a cada carga, igual pra todo mundo. Então só o
+// visual (donut, ranking, gráfico de atividade, Mapa do Brasil) é novo;
+// os dados são os mesmos que já alimentam os KPIs/tabelas logo abaixo.
+// ============================================================
+
+// Mapa direto oficina (nome já limpo por cleanOficina) -> {cidade, uf}, construído a partir dos
+// valores reais e atuais de "Oficina" na base (Supabase) — mais simples e mais confiável do que
+// portar a base completa de municípios do boletim de referência (feita pra cobrir o Brasil
+// inteiro; a operação real daqui é só ~10 cidades, quase todas na Bahia). "COMPONENTES" e
+// "REFORMA G3" não têm cidade identificável só pelo nome e ficam de fora do mapa — mesmo
+// comportamento do boletim de referência pra nomes que ele não conseguia resolver.
+const RETB_OFICINA_LOCAL = {
+  "ARACAJU": { cidade: "Aracaju", uf: "SE" },
+  "ARAGUAINA": { cidade: "Araguaína", uf: "TO" },
+  "CAMACARI": { cidade: "Camaçari", uf: "BA" },
+  "ILHEUS": { cidade: "Ilhéus", uf: "BA" },
+  "ITABUNA": { cidade: "Itabuna", uf: "BA" },
+  "JUAZEIRO": { cidade: "Juazeiro", uf: "BA" },
+  "LAURO DE FREITAS": { cidade: "Lauro de Freitas", uf: "BA" },
+  "MORRO DO CHAPEU": { cidade: "Morro do Chapéu", uf: "BA" },
+  "PALMAS": { cidade: "Palmas", uf: "TO" },
+  "PERNAMBUES": { cidade: "Salvador — Pernambués", uf: "BA" },
+  "PETROLINA": { cidade: "Petrolina", uf: "PE" },
+  "POJUCA": { cidade: "Pojuca", uf: "BA" },
+  "REFORMA PALMAS": { cidade: "Palmas", uf: "TO" },
+  "RIO REAL": { cidade: "Rio Real", uf: "BA" },
+  "SALVADOR G3": { cidade: "Salvador", uf: "BA" },
+  "SAO FRANCISCO DO CONDE": { cidade: "São Francisco do Conde", uf: "BA" },
+  "TERCEIROS IGUATEMI": { cidade: "Salvador — Iguatemi", uf: "BA" },
+  "TERCEIROS PALMAS": { cidade: "Palmas", uf: "TO" },
+  "TERCEIROS VDC": { cidade: "Vitória da Conquista", uf: "BA" },
+  "TOCANTINIA": { cidade: "Tocantínia", uf: "TO" },
+  "VITORIA DA CONQUISTA": { cidade: "Vitória da Conquista", uf: "BA" },
+};
+function retbResolveLocal(oficina){
+  return RETB_OFICINA_LOCAL[String(oficina || "").toUpperCase()] || null;
+}
+
+const RETB_BRASIL_VIEWBOX = "0 0 520 520";
+const RETB_UF_NOMES = {"RO":"Rondônia","AC":"Acre","AM":"Amazonas","RR":"Roraima","PA":"Pará","AP":"Amapá","TO":"Tocantins","MA":"Maranhão","PI":"Piauí","CE":"Ceará","RN":"Rio Grande do Norte","PB":"Paraíba","PE":"Pernambuco","AL":"Alagoas","SE":"Sergipe","BA":"Bahia","MG":"Minas Gerais","ES":"Espírito Santo","RJ":"Rio de Janeiro","SP":"São Paulo","PR":"Paraná","SC":"Santa Catarina","RS":"Rio Grande do Sul","MS":"Mato Grosso do Sul","MT":"Mato Grosso","GO":"Goiás","DF":"Distrito Federal"};
+// Malha dos 27 estados (path SVG + rótulo cx/cy), copiada 1:1 do boletim de referência —
+// dado geográfico literal, não precisa (nem deve) ser redesenhado.
+const RETB_BRASIL_ESTADOS_SVG = {"AC":{"nome":"Acre","path":"M99.0,203.3 L81.8,195.9 L74.4,192.5 L66.3,188.3 L54.7,181.9 L47.6,180.3 L26.2,175.3 L12.0,168.7 L13.1,171.5 L10.0,171.9 L10.3,174.9 L13.4,177.1 L12.8,179.5 L14.7,181.7 L15.3,184.5 L18.5,186.2 L18.4,187.9 L20.1,188.8 L22.8,193.7 L19.4,198.2 L25.5,198.2 L30.2,199.4 L32.7,204.1 L32.2,205.7 L42.2,205.7 L44.2,205.3 L46.9,203.3 L52.3,198.4 L51.5,203.4 L51.6,218.5 L56.8,219.2 L59.8,217.6 L62.5,218.2 L66.5,217.6 L72.8,218.8 L75.2,220.4 L81.2,218.0 L83.8,214.1 L87.8,214.8 L89.2,212.2 L92.6,209.8 L94.2,210.1 L101.3,204.3 L99.0,203.3 Z","cx":49.6,"cy":198.2},"AL":{"nome":"Alagoas","path":"M492.2,191.8 L487.6,190.5 L484.7,191.8 L482.7,191.1 L480.0,192.3 L478.2,195.0 L474.3,197.2 L468.2,196.1 L462.5,192.4 L461.2,193.1 L459.8,191.1 L457.0,194.8 L453.8,197.1 L456.7,199.5 L460.4,201.0 L469.6,205.6 L470.3,207.5 L474.6,210.0 L476.7,212.1 L478.2,209.2 L481.0,206.7 L483.9,202.3 L490.2,195.4 L492.2,191.8 Z","cx":474.0,"cy":198.1},"AM":{"nome":"Amazonas","path":"M141.6,49.2 L135.9,52.3 L133.1,52.8 L132.6,56.8 L130.1,58.7 L128.4,58.7 L124.3,61.8 L121.1,63.3 L119.3,65.4 L117.3,65.6 L116.5,67.9 L114.1,64.6 L112.2,64.7 L107.1,68.0 L105.0,67.9 L98.3,61.8 L95.5,62.6 L95.3,55.3 L93.1,53.5 L91.7,48.8 L88.9,51.6 L86.9,51.5 L84.9,54.1 L81.1,52.9 L82.2,55.4 L66.9,55.4 L64.8,54.6 L61.2,55.5 L61.2,63.6 L67.7,63.5 L70.0,66.3 L69.1,69.7 L65.7,68.1 L64.2,69.5 L58.7,70.4 L58.6,79.9 L64.1,84.0 L64.1,87.4 L66.8,92.2 L65.0,103.4 L63.0,115.0 L60.1,131.6 L58.9,133.4 L55.7,132.4 L53.8,130.5 L49.2,131.2 L47.5,133.7 L41.1,134.4 L39.4,135.6 L35.8,135.5 L33.2,137.8 L23.4,143.8 L22.1,150.6 L19.1,154.8 L18.9,156.3 L20.7,159.7 L19.4,161.8 L17.6,162.1 L14.3,163.9 L12.0,168.7 L26.2,175.3 L47.6,180.3 L54.7,181.9 L66.3,188.3 L74.4,192.5 L81.8,195.9 L99.0,203.3 L102.8,201.0 L104.3,198.3 L109.3,198.2 L112.4,200.0 L115.9,196.9 L118.3,196.2 L119.1,198.2 L120.7,198.0 L122.4,195.7 L123.0,193.0 L126.5,193.0 L129.8,192.0 L132.1,192.2 L132.0,189.6 L134.8,187.4 L134.5,184.3 L136.4,184.3 L138.5,180.4 L140.0,179.8 L147.9,179.8 L150.1,181.3 L150.6,183.1 L154.2,185.2 L156.3,187.6 L157.1,190.3 L160.4,191.0 L161.9,189.0 L163.8,190.3 L178.3,190.3 L187.2,190.3 L202.1,190.4 L203.5,187.7 L204.7,181.0 L203.6,178.0 L205.8,175.2 L206.6,171.8 L206.1,169.5 L202.9,166.1 L203.0,162.3 L205.1,160.4 L214.0,140.6 L220.5,126.2 L228.2,109.0 L228.4,106.6 L231.1,105.0 L230.4,103.9 L228.0,105.4 L224.8,105.9 L222.5,103.4 L220.3,102.0 L219.6,100.3 L216.4,99.8 L208.4,94.8 L203.0,90.7 L202.6,88.6 L199.3,85.6 L199.3,83.2 L197.5,81.9 L197.2,74.2 L183.0,74.2 L180.0,80.2 L178.5,84.1 L179.7,86.7 L176.9,88.8 L174.2,88.6 L174.0,87.3 L170.0,84.0 L165.4,86.0 L163.9,89.2 L164.3,91.3 L163.3,94.1 L163.6,96.1 L159.9,95.4 L158.4,92.2 L154.8,89.5 L154.1,86.6 L156.3,81.8 L153.5,76.6 L152.0,71.0 L152.1,68.4 L153.1,65.0 L151.0,59.6 L148.7,57.2 L149.7,55.6 L149.9,52.7 L145.9,51.7 L144.5,49.7 L141.6,49.2 Z","cx":127.6,"cy":118.3},"AP":{"nome":"Amapá","path":"M306.6,68.5 L308.5,64.8 L309.3,58.6 L308.7,55.7 L304.8,54.4 L303.3,50.8 L302.1,49.3 L299.4,50.0 L298.2,46.1 L296.0,41.5 L294.2,34.1 L294.4,27.7 L293.1,27.0 L292.2,23.8 L290.0,21.5 L288.4,21.0 L287.3,25.7 L283.8,29.1 L278.8,38.1 L274.6,47.0 L270.6,49.9 L265.9,47.8 L264.6,48.6 L260.2,47.8 L255.7,49.6 L252.6,49.2 L247.2,46.4 L248.6,49.3 L248.0,51.4 L248.8,54.8 L254.2,55.2 L258.0,58.3 L263.8,60.4 L265.0,61.8 L265.3,65.6 L268.7,68.6 L268.3,72.7 L270.7,77.2 L274.4,81.6 L274.2,83.9 L276.2,84.9 L276.5,88.5 L278.7,91.8 L285.2,92.4 L286.8,90.8 L286.8,87.8 L289.6,84.1 L292.6,79.1 L298.0,76.1 L300.5,74.1 L302.3,69.9 L306.6,68.5 Z","cx":281.1,"cy":57.7},"BA":{"nome":"Bahia","path":"M453.8,197.1 L452.8,194.7 L450.3,192.2 L448.8,192.7 L446.9,190.2 L441.5,189.1 L439.6,186.9 L436.8,188.5 L436.0,190.2 L433.2,190.7 L432.5,193.5 L428.6,193.9 L427.5,197.7 L424.2,199.1 L422.8,197.2 L423.6,194.9 L421.7,193.9 L420.5,190.8 L418.1,189.1 L415.1,189.1 L412.7,192.1 L411.1,193.0 L409.1,196.0 L404.3,196.5 L401.5,198.8 L396.9,200.8 L394.8,198.0 L391.1,198.3 L388.9,196.2 L384.1,199.9 L384.9,202.7 L386.6,203.6 L386.4,205.6 L383.3,211.1 L381.3,213.1 L378.1,212.7 L374.9,213.8 L372.2,216.8 L370.7,217.6 L366.7,216.2 L364.5,213.8 L364.5,210.3 L362.3,207.1 L360.8,207.7 L360.5,210.2 L354.8,214.0 L353.9,217.3 L352.4,218.4 L351.5,221.0 L349.8,222.4 L350.9,224.7 L353.5,225.4 L352.8,229.6 L352.8,235.0 L354.3,236.9 L354.1,242.0 L356.0,243.1 L354.0,244.3 L353.3,247.4 L354.7,249.3 L354.1,256.2 L354.5,258.3 L357.9,260.6 L356.9,268.2 L356.9,271.3 L360.5,271.3 L367.8,266.4 L371.4,264.6 L375.3,261.3 L379.3,260.0 L384.9,261.3 L383.7,265.3 L388.3,267.2 L390.8,265.5 L395.3,266.0 L399.3,269.1 L403.8,271.4 L407.7,272.0 L409.6,271.1 L415.1,276.2 L415.4,279.3 L417.4,279.5 L423.2,278.3 L425.0,280.1 L429.2,280.5 L433.7,284.0 L432.4,286.7 L428.5,289.9 L427.8,292.6 L425.2,295.2 L424.5,300.4 L426.2,302.7 L429.2,304.8 L429.2,308.0 L436.0,312.7 L438.2,308.2 L441.0,306.6 L442.7,304.2 L441.9,302.8 L441.7,297.6 L442.8,294.2 L444.1,285.8 L446.1,280.4 L445.3,278.9 L443.5,265.1 L445.2,255.8 L444.4,254.2 L445.7,252.1 L445.2,246.9 L449.5,244.1 L452.5,243.5 L456.7,238.7 L461.5,231.3 L464.9,224.2 L460.6,225.8 L457.2,223.5 L457.0,221.1 L453.9,217.4 L454.1,214.8 L456.8,215.5 L459.1,214.6 L458.5,211.2 L460.1,210.0 L458.9,205.7 L457.2,205.2 L456.4,202.8 L456.7,199.5 L453.8,197.1 Z","cx":410.0,"cy":236.2},"CE":{"nome":"Ceará","path":"M431.7,113.9 L426.5,113.6 L415.5,115.0 L416.3,117.1 L414.3,120.7 L415.2,121.4 L415.3,124.7 L418.0,129.3 L418.0,132.8 L416.6,136.6 L416.4,139.9 L418.5,142.8 L420.4,143.8 L420.3,150.3 L422.3,158.8 L422.2,161.1 L423.1,163.1 L426.0,163.9 L426.6,167.7 L425.1,172.3 L428.9,172.8 L436.1,171.2 L440.4,174.2 L441.0,175.7 L443.7,177.8 L447.9,175.2 L450.1,171.0 L448.4,169.4 L447.4,166.0 L449.8,159.0 L451.2,155.5 L453.0,155.6 L455.2,153.0 L455.8,150.2 L458.0,148.0 L461.2,140.7 L466.1,139.5 L465.2,137.8 L461.8,136.8 L455.3,130.7 L452.3,127.3 L451.0,125.1 L448.5,124.6 L444.4,121.1 L441.2,118.8 L431.9,114.0 L431.7,113.9 Z","cx":436.7,"cy":144.6},"ES":{"nome":"Espírito Santo","path":"M422.9,344.6 L426.1,342.2 L429.5,336.6 L430.3,333.0 L432.1,330.5 L434.3,329.1 L435.8,325.0 L435.0,319.0 L435.3,314.6 L436.0,312.7 L429.2,308.0 L425.4,306.8 L422.3,309.6 L418.8,310.4 L417.3,313.9 L419.2,314.1 L418.9,316.3 L420.5,318.7 L419.0,320.8 L420.7,325.0 L419.9,327.5 L417.4,329.7 L417.2,332.4 L415.8,333.1 L414.4,336.5 L410.1,336.5 L409.0,338.1 L409.6,340.0 L408.6,343.7 L410.3,344.3 L410.4,348.0 L412.7,349.0 L418.5,349.5 L420.0,350.6 L422.9,344.6 Z","cx":421.3,"cy":329.6},"GO":{"nome":"Goiás","path":"M356.0,243.1 L352.9,244.0 L348.1,243.7 L345.6,245.6 L339.6,247.6 L336.7,246.8 L334.7,248.1 L330.7,248.1 L330.4,246.0 L327.0,247.8 L326.7,246.0 L321.8,241.6 L320.4,243.6 L318.7,241.5 L315.7,245.5 L315.6,247.7 L308.5,243.6 L305.4,242.8 L303.9,241.6 L305.1,238.7 L303.2,238.3 L301.4,242.4 L300.2,248.1 L296.9,253.5 L297.4,257.9 L295.8,260.2 L295.8,263.7 L294.2,267.7 L292.3,270.2 L291.1,269.4 L287.2,272.1 L286.5,276.1 L284.2,280.4 L279.7,281.2 L278.8,283.5 L276.1,284.7 L274.7,286.2 L275.0,289.7 L273.0,292.1 L270.3,293.7 L267.7,299.2 L267.3,303.3 L269.6,308.7 L269.2,312.2 L273.4,313.0 L270.9,315.3 L272.6,316.8 L277.3,317.1 L278.6,318.7 L280.6,319.1 L287.1,322.8 L290.1,323.2 L294.6,325.3 L296.1,327.0 L299.3,322.8 L301.5,321.5 L301.5,320.1 L303.9,317.2 L307.5,315.9 L310.4,316.4 L314.1,314.7 L315.0,316.4 L320.9,312.1 L326.6,313.1 L329.1,312.5 L333.0,314.6 L336.3,313.1 L337.4,311.4 L341.5,309.0 L340.5,306.8 L341.7,303.4 L338.7,302.0 L338.4,300.4 L340.6,297.5 L343.3,295.5 L341.9,291.1 L339.5,289.5 L341.0,285.6 L341.1,283.2 L329.1,283.3 L329.0,280.6 L329.9,279.5 L330.1,276.2 L339.8,276.2 L341.0,277.4 L340.3,281.1 L341.1,283.1 L343.1,281.8 L347.2,281.1 L346.8,277.7 L345.6,276.9 L347.0,273.9 L345.9,273.0 L347.7,270.0 L349.6,270.9 L350.8,269.8 L350.5,267.5 L351.6,266.0 L353.8,268.9 L356.9,268.2 L357.9,260.6 L354.5,258.3 L354.1,256.2 L354.7,249.3 L353.3,247.4 L354.0,244.3 L356.0,243.1 Z","cx":318.5,"cy":279.9},"MA":{"nome":"Maranhão","path":"M344.6,192.7 L347.2,195.6 L348.0,197.8 L350.3,199.0 L349.4,202.4 L351.0,203.1 L351.9,206.7 L353.3,208.1 L357.1,208.0 L358.1,209.0 L358.9,207.1 L359.9,198.2 L358.6,196.7 L357.5,191.9 L360.7,186.5 L364.0,176.1 L365.6,174.7 L370.8,173.3 L372.1,171.9 L373.7,172.3 L375.2,170.2 L378.4,168.8 L380.2,165.6 L382.7,163.9 L386.8,163.7 L389.0,165.3 L391.6,164.3 L394.7,164.1 L395.7,163.0 L396.6,158.1 L394.0,155.7 L393.4,153.2 L393.7,149.3 L396.8,146.1 L396.9,142.8 L395.3,138.6 L396.3,136.0 L394.8,131.8 L398.1,127.7 L398.7,124.6 L400.8,122.1 L404.5,121.6 L405.7,119.4 L407.1,119.1 L409.6,115.6 L409.4,112.7 L406.3,112.0 L400.3,112.0 L397.8,110.3 L392.4,108.0 L388.4,107.9 L387.0,106.0 L384.4,107.8 L383.2,109.7 L381.4,108.4 L378.2,109.6 L377.2,106.1 L377.1,106.1 L377.2,106.1 L376.0,105.0 L376.2,102.5 L375.2,101.3 L374.8,101.3 L374.6,101.0 L374.2,100.2 L374.2,100.4 L374.2,100.2 L373.2,100.6 L372.9,99.7 L372.5,99.9 L372.9,99.7 L372.6,99.0 L373.6,98.0 L370.5,96.7 L370.4,96.8 L370.5,96.7 L369.0,96.5 L369.0,96.8 L369.0,96.5 L369.0,96.2 L369.0,96.3 L368.7,96.8 L368.6,96.4 L368.5,95.8 L368.7,95.1 L368.4,95.2 L368.5,95.4 L368.5,95.5 L368.6,95.6 L368.2,96.2 L367.6,97.1 L365.2,99.1 L365.3,99.0 L365.8,96.8 L366.1,95.8 L366.0,95.7 L366.1,95.8 L365.7,94.9 L365.6,94.8 L364.8,96.1 L364.6,96.4 L363.8,97.2 L363.4,95.6 L362.9,94.6 L362.9,94.4 L360.8,94.7 L360.7,93.4 L360.1,93.8 L359.7,93.6 L359.1,93.8 L357.8,91.0 L356.1,93.0 L354.6,99.7 L354.7,102.1 L353.8,105.3 L352.0,107.0 L352.0,109.8 L349.1,112.6 L349.3,115.9 L346.9,120.3 L344.5,123.2 L343.9,127.0 L341.0,129.4 L340.3,131.6 L337.8,135.5 L334.8,136.7 L323.2,146.1 L325.0,145.9 L326.1,144.1 L328.0,143.8 L330.3,145.0 L334.0,145.0 L334.7,146.6 L338.1,147.6 L340.3,157.9 L338.8,163.0 L338.2,167.4 L335.8,170.0 L338.8,171.0 L338.8,173.4 L341.0,175.6 L344.4,180.8 L349.9,178.7 L351.3,179.8 L350.6,184.2 L347.7,184.8 L346.1,187.7 L346.0,190.9 L344.6,192.7 Z","cx":366.4,"cy":132.0},"MG":{"nome":"Minas Gerais","path":"M429.2,308.0 L429.2,304.8 L426.2,302.7 L424.5,300.4 L425.2,295.2 L427.8,292.6 L428.5,289.9 L432.4,286.7 L433.7,284.0 L429.2,280.5 L425.0,280.1 L423.2,278.3 L417.4,279.5 L415.4,279.3 L415.1,276.2 L409.6,271.1 L407.7,272.0 L403.8,271.4 L399.3,269.1 L395.3,266.0 L390.8,265.5 L388.3,267.2 L383.7,265.3 L384.9,261.3 L379.3,260.0 L375.3,261.3 L371.4,264.6 L367.8,266.4 L360.5,271.3 L356.9,271.3 L356.9,268.2 L353.8,268.9 L351.6,266.0 L350.5,267.5 L350.8,269.8 L349.6,270.9 L347.7,270.0 L345.9,273.0 L347.0,273.9 L345.6,276.9 L346.8,277.7 L347.2,281.1 L343.1,281.8 L341.1,283.1 L341.1,283.2 L341.0,285.6 L339.5,289.5 L341.9,291.1 L343.3,295.5 L340.6,297.5 L338.4,300.4 L338.7,302.0 L341.7,303.4 L340.5,306.8 L341.5,309.0 L337.4,311.4 L336.3,313.1 L333.0,314.6 L329.1,312.5 L326.6,313.1 L320.9,312.1 L315.0,316.4 L314.1,314.7 L310.4,316.4 L307.5,315.9 L303.9,317.2 L301.5,320.1 L301.5,321.5 L299.3,322.8 L296.1,327.0 L294.7,330.5 L295.3,334.9 L301.9,331.0 L303.3,332.1 L309.1,333.1 L313.3,332.6 L316.4,333.3 L316.9,337.2 L317.9,337.8 L320.2,336.0 L321.9,336.2 L328.6,335.3 L330.0,334.4 L331.7,335.7 L333.9,335.4 L334.3,333.8 L337.1,334.5 L339.2,333.4 L342.1,336.7 L341.4,339.6 L343.8,342.1 L342.0,345.2 L343.2,346.4 L343.5,349.0 L346.1,352.1 L347.8,351.3 L350.9,352.4 L351.0,354.5 L348.8,357.4 L349.7,359.4 L348.5,363.5 L351.8,366.2 L353.2,369.2 L353.1,371.1 L358.4,370.0 L360.3,370.3 L361.2,367.8 L364.7,367.8 L369.1,365.5 L372.2,364.7 L376.9,362.7 L379.6,362.6 L385.0,360.3 L388.9,360.4 L390.7,359.6 L393.8,360.7 L396.1,359.0 L403.7,355.8 L404.0,352.9 L405.4,346.2 L407.5,345.6 L408.6,343.7 L409.6,340.0 L409.0,338.1 L410.1,336.5 L414.4,336.5 L415.8,333.1 L417.2,332.4 L417.4,329.7 L419.9,327.5 L420.7,325.0 L419.0,320.8 L420.5,318.7 L418.9,316.3 L419.2,314.1 L417.3,313.9 L418.8,310.4 L422.3,309.6 L425.4,306.8 L429.2,308.0 Z","cx":366.2,"cy":315.4},"MS":{"nome":"Mato Grosso do Sul","path":"M259.6,307.2 L259.8,304.4 L261.7,303.9 L262.0,298.7 L261.0,298.5 L257.0,303.3 L253.9,303.9 L251.8,301.6 L248.7,302.1 L247.3,303.4 L244.0,303.8 L233.0,297.8 L231.8,297.5 L227.7,299.6 L223.8,299.6 L222.3,302.2 L219.3,305.4 L214.8,306.4 L213.3,305.7 L211.4,302.6 L211.0,303.6 L213.3,308.8 L213.8,311.3 L211.2,319.7 L211.0,321.5 L206.7,330.8 L210.1,333.5 L207.2,335.2 L207.3,338.6 L208.2,341.7 L210.0,343.4 L210.2,350.7 L208.8,353.4 L209.4,357.9 L208.3,360.1 L216.8,362.6 L224.6,362.4 L228.2,360.5 L230.6,363.0 L235.0,363.1 L237.9,367.5 L237.4,370.8 L238.7,376.4 L239.0,380.4 L241.4,385.0 L246.4,384.6 L249.7,382.7 L252.7,384.0 L254.5,386.0 L256.4,384.9 L258.2,378.2 L260.9,377.1 L262.5,373.9 L262.9,371.7 L269.1,367.5 L270.5,365.8 L276.8,362.2 L282.3,355.1 L281.6,353.8 L283.8,352.5 L284.4,348.6 L287.5,346.0 L287.4,343.5 L290.9,338.5 L294.4,337.1 L295.3,334.9 L294.7,330.5 L296.1,327.0 L294.6,325.3 L290.1,323.2 L287.1,322.8 L280.6,319.1 L278.6,318.7 L277.3,317.1 L272.6,316.8 L270.9,315.3 L273.4,313.0 L269.2,312.2 L269.6,308.7 L266.7,308.2 L264.6,308.7 L259.6,307.2 Z","cx":249.2,"cy":334.8},"MT":{"nome":"Mato Grosso","path":"M179.0,248.0 L178.7,250.0 L175.6,251.5 L174.7,253.0 L177.7,254.6 L178.5,257.3 L177.6,258.2 L177.9,261.0 L180.1,264.9 L180.5,271.0 L176.5,271.2 L180.5,275.8 L181.4,286.0 L190.1,286.2 L203.0,286.7 L204.5,287.3 L202.6,290.9 L202.5,294.7 L203.4,297.8 L205.2,299.9 L207.8,301.7 L209.8,301.2 L211.4,302.6 L213.3,305.7 L214.8,306.4 L219.3,305.4 L222.3,302.2 L223.8,299.6 L227.7,299.6 L231.8,297.5 L233.0,297.8 L244.0,303.8 L247.3,303.4 L248.7,302.1 L251.8,301.6 L253.9,303.9 L257.0,303.3 L261.0,298.5 L262.0,298.7 L261.7,303.9 L259.8,304.4 L259.6,307.2 L264.6,308.7 L266.7,308.2 L269.6,308.7 L267.3,303.3 L267.7,299.2 L270.3,293.7 L273.0,292.1 L275.0,289.7 L274.7,286.2 L276.1,284.7 L278.8,283.5 L279.7,281.2 L284.2,280.4 L286.5,276.1 L287.2,272.1 L291.1,269.4 L292.3,270.2 L294.2,267.7 L295.8,263.7 L295.8,260.2 L297.4,257.9 L296.9,253.5 L300.2,248.1 L301.4,242.4 L300.1,241.8 L298.9,239.1 L300.0,237.1 L299.3,234.1 L299.5,226.0 L298.5,224.3 L300.1,219.4 L300.2,214.2 L303.0,208.5 L304.9,203.7 L291.5,202.8 L275.2,201.6 L263.1,200.7 L245.7,199.4 L224.8,197.6 L223.0,196.0 L220.8,195.9 L218.4,192.0 L213.4,189.8 L212.3,185.6 L212.8,182.8 L210.5,179.7 L209.6,175.9 L206.6,171.8 L205.8,175.2 L203.6,178.0 L204.7,181.0 L203.5,187.7 L202.1,190.4 L187.2,190.3 L178.3,190.3 L163.8,190.3 L165.3,191.8 L164.6,195.2 L163.3,197.2 L165.1,200.9 L163.6,207.7 L165.3,211.1 L164.5,218.2 L177.8,218.4 L178.6,219.7 L183.3,220.2 L184.5,223.6 L182.4,225.6 L182.3,229.4 L183.7,230.2 L184.9,234.5 L186.1,235.8 L185.1,237.5 L183.2,238.5 L182.5,242.6 L180.2,245.1 L179.0,248.0 Z","cx":228.8,"cy":251.0},"PA":{"nome":"Pará","path":"M345.6,87.0 L341.0,85.2 L337.8,85.7 L336.5,85.2 L332.6,86.1 L326.7,83.9 L327.4,80.8 L321.2,80.5 L314.2,76.5 L311.7,72.9 L308.9,73.6 L307.0,73.2 L307.2,70.2 L306.6,68.5 L302.3,69.9 L300.5,74.1 L298.0,76.1 L292.6,79.1 L289.6,84.1 L286.8,87.8 L286.8,90.8 L285.2,92.4 L278.7,91.8 L276.5,88.5 L276.2,84.9 L274.2,83.9 L274.4,81.6 L270.7,77.2 L268.3,72.7 L268.7,68.6 L265.3,65.6 L265.0,61.8 L263.8,60.4 L258.0,58.3 L254.2,55.2 L248.8,54.8 L248.0,51.4 L248.6,49.3 L247.2,46.4 L245.6,44.3 L236.3,46.6 L234.0,45.1 L232.6,48.9 L234.4,53.3 L233.2,54.1 L227.2,52.5 L223.2,53.6 L220.8,53.1 L219.5,51.7 L215.4,53.1 L214.1,55.7 L208.6,56.3 L208.3,58.3 L204.4,57.4 L202.2,61.3 L199.6,61.0 L197.2,61.8 L197.2,74.2 L197.5,81.9 L199.3,83.2 L199.3,85.6 L202.6,88.6 L203.0,90.7 L208.4,94.8 L216.4,99.8 L219.6,100.3 L220.3,102.0 L222.5,103.4 L224.8,105.9 L228.0,105.4 L230.4,103.9 L231.1,105.0 L228.4,106.6 L228.2,109.0 L220.5,126.2 L214.0,140.6 L205.1,160.4 L203.0,162.3 L202.9,166.1 L206.1,169.5 L206.6,171.8 L209.6,175.9 L210.5,179.7 L212.8,182.8 L212.3,185.6 L213.4,189.8 L218.4,192.0 L220.8,195.9 L223.0,196.0 L224.8,197.6 L245.7,199.4 L263.1,200.7 L275.2,201.6 L291.5,202.8 L304.9,203.7 L306.6,199.9 L307.1,196.9 L311.6,191.0 L312.8,190.8 L316.6,184.9 L317.5,182.6 L318.1,177.4 L315.9,175.7 L315.4,173.6 L317.8,170.3 L317.5,166.3 L319.9,164.5 L322.4,164.1 L324.5,162.6 L324.9,160.3 L327.4,158.4 L327.1,156.9 L329.0,155.5 L328.9,152.3 L330.8,149.3 L327.7,146.7 L326.2,147.1 L323.2,146.1 L334.8,136.7 L337.8,135.5 L340.3,131.6 L341.0,129.4 L343.9,127.0 L344.5,123.2 L346.9,120.3 L349.3,115.9 L349.1,112.6 L352.0,109.8 L352.0,107.0 L353.8,105.3 L354.7,102.1 L354.6,99.7 L356.1,93.0 L355.6,92.0 L353.4,90.6 L350.2,90.0 L349.8,88.4 L345.6,87.0 Z","cx":276.0,"cy":111.6},"PB":{"nome":"Paraíba","path":"M494.4,160.7 L492.2,161.5 L489.1,160.8 L481.6,160.6 L478.5,160.0 L477.8,158.0 L475.4,159.0 L474.0,166.4 L471.3,163.8 L469.2,163.5 L466.0,164.8 L465.3,163.3 L463.2,163.5 L464.5,158.9 L467.1,156.6 L465.5,155.1 L463.5,156.3 L460.4,156.7 L458.5,159.2 L453.6,160.6 L449.8,159.0 L447.4,166.0 L448.4,169.4 L450.1,171.0 L447.9,175.2 L449.4,176.9 L452.8,176.2 L453.1,177.7 L455.8,177.9 L458.5,175.6 L462.6,173.3 L463.4,171.8 L466.3,170.8 L468.9,172.2 L466.8,175.6 L465.5,179.6 L467.3,180.2 L467.2,182.3 L469.3,184.0 L473.8,181.5 L473.8,179.9 L476.3,177.8 L480.7,177.3 L481.6,177.7 L485.9,176.2 L488.8,173.3 L491.0,172.1 L496.1,174.3 L496.5,170.0 L494.5,162.6 L494.4,160.7 Z","cx":470.1,"cy":168.8},"PE":{"nome":"Pernambuco","path":"M496.1,174.3 L491.0,172.1 L488.8,173.3 L485.9,176.2 L481.6,177.7 L480.7,177.3 L476.3,177.8 L473.8,179.9 L473.8,181.5 L469.3,184.0 L467.2,182.3 L467.3,180.2 L465.5,179.6 L466.8,175.6 L468.9,172.2 L466.3,170.8 L463.4,171.8 L462.6,173.3 L458.5,175.6 L455.8,177.9 L453.1,177.7 L452.8,176.2 L449.4,176.9 L447.9,175.2 L443.7,177.8 L441.0,175.7 L440.4,174.2 L436.1,171.2 L428.9,172.8 L425.1,172.3 L423.2,173.1 L423.8,177.3 L425.2,178.0 L424.1,181.9 L422.2,183.9 L419.8,185.2 L416.9,188.2 L415.1,189.1 L418.1,189.1 L420.5,190.8 L421.7,193.9 L423.6,194.9 L422.8,197.2 L424.2,199.1 L427.5,197.7 L428.6,193.9 L432.5,193.5 L433.2,190.7 L436.0,190.2 L436.8,188.5 L439.6,186.9 L441.5,189.1 L446.9,190.2 L448.8,192.7 L450.3,192.2 L452.8,194.7 L453.8,197.1 L457.0,194.8 L459.8,191.1 L461.2,193.1 L462.5,192.4 L468.2,196.1 L474.3,197.2 L478.2,195.0 L480.0,192.3 L482.7,191.1 L484.7,191.8 L487.6,190.5 L492.2,191.8 L494.1,187.0 L496.3,179.0 L496.1,174.3 Z","cx":453.9,"cy":184.2},"PI":{"nome":"Piauí","path":"M415.5,115.0 L411.6,114.5 L409.4,112.7 L409.6,115.6 L407.1,119.1 L405.7,119.4 L404.5,121.6 L400.8,122.1 L398.7,124.6 L398.1,127.7 L394.8,131.8 L396.3,136.0 L395.3,138.6 L396.9,142.8 L396.8,146.1 L393.7,149.3 L393.4,153.2 L394.0,155.7 L396.6,158.1 L395.7,163.0 L394.7,164.1 L391.6,164.3 L389.0,165.3 L386.8,163.7 L382.7,163.9 L380.2,165.6 L378.4,168.8 L375.2,170.2 L373.7,172.3 L372.1,171.9 L370.8,173.3 L365.6,174.7 L364.0,176.1 L360.7,186.5 L357.5,191.9 L358.6,196.7 L359.9,198.2 L358.9,207.1 L358.1,209.0 L360.8,207.7 L362.3,207.1 L364.5,210.3 L364.5,213.8 L366.7,216.2 L370.7,217.6 L372.2,216.8 L374.9,213.8 L378.1,212.7 L381.3,213.1 L383.3,211.1 L386.4,205.6 L386.6,203.6 L384.9,202.7 L384.1,199.9 L388.9,196.2 L391.1,198.3 L394.8,198.0 L396.9,200.8 L401.5,198.8 L404.3,196.5 L409.1,196.0 L411.1,193.0 L412.7,192.1 L415.1,189.1 L416.9,188.2 L419.8,185.2 L422.2,183.9 L424.1,181.9 L425.2,178.0 L423.8,177.3 L423.2,173.1 L425.1,172.3 L426.6,167.7 L426.0,163.9 L423.1,163.1 L422.2,161.1 L422.3,158.8 L420.3,150.3 L420.4,143.8 L418.5,142.8 L416.4,139.9 L416.6,136.6 L418.0,132.8 L418.0,129.3 L415.3,124.7 L415.2,121.4 L414.3,120.7 L416.3,117.1 L415.5,115.0 Z","cx":396.0,"cy":168.4},"PR":{"nome":"Paraná","path":"M331.3,401.9 L329.9,398.9 L325.5,397.6 L324.9,393.7 L319.7,393.6 L317.5,394.1 L316.2,392.4 L317.1,390.0 L313.6,384.0 L312.4,380.1 L312.7,377.0 L311.1,373.7 L308.8,373.0 L308.2,371.4 L302.4,371.6 L297.9,371.1 L296.7,369.7 L289.8,367.9 L288.3,368.4 L284.4,367.5 L281.3,366.1 L280.0,368.0 L275.7,366.8 L274.2,367.5 L270.8,366.8 L269.1,367.5 L262.9,371.7 L262.5,373.9 L260.9,377.1 L258.2,378.2 L256.4,384.9 L254.5,386.0 L253.7,386.9 L254.8,389.7 L254.0,393.6 L252.5,397.3 L252.7,399.6 L250.7,403.0 L250.7,405.5 L252.5,406.4 L256.7,404.3 L259.7,406.4 L260.3,410.6 L262.5,414.0 L266.7,414.1 L269.3,415.7 L274.4,415.3 L281.5,416.8 L284.4,418.4 L287.0,418.0 L289.9,419.6 L292.5,418.3 L292.3,414.9 L295.3,413.7 L296.4,414.4 L299.0,413.1 L300.4,411.0 L303.2,412.2 L304.6,411.1 L309.4,411.2 L313.2,413.8 L318.0,410.8 L325.2,410.5 L327.4,405.9 L328.6,405.4 L331.3,401.9 Z","cx":288.9,"cy":394.2},"RJ":{"nome":"Rio de Janeiro","path":"M375.9,376.1 L373.3,374.9 L377.0,371.7 L380.5,372.7 L381.7,371.5 L384.3,371.1 L387.6,373.1 L392.3,372.2 L392.6,371.2 L392.5,371.0 L391.7,370.5 L394.5,372.0 L399.8,371.4 L406.1,371.7 L408.5,369.4 L407.1,367.3 L411.0,363.3 L416.5,361.4 L419.8,359.1 L418.7,352.9 L420.0,350.6 L418.5,349.5 L412.7,349.0 L410.4,348.0 L410.3,344.3 L408.6,343.7 L407.5,345.6 L405.4,346.2 L404.0,352.9 L403.7,355.8 L396.1,359.0 L393.8,360.7 L390.7,359.6 L388.9,360.4 L385.0,360.3 L379.6,362.6 L376.9,362.7 L372.2,364.7 L374.2,367.2 L377.4,366.8 L380.2,368.1 L378.9,370.1 L373.0,371.6 L371.2,375.2 L373.3,377.0 L375.9,376.1 Z","cx":393.5,"cy":363.7},"RN":{"nome":"Rio Grande do Norte","path":"M494.4,160.7 L490.8,147.8 L488.0,143.7 L482.3,142.2 L478.6,142.9 L475.3,142.4 L473.1,142.8 L470.7,141.0 L467.1,140.8 L466.1,139.5 L461.2,140.7 L458.0,148.0 L455.8,150.2 L455.2,153.0 L453.0,155.6 L451.2,155.5 L449.8,159.0 L453.6,160.6 L458.5,159.2 L460.4,156.7 L463.5,156.3 L465.5,155.1 L467.1,156.6 L464.5,158.9 L463.2,163.5 L465.3,163.3 L466.0,164.8 L469.2,163.5 L471.3,163.8 L474.0,166.4 L475.4,159.0 L477.8,158.0 L478.5,160.0 L481.6,160.6 L489.1,160.8 L492.2,161.5 L494.4,160.7 Z","cx":470.3,"cy":154.5},"RO":{"nome":"Rondônia","path":"M103.3,204.1 L109.9,202.6 L115.0,203.0 L116.5,201.7 L117.8,204.0 L117.8,208.4 L116.1,211.9 L118.3,218.3 L116.9,220.4 L117.6,224.8 L118.6,227.0 L120.3,227.6 L121.0,231.1 L123.4,231.5 L125.0,233.6 L127.0,234.4 L128.6,237.0 L134.5,238.1 L136.5,236.8 L138.5,237.4 L141.5,239.7 L145.1,239.8 L146.1,242.1 L147.6,242.3 L153.5,245.8 L157.2,246.2 L157.3,247.3 L160.1,250.5 L163.6,250.6 L165.2,251.3 L167.8,250.5 L171.0,251.2 L174.7,253.0 L175.6,251.5 L178.7,250.0 L179.0,248.0 L180.2,245.1 L182.5,242.6 L183.2,238.5 L185.1,237.5 L186.1,235.8 L184.9,234.5 L183.7,230.2 L182.3,229.4 L182.4,225.6 L184.5,223.6 L183.3,220.2 L178.6,219.7 L177.8,218.4 L164.5,218.2 L165.3,211.1 L163.6,207.7 L165.1,200.9 L163.3,197.2 L164.6,195.2 L165.3,191.8 L163.8,190.3 L161.9,189.0 L160.4,191.0 L157.1,190.3 L156.3,187.6 L154.2,185.2 L150.6,183.1 L150.1,181.3 L147.9,179.8 L140.0,179.8 L138.5,180.4 L136.4,184.3 L134.5,184.3 L134.8,187.4 L132.0,189.6 L132.1,192.2 L129.8,192.0 L126.5,193.0 L123.0,193.0 L122.4,195.7 L120.7,198.0 L119.1,198.2 L118.3,196.2 L115.9,196.9 L112.4,200.0 L109.3,198.2 L104.3,198.3 L102.8,201.0 L99.0,203.3 L101.3,204.3 L103.3,204.1 Z","cx":144.7,"cy":215.7},"RR":{"nome":"Roraima","path":"M184.6,37.2 L185.9,34.4 L185.4,31.4 L187.6,30.1 L189.4,26.7 L186.9,23.9 L186.7,20.9 L181.5,19.7 L183.1,17.3 L183.4,12.3 L180.8,10.0 L179.4,10.8 L176.4,10.9 L176.2,14.0 L174.3,16.5 L171.7,17.9 L171.1,19.6 L167.7,19.4 L166.7,20.9 L164.7,21.1 L164.1,23.0 L160.9,24.1 L158.0,24.3 L156.8,25.3 L153.8,24.0 L152.0,25.6 L149.1,26.1 L148.3,29.6 L146.4,31.3 L145.5,29.5 L143.7,28.7 L143.7,26.9 L141.4,26.5 L139.4,28.0 L133.4,27.1 L132.5,25.2 L130.2,24.4 L126.9,25.0 L123.7,24.0 L127.9,29.1 L130.2,30.1 L131.5,31.9 L130.6,33.8 L130.9,37.4 L134.0,42.5 L133.1,45.5 L136.5,46.9 L140.5,46.4 L141.6,49.2 L144.5,49.7 L145.9,51.7 L149.9,52.7 L149.7,55.6 L148.7,57.2 L151.0,59.6 L153.1,65.0 L152.1,68.4 L152.0,71.0 L153.5,76.6 L156.3,81.8 L154.1,86.6 L154.8,89.5 L158.4,92.2 L159.9,95.4 L163.6,96.1 L163.3,94.1 L164.3,91.3 L163.9,89.2 L165.4,86.0 L170.0,84.0 L174.0,87.3 L174.2,88.6 L176.9,88.8 L179.7,86.7 L178.5,84.1 L180.0,80.2 L183.0,74.2 L197.2,74.2 L197.2,61.8 L196.3,60.7 L192.6,59.6 L188.9,55.3 L186.7,53.8 L187.0,48.9 L184.8,47.3 L183.6,43.1 L183.7,40.0 L184.6,37.2 Z","cx":162.2,"cy":46.3},"RS":{"nome":"Rio Grande do Sul","path":"M282.3,482.2 L283.9,478.8 L287.5,478.2 L289.6,476.1 L289.1,473.7 L291.6,471.6 L291.6,469.2 L293.5,468.0 L293.3,465.4 L294.0,465.3 L294.7,466.9 L301.0,465.5 L300.7,467.9 L298.4,472.5 L294.0,476.1 L292.3,480.7 L289.6,481.8 L287.9,483.9 L285.2,485.3 L285.4,485.3 L285.2,485.3 L282.8,485.3 L282.4,488.1 L289.5,484.1 L298.2,476.2 L303.9,467.8 L306.3,461.7 L308.7,457.0 L311.3,453.4 L308.2,451.7 L306.6,452.0 L308.1,450.7 L308.3,450.1 L308.5,445.7 L311.1,444.4 L311.1,443.0 L300.6,441.4 L296.9,437.8 L296.2,436.0 L289.4,430.9 L286.6,429.7 L284.1,429.9 L281.4,427.4 L280.3,427.7 L273.3,426.2 L270.8,426.3 L265.3,425.4 L263.9,426.1 L260.1,425.7 L253.0,428.7 L249.6,430.9 L247.9,430.4 L246.4,433.5 L243.2,434.5 L238.6,438.5 L236.3,439.4 L234.6,442.5 L230.8,446.3 L229.5,446.8 L228.0,450.1 L225.9,450.7 L224.4,453.8 L219.5,458.8 L216.7,460.5 L216.5,462.0 L213.7,465.3 L218.3,465.7 L219.7,463.3 L223.0,463.3 L225.0,464.5 L228.5,468.4 L230.8,469.8 L232.9,472.1 L233.1,475.7 L234.8,475.7 L238.4,472.7 L241.4,476.5 L244.7,479.1 L247.7,480.5 L250.8,480.7 L252.4,483.2 L257.0,486.8 L258.4,486.6 L261.2,488.6 L262.5,492.6 L265.1,494.9 L268.4,495.9 L273.1,493.3 L275.6,494.4 L273.6,498.7 L270.4,497.7 L264.6,503.8 L265.1,506.9 L263.8,508.8 L265.8,510.0 L273.0,504.3 L276.5,499.2 L279.1,492.3 L281.6,489.7 L281.5,486.9 L280.1,484.5 L282.3,482.2 Z","cx":269.2,"cy":466.1},"SC":{"nome":"Santa Catarina","path":"M261.5,417.9 L262.1,422.2 L260.1,425.7 L263.9,426.1 L265.3,425.4 L270.8,426.3 L273.3,426.2 L280.3,427.7 L281.4,427.4 L284.1,429.9 L286.6,429.7 L289.4,430.9 L296.2,436.0 L296.9,437.8 L300.6,441.4 L311.1,443.0 L311.1,444.4 L308.5,445.7 L308.3,450.1 L308.1,450.7 L306.6,452.0 L308.2,451.7 L311.3,453.4 L314.9,449.1 L317.9,446.6 L322.5,444.1 L325.4,434.9 L325.1,430.9 L325.7,427.6 L325.5,423.9 L324.0,419.3 L326.3,413.8 L325.2,410.5 L318.0,410.8 L313.2,413.8 L309.4,411.2 L304.6,411.1 L303.2,412.2 L300.4,411.0 L299.0,413.1 L296.4,414.4 L295.3,413.7 L292.3,414.9 L292.5,418.3 L289.9,419.6 L287.0,418.0 L284.4,418.4 L281.5,416.8 L274.4,415.3 L269.3,415.7 L266.7,414.1 L262.5,414.0 L261.5,417.9 Z","cx":295.8,"cy":426.7},"SE":{"nome":"Sergipe","path":"M476.7,212.1 L474.6,210.0 L470.3,207.5 L469.6,205.6 L460.4,201.0 L456.7,199.5 L456.4,202.8 L457.2,205.2 L458.9,205.7 L460.1,210.0 L458.5,211.2 L459.1,214.6 L456.8,215.5 L454.1,214.8 L453.9,217.4 L457.0,221.1 L457.2,223.5 L460.6,225.8 L464.9,224.2 L470.0,216.4 L473.9,213.3 L476.7,212.1 Z","cx":462.9,"cy":212.2},"SP":{"nome":"São Paulo","path":"M355.7,383.3 L358.6,382.1 L364.8,382.8 L364.5,381.1 L371.2,376.6 L373.3,377.0 L371.2,375.2 L373.0,371.6 L378.9,370.1 L380.2,368.1 L377.4,366.8 L374.2,367.2 L372.2,364.7 L369.1,365.5 L364.7,367.8 L361.2,367.8 L360.3,370.3 L358.4,370.0 L353.1,371.1 L353.2,369.2 L351.8,366.2 L348.5,363.5 L349.7,359.4 L348.8,357.4 L351.0,354.5 L350.9,352.4 L347.8,351.3 L346.1,352.1 L343.5,349.0 L343.2,346.4 L342.0,345.2 L343.8,342.1 L341.4,339.6 L342.1,336.7 L339.2,333.4 L337.1,334.5 L334.3,333.8 L333.9,335.4 L331.7,335.7 L330.0,334.4 L328.6,335.3 L321.9,336.2 L320.2,336.0 L317.9,337.8 L316.9,337.2 L316.4,333.3 L313.3,332.6 L309.1,333.1 L303.3,332.1 L301.9,331.0 L295.3,334.9 L294.4,337.1 L290.9,338.5 L287.4,343.5 L287.5,346.0 L284.4,348.6 L283.8,352.5 L281.6,353.8 L282.3,355.1 L276.8,362.2 L270.5,365.8 L269.1,367.5 L270.8,366.8 L274.2,367.5 L275.7,366.8 L280.0,368.0 L281.3,366.1 L284.4,367.5 L288.3,368.4 L289.8,367.9 L296.7,369.7 L297.9,371.1 L302.4,371.6 L308.2,371.4 L308.8,373.0 L311.1,373.7 L312.7,377.0 L312.4,380.1 L313.6,384.0 L317.1,390.0 L316.2,392.4 L317.5,394.1 L319.7,393.6 L324.9,393.7 L325.5,397.6 L329.9,398.9 L331.3,401.9 L333.6,399.9 L334.1,398.1 L337.3,395.3 L344.9,390.4 L345.0,389.3 L349.9,386.3 L355.7,383.3 Z","cx":327.0,"cy":363.2},"TO":{"nome":"Tocantins","path":"M344.6,192.7 L346.0,190.9 L346.1,187.7 L347.7,184.8 L350.6,184.2 L351.3,179.8 L349.9,178.7 L344.4,180.8 L341.0,175.6 L338.8,173.4 L338.8,171.0 L335.8,170.0 L338.2,167.4 L338.8,163.0 L340.3,157.9 L338.1,147.6 L334.7,146.6 L334.0,145.0 L330.3,145.0 L328.0,143.8 L326.1,144.1 L325.0,145.9 L323.2,146.1 L326.2,147.1 L327.7,146.7 L330.8,149.3 L328.9,152.3 L329.0,155.5 L327.1,156.9 L327.4,158.4 L324.9,160.3 L324.5,162.6 L322.4,164.1 L319.9,164.5 L317.5,166.3 L317.8,170.3 L315.4,173.6 L315.9,175.7 L318.1,177.4 L317.5,182.6 L316.6,184.9 L312.8,190.8 L311.6,191.0 L307.1,196.9 L306.6,199.9 L304.9,203.7 L303.0,208.5 L300.2,214.2 L300.1,219.4 L298.5,224.3 L299.5,226.0 L299.3,234.1 L300.0,237.1 L298.9,239.1 L300.1,241.8 L301.4,242.4 L303.2,238.3 L305.1,238.7 L303.9,241.6 L305.4,242.8 L308.5,243.6 L315.6,247.7 L315.7,245.5 L318.7,241.5 L320.4,243.6 L321.8,241.6 L326.7,246.0 L327.0,247.8 L330.4,246.0 L330.7,248.1 L334.7,248.1 L336.7,246.8 L339.6,247.6 L345.6,245.6 L348.1,243.7 L352.9,244.0 L356.0,243.1 L354.1,242.0 L354.3,236.9 L352.8,235.0 L352.8,229.6 L353.5,225.4 L350.9,224.7 L349.8,222.4 L351.5,221.0 L352.4,218.4 L353.9,217.3 L354.8,214.0 L360.5,210.2 L360.8,207.7 L358.1,209.0 L357.1,208.0 L353.3,208.1 L351.9,206.7 L351.0,203.1 L349.4,202.4 L350.3,199.0 L348.0,197.8 L347.2,195.6 L344.6,192.7 Z","cx":331.0,"cy":201.0},"DF":{"nome":"Distrito Federal","path":"M341.1,283.1 L340.3,281.1 L341.0,277.4 L339.8,276.2 L330.1,276.2 L329.9,279.5 L329.0,280.6 L329.1,283.3 L341.1,283.2 L341.1,283.1 Z","cx":336.3,"cy":280.4}};
+
+// Interpola de creme (sem O.S.) até navy (mais O.S.) — mesma escala usada no boletim de
+// referência, aqui só pro Mapa do Brasil (as barras de ranking usam a cor fixa var(--rtb-navy2)).
+function retbHeatmapColor(n, max){
+  if(!n) return { bg: "#f7f5f0", fg: "#c2bcae" };
+  const r = Math.min(1, n / (max || 1));
+  const c1 = [240,236,227], c2 = [13,31,53];
+  const rgb = c1.map(function(v,i){ return Math.round(v + (c2[i]-v)*r); });
+  return { bg: "rgb(" + rgb.join(",") + ")", fg: r > 0.55 ? "#fff" : "#1a1d2e" };
+}
+
+function retbContarPorEstado(rows){
+  const porEstado = {}, cidadesPorEstado = {};
+  rows.forEach(function(r){
+    const loc = retbResolveLocal(r.oficina);
+    if(!loc) return;
+    porEstado[loc.uf] = (porEstado[loc.uf]||0) + 1;
+    if(!cidadesPorEstado[loc.uf]) cidadesPorEstado[loc.uf] = {};
+    cidadesPorEstado[loc.uf][r.oficina] = (cidadesPorEstado[loc.uf][r.oficina]||0) + 1;
+  });
+  return { porEstado: porEstado, cidadesPorEstado: cidadesPorEstado };
+}
+// Lista as oficinas (nomes distintos) que não têm entrada em RETB_OFICINA_LOCAL — exibido como
+// nota no rodapé do mapa, igual à diagnosticoLocalizacao() do boletim de referência.
+function retbDiagnostico(rows){
+  const seen = {}, problemas = [];
+  rows.forEach(function(r){
+    if(seen[r.oficina]) return;
+    seen[r.oficina] = 1;
+    if(!retbResolveLocal(r.oficina)) problemas.push(r.oficina);
+  });
+  return problemas;
+}
+
+function retbRankRowHtml(pos, nome, n, maxN, venc){
+  const pct = Math.max(4, Math.round(n / (maxN || 1) * 100));
+  return '<div class="rtb-rank-row">'
+    + '<div class="rr-pos">#' + pos + '</div>'
+    + '<div class="rr-nm" title="' + escapeHtml(nome) + '">' + escapeHtml(nome) + '</div>'
+    + '<div class="rr-bw"><div class="rr-bf' + (venc?' venc':'') + '" style="width:' + pct + '%"></div></div>'
+    + '<div class="rr-ct' + (venc?' red':'') + '">' + n + '</div>'
+    + '</div>';
+}
+
+function retbMapaBrasilBodyHtml(rows){
+  const stats = retbContarPorEstado(rows);
+  let maxN = 1;
+  Object.keys(stats.porEstado).forEach(function(uf){ maxN = Math.max(maxN, stats.porEstado[uf]); });
+  const cidadesSet = {};
+  rows.forEach(function(r){ if(retbResolveLocal(r.oficina)) cidadesSet[r.oficina] = 1; });
+  const totalCidades = Object.keys(cidadesSet).length;
+  const totalEstados = Object.keys(stats.porEstado).length;
+
+  let svg = '<svg viewBox="' + RETB_BRASIL_VIEWBOX + '" class="rtb-mapa-svg">';
+  Object.keys(RETB_BRASIL_ESTADOS_SVG).forEach(function(uf){
+    const s = RETB_BRASIL_ESTADOS_SVG[uf];
+    const n = stats.porEstado[uf] || 0;
+    const col = retbHeatmapColor(n, maxN);
+    svg += '<path d="' + s.path + '" fill="' + col.bg + '" stroke="var(--rtb-paper)" stroke-width="1.2" class="uf-path' + (n>0?' clickable':'') + '"' + (n>0 ? (' data-uf="'+uf+'"') : '') + '><title>' + s.nome + ': ' + n + ' O.S.</title></path>';
+  });
+  Object.keys(RETB_BRASIL_ESTADOS_SVG).forEach(function(uf){
+    const s = RETB_BRASIL_ESTADOS_SVG[uf];
+    const n = stats.porEstado[uf] || 0;
+    if(n > 0){
+      const col = retbHeatmapColor(n, maxN);
+      svg += '<text x="' + s.cx + '" y="' + s.cy + '" class="uf-label" style="fill:' + col.fg + '">' + n + '</text>';
+    }
+  });
+  svg += '</svg>';
+
+  return '<div class="rtb-mapa-svg-wrap">' + svg + '</div>'
+    + '<div class="rtb-mapa-list">'
+    + '<div class="rtb-mapa-tiles">'
+    + '<div class="rtb-mapa-tile"><div class="rtb-mapa-tile-val">' + totalCidades + '</div><div class="rtb-mapa-tile-lbl">Oficinas</div></div>'
+    + '<div class="rtb-mapa-tile"><div class="rtb-mapa-tile-val">' + totalEstados + '</div><div class="rtb-mapa-tile-lbl">Estados</div></div>'
+    + '</div>'
+    + '<p class="rtb-sub" style="margin:10px 0 0;">Clique num estado no mapa para ver as oficinas dele.</p>'
+    + '</div>';
+}
+function retbMapaEstadoHtml(uf, rows){
+  const stats = retbContarPorEstado(rows);
+  const cidades = stats.cidadesPorEstado[uf] || {};
+  const nomeEstado = (RETB_BRASIL_ESTADOS_SVG[uf]||{}).nome || RETB_UF_NOMES[uf] || uf;
+  const lista = Object.keys(cidades).sort(function(a,b){ return cidades[b]-cidades[a]; });
+  const maxN = lista.length ? cidades[lista[0]] : 1;
+  const total = lista.reduce(function(s,c){ return s + cidades[c]; }, 0);
+  let html = '<div class="rtb-mapa-estado-hdr">'
+    + '<button type="button" class="rtb-btn-voltar" data-rtb-mapa-back="1">&larr; Voltar ao Brasil</button>'
+    + '<div class="rtb-mapa-estado-nome">' + escapeHtml(nomeEstado) + ' (' + uf + ')</div>'
+    + '<div class="rtb-sub" style="margin:0;">' + total + ' O.S. em ' + lista.length + ' oficina(s)</div>'
+    + '</div>';
+  lista.forEach(function(cidade, i){ html += retbRankRowHtml(i+1, cidade, cidades[cidade], maxN); });
+  return html;
+}
+
+// Donut do card "Total de O.S. abertas" — total no centro + % impeditivas no anel.
+function retbDonutHtml(total, impCount){
+  const impPct = total ? Math.round(impCount/total*100) : 0;
+  const circunf = 2*Math.PI*40;
+  const dash = (impPct/100)*circunf;
+  return '<div class="rtb-donut-wrap"><svg viewBox="0 0 100 100" class="rtb-donut">'
+    + '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--rtb-surface-2)" stroke-width="12"/>'
+    + '<circle cx="50" cy="50" r="40" fill="none" stroke="var(--rtb-crit)" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + dash.toFixed(1) + ' ' + (circunf-dash).toFixed(1) + '" transform="rotate(-90 50 50)"/>'
+    + '<text x="50" y="47" text-anchor="middle" class="rtb-donut-num">' + total + '</text>'
+    + '<text x="50" y="61" text-anchor="middle" class="rtb-donut-sub">O.S. ABERTAS</text>'
+    + '</svg></div>'
+    + '<div class="rtb-card-f">' + impPct + '% (' + impCount + ') são impeditivas</div>';
+}
+
+// Agregados extras que o boletim de referência mostra no Panorama e que computeRetencaoAggregates
+// ainda não expõe — tudo derivado do que cada linha já tem (r.prazo/r.tipo), nenhum dado novo.
+function retbPanoramaExtras(rows){
+  const hojeISO = new Date().toISOString().slice(0,10);
+  const vencidos = rows.filter(function(r){ return r.prazo && r.prazo < hojeISO; });
+  const faixas = [
+    { lbl: "1-3d", min: 1, max: 3, n: 0 }, { lbl: "4-7d", min: 4, max: 7, n: 0 },
+    { lbl: "8-15d", min: 8, max: 15, n: 0 }, { lbl: "16-30d", min: 16, max: 30, n: 0 },
+    { lbl: "30+d", min: 31, max: Infinity, n: 0 },
+  ];
+  vencidos.forEach(function(r){
+    const diff = Math.round((new Date(hojeISO+"T00:00:00") - new Date(r.prazo+"T00:00:00")) / 86400000);
+    for(let i=0;i<faixas.length;i++){ if(diff >= faixas[i].min && diff <= faixas[i].max){ faixas[i].n++; break; } }
+  });
+  const telemetria = rows.filter(function(r){ return r.tipo.key === "TELEMETRIA"; });
+  const impPorOf = {};
+  rows.forEach(function(r){ if(r.impeditiva) impPorOf[r.oficina] = (impPorOf[r.oficina]||0)+1; });
+  const ofsImp = Object.keys(impPorOf).sort(function(a,b){ return impPorOf[b]-impPorOf[a]; }).slice(0,5);
+  return { vencidos: vencidos, faixas: faixas, telemetria: telemetria, impPorOf: impPorOf, ofsImp: ofsImp };
+}
+
+// Linhas do dataset atualmente exibido no mapa — guardado pra reconstruir o painel do estado
+// (ou voltar ao Brasil) sem recarregar nada, no clique (ver wireRtbMapa).
+let retbMapaRows = [];
+function retbPanoramaHtml(full){
+  const rows = full.rows;
+  const extras = retbPanoramaExtras(rows);
+  retbMapaRows = rows;
+  const maxFaixa = extras.faixas.reduce(function(m,f){ return Math.max(m,f.n); }, 1);
+  const maxImp = extras.ofsImp.length ? extras.impPorOf[extras.ofsImp[0]] : 1;
+  const corrPct = full.total ? Math.round(full.corretivas.length/full.total*100) : 0;
+  const prevPct = 100 - corrPct;
+  const nUnidades = Object.keys(rows.reduce(function(a,r){ a[r.oficina]=1; return a; }, {})).length;
+
+  let html = '<div class="rtb">';
+  html += '<div class="rtb-title">Panorama — Retenção</div>'
+    + '<div class="rtb-sub">' + fmtNum(full.total) + ' ordens de serviço monitoradas em ' + nUnidades + ' unidades</div>';
+
+  html += '<div class="rtb-strip">'
+    + '<div class="rtb-si"><div class="rtb-sl">Total O.S.</div><div class="rtb-sv white">' + fmtNum(full.total) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Corretivas</div><div class="rtb-sv' + (full.corretivas.length?' red':' neutral') + '">' + fmtNum(full.corretivas.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Preventivas</div><div class="rtb-sv green">' + fmtNum(full.preventivas.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Impeditivas</div><div class="rtb-sv' + (full.impeditivas.length?' red':' neutral') + '">' + fmtNum(full.impeditivas.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Motor / Caixa</div><div class="rtb-sv' + (full.motorCaixa.length?' amber':' neutral') + '">' + fmtNum(full.motorCaixa.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Telemetria</div><div class="rtb-sv' + (extras.telemetria.length?' amber':' neutral') + '">' + fmtNum(extras.telemetria.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Críticos +90d</div><div class="rtb-sv' + (full.criticos.length?' red':' neutral') + '">' + fmtNum(full.criticos.length) + '</div></div>'
+    + '<div class="rtb-si"><div class="rtb-sl">Prazo vencido</div><div class="rtb-sv' + (extras.vencidos.length?' red':' neutral') + '">' + fmtNum(extras.vencidos.length) + '</div></div>'
+    + '</div>';
+
+  html += '<div class="rtb-dash-grid">';
+  html += '<div class="rtb-card"><div class="rtb-card-t">Total de O.S. abertas</div>' + retbDonutHtml(full.total, full.impeditivas.length) + '</div>';
+  html += '<div class="rtb-card"><div class="rtb-card-t">Unidades com mais O.S. impeditivas</div>'
+    + (extras.ofsImp.length
+        ? extras.ofsImp.map(function(of,i){ return retbRankRowHtml(i+1, of, extras.impPorOf[of], maxImp, true); }).join("")
+        : '<p class="hint">Nenhuma O.S. impeditiva no momento.</p>')
+    + '</div>';
+  html += '<div class="rtb-card"><div class="rtb-card-t">Corretivas &times; Preventivas abertas</div>'
+    + '<div class="rtb-compare-row"><span>Corretivas</span><div class="rtb-compare-bw"><div class="rtb-compare-bf corr" style="width:' + corrPct + '%"></div></div><span class="rtb-compare-val">' + full.corretivas.length + '</span></div>'
+    + '<div class="rtb-compare-row"><span>Preventivas</span><div class="rtb-compare-bw"><div class="rtb-compare-bf prev" style="width:' + prevPct + '%"></div></div><span class="rtb-compare-val">' + full.preventivas.length + '</span></div>'
+    + '<div class="rtb-card-f">' + corrPct + '% corretivas &middot; ' + prevPct + '% preventivas</div>'
+    + '</div>';
+  html += '<div class="rtb-card"><div class="rtb-card-t">Prazo de liberação vencido (' + extras.vencidos.length + ')</div>'
+    + '<div class="rtb-activity">' + extras.faixas.map(function(f){
+        return '<div class="rtb-activity-col"><div class="rtb-activity-bar" style="height:' + Math.max(4, Math.round(f.n/maxFaixa*60)) + 'px"></div><div class="rtb-activity-n">' + f.n + '</div><div class="rtb-activity-lbl">' + f.lbl + '</div></div>';
+      }).join("") + '</div>'
+    + '</div>';
+  html += '<div class="rtb-card rtb-indicator"><div class="rtb-card-t">Telemetria</div><div class="rtb-indicator-num">' + extras.telemetria.length + '</div><div class="rtb-indicator-hint">veículo(s) com O.S. aberta</div></div>';
+  html += '</div>';
+
+  html += '<div class="rtb-card" style="margin-bottom:16px;">'
+    + '<div class="rtb-card-t">Mapa do Brasil — distribuição geográfica das O.S.</div>'
+    + '<div class="rtb-mapa-row" id="rtb-mapa-body">' + retbMapaBrasilBodyHtml(rows) + '</div>';
+  const diag = retbDiagnostico(rows);
+  if(diag.length){
+    html += '<div class="rtb-mapa-diag">' + diag.length + ' oficina(s) não localizada(s) no mapa (nome não reconhecido): ' + diag.map(escapeHtml).join(", ") + '.</div>';
+  }
+  html += '</div>';
+
+  if(full.ranking.length){
+    html += '<div class="rtb-card" style="margin-bottom:0;">'
+      + '<div class="rtb-card-t">Ranking — Unidades com mais O.S. abertas</div>'
+      + full.ranking.map(function(r,i){ return retbRankRowHtml(i+1, r.nome, r.total, full.ranking[0].total); }).join("")
+      + '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+// Liga o clique nos estados do mapa (abre a lista de oficinas daquele estado) e no botão
+// "Voltar ao Brasil" — delegado no container `area` (que não é recriado entre os dois estados
+// do mapa, só o #rtb-mapa-body por dentro dele), então um único listener cobre as duas telas.
+function wireRtbMapa(area){
+  area.addEventListener("click", function(e){
+    const back = e.target.closest("[data-rtb-mapa-back]");
+    const ufEl = !back ? e.target.closest("[data-uf]") : null;
+    if(!back && !ufEl) return;
+    const body = document.getElementById("rtb-mapa-body");
+    if(!body) return;
+    if(back) body.innerHTML = retbMapaBrasilBodyHtml(retbMapaRows);
+    else body.innerHTML = retbMapaEstadoHtml(ufEl.dataset.uf, retbMapaRows);
+  });
+}
+
 async function renderRetencao(newAsOf){
   if(newAsOf !== undefined) retencaoAsOf = newAsOf;
   const el = document.getElementById("retencao-body");
@@ -3255,7 +3723,11 @@ async function renderRetencao(newAsOf){
     const vizAutoThresh = VizModes.computeDefaultThresholds(vizItemsAll.map(function(it){ return it.severity; }));
     let vizActiveThresh = vizStoredThresh || vizAutoThresh;
 
-    let html = unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
+    // Panorama visual + Mapa do Brasil (.rtb) sempre reflete a base INTEIRA (full), igual ao
+    // boletim de referência (o Panorama lá também não é afetado pelo filtro por unidade das
+    // abas individuais) — o filtro de unidade abaixo continua controlando só os KPIs/tabelas.
+    let html = retbPanoramaHtml(full);
+    html += unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
 
     if(retencaoUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(retencaoUnidadeFiltro) + '</b>.</p>';
@@ -3337,6 +3809,7 @@ async function renderRetencao(newAsOf){
     html += '<div class="section-footer">' + srcNote(RETENCAO_TAB + " — Tipo de O.S., Observação (Impeditiva/Prazo detectados por palavra-chave) e Tempo em aberto") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
+    wireRtbMapa(area);
     fitAllKpiValues(area);
     VizModes.wireModeTabs(area, "retencao", function(m){ retencaoVizMode = m; renderRetencao(); });
 
@@ -3933,6 +4406,199 @@ async function manutExportUnidadePDF(ck){
 let manutAsOf = null;
 let manutUnidadeFiltro = null; // cidadeKey ou null ("todas") — compartilhado entre Visão Macro e Preventiva
 
+// =====================================================================
+// Visão Macro ("Panorama Geral") — porta 1:1 dos widgets do Panorama Geral
+// do HTML de referência (KPIs, Ranking de Unidades, Matriz Categorias×
+// Unidades, Frota por Unidade e Cascata de Manutenção por Km), a pedido
+// explícito de Jefferson (as duas últimas partes tinham sido deixadas de
+// fora da Preventiva por serem mais complexas; ele confirmou que quer as
+// 4 partes completas aqui na Visão Macro).
+const MANUT_CASCATA_NODES = [3000, 12000, 15000, 24000, 30000, 90000];
+const MANUT_CASCATA_NODE_LABEL = { 3000:"3.000km", 12000:"12.000km", 15000:"15.000km", 24000:"24.000km", 30000:"30.000km", 90000:"90.000km" };
+const MANUT_CASCATA_NODE_ANCHOR = {
+  3000: "Lubrificação geral (chassis, feixe de molas, coluna de direção, balão de ar)",
+  12000: "Filtro de combustível + filtro separador de água",
+  15000: "Filtro de combustível + filtro separador de água",
+  24000: "Óleo motor + filtro lubrificante",
+  30000: "Óleo motor + filtro lubrificante",
+  90000: "Óleo câmbio + óleo diferencial",
+};
+// Cada plano tem um "tier" fixo (3/15/30/90) — dentro dos tiers 15 e 30, o marco exato (12000 vs
+// 15000, 24000 vs 30000) depende do intervalo em km configurado NAQUELE item (Int_Km), por isso
+// manutCascataNodeForItem recebe o código e o km do próprio item, não um valor fixo por código.
+const MANUT_CASCATA_OWN_BY_TIER = {
+  3: ["004","005","006","015","110","229","308"],
+  15: ["008","010","218","313"],
+  30: ["001","007","009","014","011"],
+  90: ["002","003"],
+};
+const MANUT_CASCATA_CODE_TIER = {};
+Object.keys(MANUT_CASCATA_OWN_BY_TIER).forEach(function(tier){
+  MANUT_CASCATA_OWN_BY_TIER[tier].forEach(function(code){ MANUT_CASCATA_CODE_TIER[code] = +tier; });
+});
+const MANUT_CAT_CRIT = { "Óleo Motor":1, "Filtro Lubrificante":1, "Óleo Câmbio":1, "Óleo Diferencial":1 };
+
+function manutCascataNodeForItem(code, km){
+  const tier = MANUT_CASCATA_CODE_TIER[code];
+  if(tier === undefined) return null;
+  if(tier === 3) return 3000;
+  if(tier === 90) return 90000;
+  if(tier === 15) return (km === 12000 || km === 15000) ? km : 15000;
+  if(tier === 30) return (km === 24000 || km === 30000) ? km : 30000;
+  return null;
+}
+function manutCfByCodeHtml(byCode, maxShow){
+  maxShow = maxShow || 4;
+  const rows = Object.keys(byCode).map(function(code){ return [code, byCode[code]]; });
+  rows.sort(function(a,b){ return (b[1].vencido + b[1].limite) - (a[1].vencido + a[1].limite); });
+  const shown = rows.slice(0, maxShow);
+  const rest = rows.slice(maxShow);
+  const parts = shown.map(function(r){
+    const code = r[0], v = r[1];
+    const tot = v.vencido + v.limite;
+    return '<div class="cf-code-row"><span class="chip-code">' + escapeHtml(code) + '</span>' + escapeHtml(v.label) + ' <b class="' + (v.vencido ? "cf-v" : "cf-l") + '">' + tot + '</b></div>';
+  });
+  if(rest.length){
+    let nRest = 0;
+    rest.forEach(function(r){ nRest += r[1].vencido + r[1].limite; });
+    parts.push('<div class="cf-code-row cf-code-more">+' + rest.length + ' outros itens &middot; ' + nRest + '</div>');
+  }
+  return parts.join("");
+}
+function manutBuildCascataFlow(items){
+  const own = {};
+  MANUT_CASCATA_NODES.forEach(function(n){ own[n] = { vencido:0, limite:0, by_code:{} }; });
+  const outros = { vencido:0, limite:0, by_code:{} };
+  items.forEach(function(i){
+    const node = manutCascataNodeForItem(i.code, i.intKm);
+    const bucket = node !== null ? own[node] : outros;
+    bucket[i.status]++;
+    if(!bucket.by_code[i.code]) bucket.by_code[i.code] = { vencido:0, limite:0, label:i.label };
+    bucket.by_code[i.code][i.status]++;
+  });
+  const cum = {};
+  let runV = 0, runL = 0;
+  MANUT_CASCATA_NODES.forEach(function(n){
+    runV += own[n].vencido; runL += own[n].limite;
+    cum[n] = { vencido: runV, limite: runL };
+  });
+  return { own: own, cum: cum, outros: outros };
+}
+function manutCascataFlowHtml(items){
+  const flow = manutBuildCascataFlow(items);
+  const own = flow.own, cum = flow.cum, outros = flow.outros;
+  let nodesHtml = "";
+  MANUT_CASCATA_NODES.forEach(function(n, idx){
+    const o = own[n], c = cum[n];
+    const has = o.vencido || o.limite;
+    nodesHtml += '<div class="cf-node' + (!has ? " empty" : "") + '" data-tier="' + n + '">'
+      + '<div class="cf-km">' + MANUT_CASCATA_NODE_LABEL[n] + '</div>'
+      + '<div class="cf-anchor">' + escapeHtml(MANUT_CASCATA_NODE_ANCHOR[n]) + '</div>'
+      + '<div class="cf-counts">'
+      + '<span class="cf-v">' + o.vencido + ' vencido' + (o.vencido !== 1 ? "s" : "") + '</span>'
+      + '<span class="cf-l">' + o.limite + ' no limite</span>'
+      + '</div>'
+      + '<div class="cf-codes">' + manutCfByCodeHtml(o.by_code) + '</div>'
+      + '<div class="cf-cum">cumulativo desde 3.000km: <b>' + c.vencido + '</b> vencidos</div>'
+      + '</div>';
+    if(idx < MANUT_CASCATA_NODES.length - 1) nodesHtml += '<div class="cf-arrow">&#8594;</div>';
+  });
+  const hasOutros = outros.vencido || outros.limite;
+  nodesHtml += '<div class="cf-arrow cf-arrow-outros">&#8943;</div>';
+  nodesHtml += '<div class="cf-node cf-outros' + (!hasOutros ? " empty" : "") + '" data-tier="outros">'
+    + '<div class="cf-km">Outros</div>'
+    + '<div class="cf-anchor">Fora da cascata de óleo/filtro &mdash; pneus, elétrica, freios, correias etc.</div>'
+    + '<div class="cf-counts">'
+    + '<span class="cf-v">' + outros.vencido + ' vencido' + (outros.vencido !== 1 ? "s" : "") + '</span>'
+    + '<span class="cf-l">' + outros.limite + ' no limite</span>'
+    + '</div>'
+    + '<div class="cf-codes">' + manutCfByCodeHtml(outros.by_code) + '</div>'
+    + '</div>';
+  return '<div class="cascflow" id="mpb-cf-frota">' + nodesHtml + '</div>';
+}
+
+// Estatísticas por unidade pro Panorama (Ranking, Matriz, Frota por Unidade) — inclui toda unidade
+// com frota cadastrada (mesmo sem pendência hoje), igual ao ROSTER_TOTAL_BY_GARAGEM do HTML de
+// referência.
+function manutBuildUniStats(d){
+  const catCountByCk = {};
+  Object.keys(d.porVeiculo).forEach(function(vk){
+    const v = d.porVeiculo[vk];
+    if(!v.cidadeKey) return;
+    if(!catCountByCk[v.cidadeKey]) catCountByCk[v.cidadeKey] = {};
+    v.items.forEach(function(i){
+      const cat = MANUT_CAT_MAP[i.code] || "Outros";
+      catCountByCk[v.cidadeKey][cat] = (catCountByCk[v.cidadeKey][cat] || 0) + 1;
+    });
+  });
+  return Object.keys(d.porUnidade).map(function(ck){
+    const u = d.porUnidade[ck];
+    const pctFrota = u.totalFrota ? Math.round(1000 * u.veiculosComPendencia / u.totalFrota) / 10 : 0;
+    return {
+      cidadeKey: ck, nome: titleCaseUnidade(u.label), totalFrota: u.totalFrota,
+      n_veic: u.veiculosComPendencia, n_v: u.itensVencido, n_s: u.itensLimite,
+      pct: pctFrota, cat_count: catCountByCk[ck] || {},
+    };
+  }).filter(function(s){ return s.totalFrota > 0; });
+}
+function manutRankingHtml(uniStats){
+  const sorted = uniStats.slice().sort(function(a,b){ return b.pct - a.pct; });
+  let maxPct = 0;
+  sorted.forEach(function(s){ if(s.pct > maxPct) maxPct = s.pct; });
+  maxPct = maxPct || 1;
+  return sorted.map(function(s, i){
+    return '<div class="rk-row' + (i < 3 ? " top" : "") + '">'
+      + '<div class="rk-pos">' + String(i+1).padStart(2, "0") + '</div>'
+      + '<div class="rk-nm">' + escapeHtml(s.nome) + '</div>'
+      + '<div class="rk-bar"><div class="rk-bf" style="width:' + Math.round(100 * s.pct / maxPct) + '%"></div></div>'
+      + '<div class="rk-p">' + s.pct + '%</div>'
+      + '</div>';
+  }).join("");
+}
+function manutMatrixHtml(uniStats){
+  const mtzUnits = uniStats.slice().sort(function(a,b){ return a.nome < b.nome ? -1 : (a.nome > b.nome ? 1 : 0); });
+  const head = '<th class="cc">Categoria</th>' + mtzUnits.map(function(s){
+    return '<th title="' + escapeHtml(s.nome) + '">' + escapeHtml(s.nome.replace(/^Garagem\s+/i, "")) + '</th>';
+  }).join("") + '<th class="tc">Total</th>';
+  const bodyRows = MANUT_CAT_ORDER.map(function(cat){
+    const critCls = MANUT_CAT_CRIT[cat] ? "crit" : "";
+    let tot = 0;
+    const cells = mtzUnits.map(function(s){
+      const v = s.cat_count[cat] || 0;
+      tot += v;
+      return '<td class="' + (v === 0 ? "zero" : "") + '">' + (v || "&middot;") + '</td>';
+    }).join("");
+    return '<tr class="' + critCls + '"><td class="cl">' + (critCls ? "&#9888; " : "") + escapeHtml(cat) + '</td>' + cells + '<td class="tc">' + tot + '</td></tr>';
+  }).join("");
+  const totalRow = '<tr class="trow"><td class="cl">TOTAL</td>' + mtzUnits.map(function(s){
+    return '<td>' + (s.n_v + s.n_s) + '</td>';
+  }).join("") + '<td class="tc">' + mtzUnits.reduce(function(a,s){ return a + s.n_v + s.n_s; }, 0) + '</td></tr>';
+  return '<table class="mtz"><thead><tr>' + head + '</tr></thead><tbody>' + bodyRows + totalRow + '</tbody></table>';
+}
+function manutFrotaTableHtml(uniStats, nVeicVencTotal, nVencido, nLimite){
+  const rows = uniStats.slice().sort(function(a,b){ return b.totalFrota - a.totalFrota; });
+  const body = rows.map(function(s){
+    return '<tr>'
+      + '<td>' + escapeHtml(s.nome) + '</td>'
+      + '<td class="cell-num">' + fmtNum(s.totalFrota) + '</td>'
+      + '<td class="cell-num">' + fmtNum(s.n_veic) + '</td>'
+      + '<td class="cell-num">' + s.pct + '%</td>'
+      + '<td class="cell-num">' + fmtNum(s.n_v) + '</td>'
+      + '<td class="cell-num">' + fmtNum(s.n_s) + '</td>'
+      + '</tr>';
+  }).join("");
+  const totalGeral = rows.reduce(function(a,s){ return a + s.totalFrota; }, 0);
+  const totalRow = '<tr class="ftbl-total">'
+    + '<td>Total geral</td>'
+    + '<td class="cell-num">' + fmtNum(totalGeral) + '</td>'
+    + '<td class="cell-num">' + fmtNum(nVeicVencTotal) + '</td>'
+    + '<td class="cell-num">&mdash;</td>'
+    + '<td class="cell-num">' + fmtNum(nVencido) + '</td>'
+    + '<td class="cell-num">' + fmtNum(nLimite) + '</td>'
+    + '</tr>';
+  return body + totalRow;
+}
+
 async function renderManutMacro(){
   const el = document.getElementById("manut-macro-body");
   el.innerHTML = '<div id="manutmacro-data-area"><div class="spinner">Carregando visão macro...</div></div>';
@@ -3944,31 +4610,49 @@ async function renderManutMacro(){
     ]);
     renderSidebarSecondaryUnidades();
 
-    const ranking = manutRanking(prv.porUnidade);
+    const uniStats = manutBuildUniStats(prv);
+    let allItemsFrota = [];
+    Object.keys(prv.porVeiculo).forEach(function(vk){ allItemsFrota = allItemsFrota.concat(prv.porVeiculo[vk].items); });
 
-    let html = '<div class="kpi-grid">'
-      + kpiCard("Veíc. c/ pendência · Preventiva", fmtNum(prv.totalVeiculosComPendencia), prv.totalVeiculosComPendencia ? "warning" : "good")
-      + kpiCard("Itens vencidos · Preventiva", fmtNum(prv.totalItensVencido), prv.totalItensVencido ? "critical" : "good")
-      + kpiCard("O.S. abertas · Retenção", ret ? fmtNum(ret.total) : "—", "info")
-      + kpiCard("Críticas +90d · Retenção", ret ? fmtNum(ret.criticos.length) : "—", (ret && ret.criticos.length) ? "critical" : "good")
-      + kpiCard("Unidades monitoradas", fmtNum(prv.unidadesFiltro.length), "info")
+    const pgKbarHtml = '<div class="pg-kbar">'
+      + '<div class="pg-kpi al"><div class="kpi-l">Veíc. c/ Pendência &middot; Preventiva</div><div class="kpi-v">' + fmtNum(prv.totalVeiculosComPendencia) + '</div></div>'
+      + '<div class="pg-kpi wn"><div class="kpi-l">Planos Vencidos/No Limite</div><div class="kpi-v">' + fmtNum(prv.totalItensVencido + prv.totalItensLimite) + '</div></div>'
+      + '<div class="pg-kpi al"><div class="kpi-l">O.S. Abertas &middot; Retenção</div><div class="kpi-v">' + (ret ? fmtNum(ret.total) : "—") + '</div></div>'
+      + '<div class="pg-kpi"><div class="kpi-l">Unidades Monitoradas</div><div class="kpi-v">' + fmtNum(uniStats.length) + '</div></div>'
       + '</div>';
 
-    html += '<div class="subsection"><h3>Ranking de Unidades — % da frota com plano vencido ou no limite</h3>'
-      + '<div class="table-wrap"><table><thead><tr><th>#</th><th>Unidade</th><th>Veíc. c/ pendência</th><th>Frota</th><th>%</th></tr></thead><tbody>'
-      + (ranking.length ? ranking.map(function(r, i){
-          return '<tr><td>' + (i+1) + '</td><td>' + escapeHtml(titleCaseUnidade(r.label)) + '</td><td>' + fmtNum(r.veiculosComPendencia) + '</td><td>' + fmtNum(r.totalFrota) + '</td><td><b>' + r.pct.toFixed(1).replace(".", ",") + '%</b></td></tr>';
-        }).join("") : '<tr><td colspan="5">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    const panoGridHtml = '<div class="pg-section-t">Ranking &amp; Matriz &middot; Preventiva por Unidade</div>'
+      + '<div class="pano-grid">'
+      + '<div class="pano-card">'
+      + '<div class="pano-card-t">Ranking de Unidades</div>'
+      + '<div class="pano-card-d">percentual da frota da unidade com plano vencido ou no limite</div>'
+      + '<div class="rk-list">' + (uniStats.length ? manutRankingHtml(uniStats) : '<p class="hint">Sem dados.</p>') + '</div>'
+      + '</div>'
+      + '<div class="pano-card">'
+      + '<div class="pano-card-t">Matriz Categorias &times; Unidades</div>'
+      + '<div class="pano-card-d">planos vencidos/no limite por categoria e unidade</div>'
+      + '<div class="mtz-w">' + (uniStats.length ? manutMatrixHtml(uniStats) : '<p class="hint">Sem dados.</p>') + '</div>'
+      + '</div>'
+      + '</div>';
 
-    html += legendBox("Como ler esse painel", [
-      { label:"Veíc. c/ pendência", desc:"veículo com pelo menos 1 item de plano vencido ou no limite — não conta itens repetidos do mesmo veículo." },
-      { label:"Ranking de Unidades", desc:"percentual da frota da unidade (Base de Veículos - Pneus) com pelo menos 1 pendência de Preventiva. Clique em \"Preventiva\" no menu, ou numa unidade na barra lateral, para ver o detalhe por veículo." },
-    ]);
-    html += '<div class="section-footer">' + srcNote(MANUT_PRV_TAB + ", " + RETENCAO_TAB) + resolvedDatesNote(Object.assign({}, prv.resolvedDates, ret ? ret.resolvedDates : {})) + '</div>';
+    const frotaHtml = '<div class="pano-card" style="margin-bottom:18px;">'
+      + '<div class="pano-card-t">Frota por Unidade</div>'
+      + '<div class="pano-card-d">frota cadastrada, veículos com pendência e volume de planos vencidos/no limite por unidade</div>'
+      + '<div class="plan-table-wrap"><table class="plan-table ftbl"><thead><tr><th>Unidade</th><th>Frota Total</th><th>Veíc. c/ Pendência</th><th>% da Frota</th><th>Planos Vencidos</th><th>Planos No Limite</th></tr></thead><tbody>'
+      + (uniStats.length ? manutFrotaTableHtml(uniStats, prv.totalVeiculosComPendencia, prv.totalItensVencido, prv.totalItensLimite) : '<tr><td colspan="6">Sem dados.</td></tr>')
+      + '</tbody></table></div>'
+      + '</div>';
+
+    const cascataHtml = '<div class="cf-wrap">'
+      + '<div class="cf-t">Cascata de Manutenção por Km &middot; Frota Completa</div>'
+      + '<div class="cf-d">planos vencidos/no limite de toda a frota, organizados pelos marcos de km da cascata homologada (lógica cumulativa)</div>'
+      + manutCascataFlowHtml(allItemsFrota)
+      + '</div>';
+
+    const html = '<div class="mpb">' + pgKbarHtml + panoGridHtml + frotaHtml + cascataHtml + '</div>'
+      + '<div class="section-footer">' + srcNote(MANUT_PRV_TAB + ", " + MANUT_VEIC_TAB + ", " + RETENCAO_TAB) + resolvedDatesNote(Object.assign({}, prv.resolvedDates, ret ? ret.resolvedDates : {})) + '</div>';
 
     area.innerHTML = html;
-    enableSortableTables(area);
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar a Visão Macro: ' + escapeHtml(err.message) + '</p>';
   }
