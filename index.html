@@ -1204,6 +1204,13 @@
 <script>
 const SUPABASE_URL = "https://dxanuyfarsxmsunocumg.supabase.co";
 const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4YW51eWZhcnN4bXN1bm9jdW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzUxMDUsImV4cCI6MjEwMjExMTEwNX0.FPzzszUQuAfQRrFssTrEssZDcgFk7jwi_B3Ujwo9iUs";
+// Segundo projeto Supabase — "Robo-Transnet" (cuyatukbcckgptorzpxu), alimentado pelo robô Python
+// de Jefferson (Playwright + coleta diária agendada), separado do Dash-Controladoria. Tabelas
+// próprias por fonte (sem tab_name/row_data), RLS ainda desabilitada — mesma chave anon usada
+// tanto pra leitura do site quanto pra escrita do robô (decisão do Jefferson, 21/09/2026). Sem
+// login/sessão própria (diferente do SUPABASE_URL acima): a chave anon já lê tudo diretamente.
+const ROBO_SUPABASE_URL = "https://cuyatukbcckgptorzpxu.supabase.co";
+const ROBO_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1eWF0dWtiY2NrZ3B0b3J6cHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0MzE2OTcsImV4cCI6MjEwNTAwNzY5N30.hCt_moE4mUWFQVDtEUcvQSX-KzL7LUeM2L2RaQ_5UG4";
 const DADOS_GATE_CODE = "170726";
 
 const USERS = [
@@ -1291,6 +1298,9 @@ async function rest(path, opts){
 }
 
 async function getLatestSnapshotDate(tabName){
+  // ROBO_TAB_MAP (definido mais abaixo, mesmo escopo do script): tab_names já migrados pro
+  // Robo-Transnet passam a resolver a data por lá em vez do snapshot_dates do Dash-Controladoria.
+  if(ROBO_TAB_MAP[tabName]) return roboGetLatestSnapshotDate(ROBO_TAB_MAP[tabName].table);
   const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&select=snapshot_date&order=snapshot_date.desc&limit=1");
   const rows = await resp.json();
   return rows[0] ? rows[0].snapshot_date : null;
@@ -1300,6 +1310,7 @@ async function getLatestSnapshotDate(tabName){
 // otherwise the most recent snapshot on or before asOfDate (i.e. "data as of that period").
 const MIN_PERIOD_DATE = "2026-01-01";
 async function resolveSnapshotDate(tabName, asOfDate){
+  if(ROBO_TAB_MAP[tabName]) return roboResolveSnapshotDate(ROBO_TAB_MAP[tabName].table, asOfDate);
   if(!asOfDate) return await getLatestSnapshotDate(tabName);
   const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=lte." + encodeURIComponent(asOfDate) + "&select=snapshot_date&order=snapshot_date.desc&limit=1");
   const rows = await resp.json();
@@ -1469,7 +1480,7 @@ async function fetchAllRows(tabName, snapshotDate){
   if(inFlightRowFetches[key]) return inFlightRowFetches[key];
   const promise = (async function(){
     try{
-      return await fetchAllRowsUncached(tabName, snapshotDate);
+      return ROBO_TAB_MAP[tabName] ? await roboFetchAllRows(tabName, snapshotDate) : await fetchAllRowsUncached(tabName, snapshotDate);
     } finally {
       delete inFlightRowFetches[key];
     }
@@ -1530,6 +1541,168 @@ async function fetchAllRowsUncached(tabName, snapshotDate){
     }
   }
   return out;
+}
+
+// =====================================================================
+// Adaptador Robo-Transnet — traduz as fontes já migradas pro robô Python de Jefferson pra dentro
+// do mesmo formato que getLatestSnapshotDate/resolveSnapshotDate/fetchAllRows sempre devolveram
+// (tab_name antigo, snapshot_date ISO, linhas com as chaves de campo antigas tipo "Oficina"/"OS").
+// Assim NENHUM parser do resto do arquivo (nem o de dentro do <script id="abast-script">, que não
+// pode ser tocado) precisa saber que a fonte trocou — eles continuam pedindo o mesmo tab_name de
+// sempre. Migração planilha por planilha: só as chaves listadas em ROBO_TAB_MAP saem do projeto
+// Dash-Controladoria e passam a vir do Robo-Transnet; qualquer tab_name fora dessa lista segue
+// exatamente como antes (rest()/fetchAllRowsUncached acima, sem mudança nenhuma).
+//
+// Ainda de propósito FORA do ROBO_TAB_MAP (seguem no Dash-Controladoria) até Jefferson confirmar:
+// - "Dados RPV - Pneus": o robô traz o veículo num formato tipo "001/0110" que não bate com o
+//   "Nº de Ordem" usado no resto do site (ex.: "882010") — parece outra numeração interna do
+//   sistema de pneus, não confirmado ainda.
+// - "Pneus por Unidade": não existe nenhuma tabela equivalente no Robo-Transnet por enquanto
+//   (só as 9 tabelas listadas abaixo) — alimenta o módulo Suprimentos, que por isso continua
+//   inteiramente na fonte antiga.
+const ROBO_OS_FIELDS = { Oficina:"oficina", OS:"o_s", Tipo_de_OS:"tipo_de_o_s", Observacao:"observacao", Abertura:"abertura", Fechamento:"fechamento", Tempo:"tempo", Veiculo:"veiculo" };
+const ROBO_VEIC_FIELDS = { "Nº de Ordem":"no_ordem", Unidade:"local", Empresa:"empresa", Placa:"placa", "Tipo de Serviço":"tipo_de_servico", "Tipo de Chassi (Motorização)":"tipo_do_chassi", "Tipo de Equipamento":"tipo_equipamento" };
+const ROBO_PRV_FIELDS = { Veiculo:"veiculo", Observacao:"observacao", Plano_de_Manutencao:"plano_manutencao", Int_Km:"int_km", Int_Dias:"int_dias", Ult_Data:"ultima_manutencao_data", Km_Rodado:"rodado_km", Km_Diferenca:"diferenca_km", Dias_Diferenca:"diferenca_dias", Pct_Vencido:"percentual", OS:"ultima_manutencao_o_s", Ofic:"ultima_manutencao_oficina" };
+const ROBO_TML_FIELDS = { Carro:"carro", "Dt. Verificação":"dt_verificacao", "Dt. Última Comunicação":"dt_ultima_comunicacao", Unidade:"unidade", "Observação":"observacao" };
+const ROBO_EXP_FIELDS = { "Setor de Abastecimento":"setor_de_abastecimento", Data:"data", Turno:"turno", "Situação":"situacao", "Situação da Exportação":"situacao_da_exportacao" };
+const ROBO_ABAST_FIELDS = { Veiculo:"veiculo", Comb:"comb", Data:"data", Km_Rod:"km_rod", Km_Lt:"km_lt", Meta:"meta", Dif_Pct:"dif_percentual", St_Abast:"st_abast", Tur:"tur", Vl_Ab:"vl_ab" };
+const ROBO_TAB_MAP = {
+  "Oficina - RT": { table: "oficina_rt", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
+  "O.S Aberta - TML": { table: "os_aberta_tml", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
+  "O.S Fechada - TML": { table: "os_fechada_tml", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
+  "Base de Veiculos - Pneus": { table: "base_veiculos_pneus", fields: ROBO_VEIC_FIELDS, filterHeaderRows: false },
+  "Manutencao - PRV": { table: "manutencao_prv", fields: ROBO_PRV_FIELDS, filterHeaderRows: false },
+  "Base - TML": { table: "base_tml", fields: ROBO_TML_FIELDS, filterHeaderRows: false },
+  "Exp. Abst": { table: "exp_abst", fields: ROBO_EXP_FIELDS, filterHeaderRows: false },
+  "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false },
+};
+
+async function roboRest(path, opts){
+  opts = opts || {};
+  const headers = Object.assign({ apikey: ROBO_ANON_KEY, Authorization: "Bearer " + ROBO_ANON_KEY }, opts.headers || {});
+  const resp = await fetch(ROBO_SUPABASE_URL + "/rest/v1/" + path, Object.assign({}, opts, { headers: headers }));
+  if(!resp.ok){
+    let detail = "";
+    try{ const body = await resp.clone().json(); detail = (body && (body.message || body.hint)) || ""; }catch(e){}
+    throw new Error("Falha ao buscar Robo-Transnet (HTTP " + resp.status + (detail ? ": " + detail : "") + ")");
+  }
+  return resp;
+}
+// data_referencia no Robo-Transnet é texto "DD/MM/AAAA" (pedido explícito do Jefferson) — o resto
+// do site trata datas de snapshot como string ISO "AAAA-MM-DD" (comparação lexicográfica, fmtDateBR
+// etc.), então toda leitura/escrita nesse campo passa por aqui pra manter os dois lados combinando.
+function roboDateToIso(ddmmaaaa){
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(ddmmaaaa||"").trim());
+  return m ? (m[3] + "-" + m[2] + "-" + m[1]) : null;
+}
+function isoToRoboDate(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||"").trim());
+  return m ? (m[3] + "/" + m[2] + "/" + m[1]) : null;
+}
+// Índice de datas distintas de uma tabela Robo-Transnet, em ISO, mais recente primeiro — usa as
+// últimas linhas por coletado_em (não a tabela inteira, que em fontes como abastecimento_tml passa
+// de 200 mil linhas) porque ordenar por data_referencia como texto dá resultado errado (compara
+// "DD/MM/AAAA" caractere a caractere, não cronologicamente). Cacheado por sessão de página, mesmo
+// padrão dos outros caches deste arquivo (getRetencaoData etc.) — recarregar a página busca de novo.
+const roboDateIndexCache = {};
+async function roboFetchDateIndex(table){
+  if(roboDateIndexCache[table]) return roboDateIndexCache[table];
+  const promise = (async function(){
+    const resp = await roboRest(table + "?select=data_referencia&order=coletado_em.desc&limit=3000");
+    const rows = await resp.json();
+    const set = new Set();
+    rows.forEach(function(r){ const iso = roboDateToIso(r.data_referencia); if(iso) set.add(iso); });
+    return Array.from(set).sort().reverse();
+  })();
+  roboDateIndexCache[table] = promise;
+  promise.catch(function(){ delete roboDateIndexCache[table]; });
+  return promise;
+}
+async function roboGetLatestSnapshotDate(table){
+  const idx = await roboFetchDateIndex(table);
+  return idx[0] || null;
+}
+async function roboResolveSnapshotDate(table, asOfIso){
+  const idx = await roboFetchDateIndex(table);
+  if(!asOfIso) return idx[0] || null;
+  for(let i=0;i<idx.length;i++){ if(idx[i] <= asOfIso) return idx[i]; }
+  return null;
+}
+// Lista (ascendente) as datas <= maxIso já coletadas de um tab_name, limitada a `limit` — usada
+// pelos módulos que reconstroem histórico varrendo vários snapshots (Retenção/prazo, Telemetria
+// mês a mês). Tab migrado: reaproveita o índice do Robo-Transnet; não migrado: mesma consulta a
+// snapshot_dates de sempre no Dash-Controladoria.
+async function tabAllDatesAsc(tabName, maxIso, limit){
+  const cfg = ROBO_TAB_MAP[tabName];
+  if(cfg){
+    const idx = await roboFetchDateIndex(cfg.table);
+    return idx.filter(function(d){ return d <= maxIso; }).slice(0, limit).reverse();
+  }
+  const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&snapshot_date=lte." + encodeURIComponent(maxIso) + "&select=snapshot_date&order=snapshot_date.asc&limit=" + limit);
+  const rows = await resp.json();
+  return Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
+}
+async function roboFetchRowsPage(table, ddmmaaaa, from, to){
+  return roboRest(table + "?data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&select=*&order=id.asc", { headers: { Range: from + "-" + to, Prefer: "count=exact" } });
+}
+async function roboFetchAllRowsRaw(table, isoDate){
+  const ddmmaaaa = isoToRoboDate(isoDate);
+  if(!ddmmaaaa) return [];
+  const out = [];
+  const pageSize = 5000, maxConcurrent = 4;
+  const first = await roboFetchRowsPage(table, ddmmaaaa, 0, pageSize - 1);
+  const firstRows = await first.json();
+  out.push.apply(out, firstRows);
+  const cr = first.headers.get("content-range");
+  let total = null;
+  if(cr){ const t = cr.split("/")[1]; total = t === "*" ? null : parseInt(t, 10); }
+  if(total !== null && total > pageSize){
+    const pageStarts = [];
+    for(let offset = pageSize; offset < total; offset += pageSize) pageStarts.push(offset);
+    const pageResults = new Array(pageStarts.length);
+    let cursor = 0;
+    async function worker(){
+      while(cursor < pageStarts.length){
+        const idx = cursor++;
+        const from = pageStarts[idx], to = from + pageSize - 1;
+        const resp = await roboFetchRowsPage(table, ddmmaaaa, from, to);
+        pageResults[idx] = await resp.json();
+      }
+    }
+    const workers = [];
+    for(let i = 0; i < Math.min(maxConcurrent, pageStarts.length); i++) workers.push(worker());
+    await Promise.all(workers);
+    pageResults.forEach(function(rows){ out.push.apply(out, rows); });
+  } else if(total === null && firstRows.length === pageSize){
+    let offset = pageSize;
+    while(true){
+      const resp = await roboFetchRowsPage(table, ddmmaaaa, offset, offset + pageSize - 1);
+      const rows = await resp.json();
+      out.push.apply(out, rows);
+      offset += rows.length;
+      if(rows.length < pageSize) break;
+    }
+  }
+  return out;
+}
+// Linha de cabeçalho de grupo (planilha original repete "Veículo"/"O.S."/... como se fosse dado a
+// cada troca de oficina) salva por engano como registro real — mesmo bug que o pipeline antigo já
+// tratava com o parse_mode "os_grouped". Só afeta as 3 fontes agrupadas por oficina.
+function roboIsOsHeaderRow(raw){
+  const v = String(raw.veiculo || "").trim();
+  return v === "Veículo" || v === "Veiculo";
+}
+function roboReshapeRow(raw, fieldMap){
+  const row = {};
+  Object.keys(fieldMap).forEach(function(oldKey){ row[oldKey] = raw[fieldMap[oldKey]]; });
+  return row;
+}
+async function roboFetchAllRows(tabName, isoDate){
+  const cfg = ROBO_TAB_MAP[tabName];
+  if(!cfg || !isoDate) return [];
+  const raw = await roboFetchAllRowsRaw(cfg.table, isoDate);
+  const filtered = cfg.filterHeaderRows ? raw.filter(function(r){ return !roboIsOsHeaderRow(r); }) : raw;
+  return filtered.map(function(r){ return roboReshapeRow(r, cfg.fields); });
 }
 
 // ---------- generic helpers ----------
@@ -3332,9 +3505,9 @@ function computeRetencaoAggregates(rows){
 // Monta o histórico de mudança de prazo por O.S. varrendo os últimos snapshots diários já
 // sincronizados (a planilha "O.S Aberta - TML" mantém histórico, um snapshot por dia).
 async function buildPrazoHistory(uptoSnapshot){
-  const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(RETENCAO_TAB) + "&snapshot_date=lte." + encodeURIComponent(uptoSnapshot) + "&select=snapshot_date&order=snapshot_date.desc&limit=" + RETENCAO_HISTORY_LOOKBACK_DAYS);
-  const dateRows = await resp.json();
-  const dates = dateRows.map(function(r){ return r.snapshot_date; }).sort(); // ascendente
+  // tabAllDatesAsc cobre tanto o tab_name migrado pro Robo-Transnet quanto o caminho antigo
+  // (snapshot_dates do Dash-Controladoria) — ver definição junto do resto do adaptador acima.
+  const dates = await tabAllDatesAsc(RETENCAO_TAB, uptoSnapshot, RETENCAO_HISTORY_LOOKBACK_DAYS);
 
   // Busca os N snapshots em paralelo (pool de workers, mesmo padrão do fetchAllRowsUncached) em
   // vez de um de cada vez — com RETENCAO_HISTORY_LOOKBACK_DAYS=30 dias (hoje ~19 snapshots reais
@@ -5856,17 +6029,17 @@ function dashTelemetriaCidadeKeyFor(row){
 async function buildDashboardData(asOfDate){
   const hojeIso = asOfDate || todayStr();
 
-  const [veicSnap, abastSnap, osSnap, supSnap, rpvSnap, baseSnap, baseDatesResp] = await Promise.all([
+  const [veicSnap, abastSnap, osSnap, supSnap, rpvSnap, baseSnap, baseDates] = await Promise.all([
     resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
     resolveSnapshotDate("Abastecimento - TML", asOfDate),
     resolveSnapshotDate("O.S Fechada - TML", asOfDate),
     resolveSnapshotDate("Pneus por Unidade", asOfDate),
     resolveSnapshotDate("Dados RPV - Pneus", asOfDate),
     resolveSnapshotDate("Base - TML", asOfDate),
-    rest("snapshot_dates?tab_name=eq." + encodeURIComponent("Base - TML") + "&snapshot_date=lte." + encodeURIComponent(hojeIso) + "&select=snapshot_date&order=snapshot_date.asc&limit=400"),
+    // tabAllDatesAsc cobre tanto o tab_name migrado pro Robo-Transnet quanto o caminho antigo
+    // (snapshot_dates do Dash-Controladoria) — ver definição junto do resto do adaptador acima.
+    tabAllDatesAsc("Base - TML", hojeIso, 400),
   ]);
-  const baseDatesRows = await baseDatesResp.json();
-  const baseDates = Array.from(new Set(baseDatesRows.map(function(r){ return r.snapshot_date; })));
 
   const [veicRows, abastRows, osRows, supRows, rpvRows, baseRows, supSummary, baseSnapshots] = await Promise.all([
     fetchAllRows("Base de Veiculos - Pneus", veicSnap),
