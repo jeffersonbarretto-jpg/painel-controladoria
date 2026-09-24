@@ -1649,7 +1649,10 @@ async function roboFetchAllRowsRaw(table, isoDate){
   const ddmmaaaa = isoToRoboDate(isoDate);
   if(!ddmmaaaa) return [];
   const out = [];
-  const pageSize = 5000, maxConcurrent = 4;
+  // O PostgREST do Supabase corta cada resposta em 1000 linhas (max-rows padrão do projeto), mesmo
+  // pedindo Range maior — com pageSize 5000 o site só recebia 1000 de cada bloco de 5000 (ex.:
+  // Telemetria travada em "1.000 carros" com base_tml tendo 1.856). pageSize tem que ser <= 1000.
+  const pageSize = 1000, maxConcurrent = 8;
   const first = await roboFetchRowsPage(table, ddmmaaaa, 0, pageSize - 1);
   const firstRows = await first.json();
   out.push.apply(out, firstRows);
@@ -1692,9 +1695,17 @@ function roboIsOsHeaderRow(raw){
   const v = String(raw.veiculo || "").trim();
   return v === "Veículo" || v === "Veiculo";
 }
+// abastecimento_tml grava Data com ano de 2 dígitos ("31/08/26"), mas todos os parsers do site
+// (parseLenientDate, filtro de Telemetria, abast-script) exigem ano com 4 dígitos — sem isso toda
+// linha de abastecimento era descartada (Home mostrava R$ 0,00 / 0 unidades). Expande pra 20AA.
+function roboFixShortYear(v){
+  if(typeof v !== "string") return v;
+  const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{2})(\s+\d{1,2}:\d{2}(?::\d{2})?)?\s*$/.exec(v);
+  return m ? (m[1] + "/" + m[2] + "/20" + m[3] + (m[4] || "")) : v;
+}
 function roboReshapeRow(raw, fieldMap){
   const row = {};
-  Object.keys(fieldMap).forEach(function(oldKey){ row[oldKey] = raw[fieldMap[oldKey]]; });
+  Object.keys(fieldMap).forEach(function(oldKey){ row[oldKey] = roboFixShortYear(raw[fieldMap[oldKey]]); });
   return row;
 }
 async function roboFetchAllRows(tabName, isoDate){
