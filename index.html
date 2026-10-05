@@ -1582,7 +1582,7 @@ const ROBO_TAB_MAP = {
   "Manutencao - PRV": { table: "manutencao_prv", fields: ROBO_PRV_FIELDS, filterHeaderRows: false },
   "Base - TML": { table: "base_tml", fields: ROBO_TML_FIELDS, filterHeaderRows: false },
   "Exp. Abst": { table: "exp_abst", fields: ROBO_EXP_FIELDS, filterHeaderRows: false },
-  "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false },
+  "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false, cumulative: true },
   "Dados RPV - Pneus": { table: "pneus_rpv", fields: ROBO_RPV_FIELDS, filterHeaderRows: false },
 };
 
@@ -1652,11 +1652,13 @@ async function tabAllDatesAsc(tabName, maxIso, limit){
   return Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
 }
 async function roboFetchRowsPage(table, ddmmaaaa, from, to){
-  return roboRest(table + "?data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&select=*&order=id.asc", { headers: { Range: from + "-" + to, Prefer: "count=exact" } });
+  // ddmmaaaa null = sem filtro de data (leitura cumulativa, ver cfg.cumulative em ROBO_TAB_MAP)
+  const filtro = ddmmaaaa ? ("data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&") : "";
+  return roboRest(table + "?" + filtro + "select=*&order=id.asc", { headers: { Range: from + "-" + to, Prefer: "count=exact" } });
 }
-async function roboFetchAllRowsRaw(table, isoDate){
-  const ddmmaaaa = isoToRoboDate(isoDate);
-  if(!ddmmaaaa) return [];
+async function roboFetchAllRowsRaw(table, isoDate, cumulative){
+  const ddmmaaaa = cumulative ? null : isoToRoboDate(isoDate);
+  if(!cumulative && !ddmmaaaa) return [];
   const out = [];
   // O PostgREST do Supabase corta cada resposta em 1000 linhas (max-rows padrão do projeto), mesmo
   // pedindo Range maior — com pageSize 5000 o site só recebia 1000 de cada bloco de 5000 (ex.:
@@ -1720,9 +1722,49 @@ function roboReshapeRow(raw, fieldMap){
 async function roboFetchAllRows(tabName, isoDate){
   const cfg = ROBO_TAB_MAP[tabName];
   if(!cfg || !isoDate) return [];
-  const raw = await roboFetchAllRowsRaw(cfg.table, isoDate);
+  let raw = await roboFetchAllRowsRaw(cfg.table, isoDate, !!cfg.cumulative);
+  if(cfg.cumulative) raw = roboCumulativeDedupe(raw, isoDate);
   const filtered = cfg.filterHeaderRows ? raw.filter(function(r){ return !roboIsOsHeaderRow(r); }) : raw;
   return filtered.map(function(r){ return roboReshapeRow(r, cfg.fields); });
+}
+// Fonte "cumulativa" (hoje só abastecimento_tml): desde que o robô passou a coletar só D-1, cada
+// data_referencia guarda apenas os abastecimentos de UM dia (mais o "montante" histórico carregado
+// em 21/09), em vez de uma foto completa como nas outras fontes. Ler só a data_referencia mais
+// recente (como o resto do adaptador faz) deixava o painel de Abastecimento com 1 dia só. Aqui o
+// painel recebe a união de todas as coletas <= isoDate; se um mesmo dia de abastecimento (campo
+// Data) aparecer em mais de uma coleta, vale só a coleta mais recente daquele dia (evita duplicar
+// quando o robô reprocessa um dia).
+function roboCumulativeDedupe(raw, isoDate){
+  const bestByDay = {};
+  const kept = [];
+  raw.forEach(function(r){
+    const iso = roboDateToIso(r.data_referencia);
+    if(!iso || (isoDate && iso > isoDate)) return;
+    kept.push({ r: r, iso: iso });
+    const day = String(r.data || "").trim();
+    if(day && (!bestByDay[day] || iso > bestByDay[day])) bestByDay[day] = iso;
+  });
+  return kept.filter(function(x){
+    const day = String(x.r.data || "").trim();
+    return !day || bestByDay[day] === x.iso;
+  }).map(function(x){ return x.r; });
+}
+// Resumo das coletas do robô (view coletas_resumo no Robo-Transnet: 1 linha por tabela + data de
+// referência, com total de linhas e horário da última gravação). Alimenta a página Base de Dados
+// (status, calendário, lista de datas). Últimos 90 dias; cache por carregamento de página.
+let roboColetasPromise = null;
+function roboFetchColetas(){
+  if(roboColetasPromise) return roboColetasPromise;
+  roboColetasPromise = (async function(){
+    const corte = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    const resp = await roboRest("coletas_resumo?select=tabela,data_iso,linhas,ultima_coleta&data_iso=gte." + corte + "&order=data_iso.desc&limit=1000");
+    const rows = await resp.json();
+    const byTable = {};
+    rows.forEach(function(r){ (byTable[r.tabela] = byTable[r.tabela] || []).push({ iso: r.data_iso, linhas: r.linhas, ultima: r.ultima_coleta }); });
+    return byTable;
+  })();
+  roboColetasPromise.catch(function(){ roboColetasPromise = null; });
+  return roboColetasPromise;
 }
 
 // ---------- generic helpers ----------
@@ -5781,11 +5823,21 @@ async function renderDadosGeral(){
   await initDataTab();
 }
 
-function statusFor(lastSyncedAt){
+// Fontes que não são rotina diária: ficam amarelas com "pausa" em vez de virar "crítico" por falta
+// de atualização recente. "Pneus por Unidade" alimenta o Suprimentos, que é semestral — o 1º
+// semestre já foi, então só volta a ser cobrado quando abrir o 2º semestre.
+const SYNC_PAUSED_TABS = {
+  "Pneus por Unidade": "Fonte semestral (Suprimentos) — em pausa até o 2º semestre"
+};
+// Fontes que vêm do robô rodam 1x por dia (~15h), não 2x como as planilhas antigas — a régua de 20h
+// deixaria o status amarelo todo dia de ~11h até a próxima coleta. Aqui: em dia até 30h; atrasado
+// se perdeu 1 coleta (até 54h); crítico além disso.
+function statusFor(lastSyncedAt, isRobo){
   if(!lastSyncedAt) return { cls: "critical", label: "nunca sincronizado" };
   const hours = (Date.now() - new Date(lastSyncedAt).getTime()) / 3600000;
-  if(hours < 20) return { cls: "good", label: "em dia" };
-  if(hours < 48) return { cls: "warning", label: "atrasado" };
+  const okH = isRobo ? 30 : 20, lateH = isRobo ? 54 : 48;
+  if(hours < okH) return { cls: "good", label: "em dia" };
+  if(hours < lateH) return { cls: "warning", label: "atrasado" };
   return { cls: "critical", label: "crítico" };
 }
 
@@ -5794,6 +5846,20 @@ async function renderSyncOverview(){
   try{
     const resp = await rest("source_sheets?select=*&order=domain,tab_name");
     const rows = await resp.json();
+    // Fontes migradas pro Robo-Transnet: status/linhas vêm da última coleta do robô, não do
+    // source_sheets antigo (que parou de ser atualizado quando as planilhas foram desligadas).
+    let coletas = null;
+    try{ coletas = await roboFetchColetas(); }catch(e){ coletas = null; }
+    rows.forEach(function(r){
+      const cfg = ROBO_TAB_MAP[r.tab_name];
+      if(!cfg) return;
+      r._robo = true;
+      const ult = coletas && coletas[cfg.table] && coletas[cfg.table][0];
+      r._roboErro = !coletas;
+      r.last_synced_at = ult ? ult.ultima : null;
+      r.last_row_count = ult ? ult.linhas : 0;
+      r._refIso = ult ? ult.iso : null;
+    });
     const byDomain = {};
     rows.forEach(function(r){ (byDomain[r.domain] = byDomain[r.domain] || []).push(r); });
     const domains = Object.keys(byDomain).sort(function(a,b){
@@ -5802,8 +5868,12 @@ async function renderSyncOverview(){
     });
     el.innerHTML = domains.map(function(domain){
       const cards = byDomain[domain].map(function(r){
-        const st = statusFor(r.last_synced_at);
-        return '<div class="status-card"><div class="top"><span class="tab">' + escapeHtml(r.tab_name) + '</span><span class="status-pill ' + st.cls + '">' + st.label + '</span></div><div class="meta">Última sync: ' + fmtDateTime(r.last_synced_at) + '<br/>Linhas (última carga): ' + (r.last_row_count == null ? 0 : r.last_row_count).toLocaleString("pt-BR") + '</div></div>';
+        const pausa = SYNC_PAUSED_TABS[r.tab_name];
+        const st = pausa ? { cls: "warning", label: "pausa" }
+          : (r._roboErro ? { cls: "warning", label: "sem leitura" } : statusFor(r.last_synced_at, r._robo));
+        const extra = pausa ? ('<br/><span style="color:var(--text-muted);">' + escapeHtml(pausa) + '</span>')
+          : (r._robo && r._refIso ? ('<br/>Referência: ' + fmtDateBR(r._refIso)) : "");
+        return '<div class="status-card"><div class="top"><span class="tab">' + escapeHtml(r.tab_name) + '</span><span class="status-pill ' + st.cls + '">' + st.label + '</span></div><div class="meta">Última sync: ' + fmtDateTime(r.last_synced_at) + '<br/>Linhas (última carga): ' + (r.last_row_count == null ? 0 : r.last_row_count).toLocaleString("pt-BR") + extra + '</div></div>';
       }).join("");
       return '<div class="domain-group"><h3>' + escapeHtml(domain) + '</h3><div class="card-grid">' + cards + '</div></div>';
     }).join("") || '<p>Nenhuma fonte encontrada.</p>';
@@ -5825,7 +5895,16 @@ async function renderSyncCalendar(){
       dates.push(d.toISOString().slice(0,10));
     }
     const have = {};
-    rows.forEach(function(r){ have[r.tab_name + "|" + r.snapshot_date] = true; });
+    // tabs migradas: datas vêm do robô (o snapshot_dates antigo parou junto com as planilhas)
+    rows.forEach(function(r){ if(!ROBO_TAB_MAP[r.tab_name]) have[r.tab_name + "|" + r.snapshot_date] = true; });
+    try{
+      const coletas = await roboFetchColetas();
+      Object.keys(ROBO_TAB_MAP).forEach(function(tabName){
+        if(tabs.indexOf(tabName) === -1) tabs.push(tabName);
+        ((coletas[ROBO_TAB_MAP[tabName].table]) || []).forEach(function(c){ have[tabName + "|" + c.iso] = true; });
+      });
+      tabs.sort();
+    }catch(e){}
     const head = '<th>Planilha</th>' + dates.map(function(d){ return '<th>' + d.slice(8,10)+'/'+d.slice(5,7) + '</th>'; }).join("");
     const body = tabs.map(function(t){
       return '<tr><td>' + escapeHtml(t) + '</td>' + dates.map(function(d){
@@ -5870,9 +5949,15 @@ async function onTabNameChange(tabName){
   if(!tabName){ document.getElementById("data-table-area").innerHTML = ""; return; }
   document.getElementById("data-table-area").innerHTML = '<div class="spinner">Carregando datas...</div>';
   try{
-    const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&select=snapshot_date&order=snapshot_date.desc&limit=60");
-    const rows = await resp.json();
-    const dates = Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
+    let dates;
+    if(ROBO_TAB_MAP[tabName]){
+      const coletas = await roboFetchColetas();
+      dates = ((coletas[ROBO_TAB_MAP[tabName].table]) || []).map(function(c){ return c.iso; }).slice(0, 60);
+    } else {
+      const resp = await rest("snapshot_dates?tab_name=eq." + encodeURIComponent(tabName) + "&select=snapshot_date&order=snapshot_date.desc&limit=60");
+      const rows = await resp.json();
+      dates = Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
+    }
     dates.forEach(function(d){
       const opt = document.createElement("option");
       opt.value = d; opt.textContent = d;
@@ -5899,17 +5984,28 @@ async function loadMoreRows(){
   try{
     const from = dataState.nextOffset;
     const to = from + dataState.pageSize - 1;
-    const resp = await rest(
-      "sheet_records?tab_name=eq." + encodeURIComponent(dataState.tabName) + "&snapshot_date=eq." + encodeURIComponent(dataState.snapshotDate) + "&select=row_data,id&order=id.asc",
-      { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
-    );
+    const roboCfg = ROBO_TAB_MAP[dataState.tabName];
+    const resp = roboCfg
+      ? await roboFetchRowsPage(roboCfg.table, isoToRoboDate(dataState.snapshotDate), from, to)
+      : await rest(
+          "sheet_records?tab_name=eq." + encodeURIComponent(dataState.tabName) + "&snapshot_date=eq." + encodeURIComponent(dataState.snapshotDate) + "&select=row_data,id&order=id.asc",
+          { headers: { Range: from + "-" + to, Prefer: "count=exact" } }
+        );
     const rows = await resp.json();
     const contentRange = resp.headers.get("content-range");
     if(contentRange){
       const total = contentRange.split("/")[1];
       dataState.total = total === "*" ? null : parseInt(total, 10);
     }
-    rows.forEach(function(r){ dataState.rows.push(r.row_data || {}); });
+    if(roboCfg){
+      // mesmas colunas/nomes de sempre (reshape), sem as linhas de cabeçalho repetido das O.S.
+      rows.forEach(function(r){
+        if(roboCfg.filterHeaderRows && roboIsOsHeaderRow(r)) return;
+        dataState.rows.push(roboReshapeRow(r, roboCfg.fields));
+      });
+    } else {
+      rows.forEach(function(r){ dataState.rows.push(r.row_data || {}); });
+    }
     dataState.nextOffset += rows.length;
     if(dataState.columns.length === 0 && dataState.rows.length){
       dataState.columns = Object.keys(dataState.rows[0]);
