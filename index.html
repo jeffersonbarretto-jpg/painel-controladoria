@@ -1570,7 +1570,18 @@ async function fetchAllRowsUncached(tabName, snapshotDate){
 const ROBO_OS_FIELDS = { Oficina:"oficina", OS:"o_s", Tipo_de_OS:"tipo_de_o_s", Observacao:"observacao", Abertura:"abertura", Fechamento:"fechamento", Tempo:"tempo", Veiculo:"veiculo" };
 const ROBO_VEIC_FIELDS = { "Nº de Ordem":"no_ordem", Unidade:"local", Empresa:"empresa", Placa:"placa", "Tipo de Serviço":"tipo_de_servico", "Tipo de Chassi (Motorização)":"tipo_do_chassi", "Tipo de Equipamento":"tipo_equipamento" };
 const ROBO_PRV_FIELDS = { Veiculo:"veiculo", Observacao:"observacao", Plano_de_Manutencao:"plano_manutencao", Int_Km:"int_km", Int_Dias:"int_dias", Ult_Data:"ultima_manutencao_data", Km_Rodado:"rodado_km", Km_Diferenca:"diferenca_km", Dias_Diferenca:"diferenca_dias", Pct_Vencido:"percentual", OS:"ultima_manutencao_o_s", Ofic:"ultima_manutencao_oficina" };
-const ROBO_TML_FIELDS = { Carro:"carro", "Dt. Verificação":"dt_verificacao", "Dt. Última Comunicação":"dt_ultima_comunicacao", Unidade:"unidade", "Observação":"observacao" };
+// base_tml mudou de formato em 01/10/2026 (Telemetria passou a vir de outro sistema): as colunas
+// antigas (carro/dt_verificacao/dt_ultima_comunicacao) ficam vazias nas coletas novas e os mesmos
+// dados vão pra no_ordem / data_verificacao / hora_ultima_mensagem ("01/10/2026 16:10:52", por isso
+// dateOnly corta a hora). Cada campo aceita uma lista de colunas: vale a primeira preenchida, então
+// coletas antigas (formato velho) e novas funcionam juntas.
+const ROBO_TML_FIELDS = {
+  Carro: ["carro", "no_ordem"],
+  "Dt. Verificação": ["dt_verificacao", "data_verificacao"],
+  "Dt. Última Comunicação": { cols: ["dt_ultima_comunicacao", "hora_ultima_mensagem"], dateOnly: true },
+  Unidade: "unidade",
+  "Observação": "observacao"
+};
 const ROBO_EXP_FIELDS = { "Setor de Abastecimento":"setor_de_abastecimento", Data:"data", Turno:"turno", "Situação":"situacao", "Situação da Exportação":"situacao_da_exportacao" };
 const ROBO_ABAST_FIELDS = { Veiculo:"veiculo", Comb:"comb", Data:"data", Km_Rod:"km_rod", Km_Lt:"km_lt", Meta:"meta", Dif_Pct:"dif_percentual", St_Abast:"st_abast", Tur:"tur", Vl_Ab:"vl_ab" };
 const ROBO_RPV_FIELDS = { Veiculo:"empresa_veiculo", Empresa:"empresa", Posicao:"posicao", Pneu:"pneu", Data:"data", KM_Total:"km_total", KM_Vida:"km_vida", KM_Perc:"km_perc", Situacao:"situacao", Desenho:"desenho", Marca:"marca", Medida:"medida", Ult_Recapagem:"ult_recapagem", Ult_Media_Ap:"ult_media_ap", Dt_Media_Ap:"dt_media_ap" };
@@ -1714,9 +1725,20 @@ function roboFixShortYear(v){
   const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{2})(\s+\d{1,2}:\d{2}(?::\d{2})?)?\s*$/.exec(v);
   return m ? (m[1] + "/" + m[2] + "/20" + m[3] + (m[4] || "")) : v;
 }
+// spec de campo: "coluna" | ["coluna1","coluna2",...] (primeira preenchida) | { cols:[...], dateOnly:true }
+function roboPickValue(raw, spec){
+  const cols = typeof spec === "string" ? [spec] : (Array.isArray(spec) ? spec : spec.cols);
+  let v = raw[cols[0]];
+  for(let i = 0; i < cols.length; i++){
+    const c = raw[cols[i]];
+    if(c !== null && c !== undefined && String(c).trim() !== ""){ v = c; break; }
+  }
+  if(spec && spec.dateOnly && typeof v === "string") v = v.replace(/\s+\d{1,2}:\d{2}(?::\d{2})?\s*$/, "");
+  return v;
+}
 function roboReshapeRow(raw, fieldMap){
   const row = {};
-  Object.keys(fieldMap).forEach(function(oldKey){ row[oldKey] = roboFixShortYear(raw[fieldMap[oldKey]]); });
+  Object.keys(fieldMap).forEach(function(oldKey){ row[oldKey] = roboFixShortYear(roboPickValue(raw, fieldMap[oldKey])); });
   return row;
 }
 async function roboFetchAllRows(tabName, isoDate){
