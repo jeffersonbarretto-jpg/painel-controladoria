@@ -1553,19 +1553,27 @@ async function fetchAllRowsUncached(tabName, snapshotDate){
 // Dash-Controladoria e passam a vir do Robo-Transnet; qualquer tab_name fora dessa lista segue
 // exatamente como antes (rest()/fetchAllRowsUncached acima, sem mudança nenhuma).
 //
-// Ainda de propósito FORA do ROBO_TAB_MAP (seguem no Dash-Controladoria) até Jefferson confirmar:
-// - "Dados RPV - Pneus": o robô traz o veículo num formato tipo "001/0110" que não bate com o
-//   "Nº de Ordem" usado no resto do site (ex.: "882010") — parece outra numeração interna do
-//   sistema de pneus, não confirmado ainda.
+// Ainda de propósito FORA do ROBO_TAB_MAP (segue no Dash-Controladoria) até existir uma tabela
+// equivalente no Robo-Transnet:
 // - "Pneus por Unidade": não existe nenhuma tabela equivalente no Robo-Transnet por enquanto
 //   (só as 9 tabelas listadas abaixo) — alimenta o módulo Suprimentos, que por isso continua
 //   inteiramente na fonte antiga.
+// "Dados RPV - Pneus" foi migrada em 02/10/2026 (Jefferson confirmou "Sim, ligar agora" depois de
+// eu flagar que essa era a única fonte ainda presa na planilha antiga, parada desde 14/09 porque a
+// planilha do Google Sheets correspondente parou de ser alimentada manualmente). Ressalva conhecida
+// e aceita por ele: no robô (pneus_rpv), o campo Veiculo vem num formato tipo "001/0110" que não
+// bate com o "Nº de Ordem" da Base de Veículos pra ~349 dos 1337 veículos distintos (26%, prováveis
+// reboques/agregados com numeração própria) — vehicleKey() já extrai só os dígitos pra casar o resto,
+// então esses ~349 continuam aparecendo como "Sem unidade" (mesmo comportamento de hoje pra veículo
+// não encontrado) até essa numeração ser esclarecida, em vez de travar a migração inteira por causa
+// deles.
 const ROBO_OS_FIELDS = { Oficina:"oficina", OS:"o_s", Tipo_de_OS:"tipo_de_o_s", Observacao:"observacao", Abertura:"abertura", Fechamento:"fechamento", Tempo:"tempo", Veiculo:"veiculo" };
 const ROBO_VEIC_FIELDS = { "Nº de Ordem":"no_ordem", Unidade:"local", Empresa:"empresa", Placa:"placa", "Tipo de Serviço":"tipo_de_servico", "Tipo de Chassi (Motorização)":"tipo_do_chassi", "Tipo de Equipamento":"tipo_equipamento" };
 const ROBO_PRV_FIELDS = { Veiculo:"veiculo", Observacao:"observacao", Plano_de_Manutencao:"plano_manutencao", Int_Km:"int_km", Int_Dias:"int_dias", Ult_Data:"ultima_manutencao_data", Km_Rodado:"rodado_km", Km_Diferenca:"diferenca_km", Dias_Diferenca:"diferenca_dias", Pct_Vencido:"percentual", OS:"ultima_manutencao_o_s", Ofic:"ultima_manutencao_oficina" };
 const ROBO_TML_FIELDS = { Carro:"carro", "Dt. Verificação":"dt_verificacao", "Dt. Última Comunicação":"dt_ultima_comunicacao", Unidade:"unidade", "Observação":"observacao" };
 const ROBO_EXP_FIELDS = { "Setor de Abastecimento":"setor_de_abastecimento", Data:"data", Turno:"turno", "Situação":"situacao", "Situação da Exportação":"situacao_da_exportacao" };
 const ROBO_ABAST_FIELDS = { Veiculo:"veiculo", Comb:"comb", Data:"data", Km_Rod:"km_rod", Km_Lt:"km_lt", Meta:"meta", Dif_Pct:"dif_percentual", St_Abast:"st_abast", Tur:"tur", Vl_Ab:"vl_ab" };
+const ROBO_RPV_FIELDS = { Veiculo:"empresa_veiculo", Empresa:"empresa", Posicao:"posicao", Pneu:"pneu", Data:"data", KM_Total:"km_total", KM_Vida:"km_vida", KM_Perc:"km_perc", Situacao:"situacao", Desenho:"desenho", Marca:"marca", Medida:"medida", Ult_Recapagem:"ult_recapagem", Ult_Media_Ap:"ult_media_ap", Dt_Media_Ap:"dt_media_ap" };
 const ROBO_TAB_MAP = {
   "Oficina - RT": { table: "oficina_rt", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
   "O.S Aberta - TML": { table: "os_aberta_tml", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
@@ -1575,6 +1583,7 @@ const ROBO_TAB_MAP = {
   "Base - TML": { table: "base_tml", fields: ROBO_TML_FIELDS, filterHeaderRows: false },
   "Exp. Abst": { table: "exp_abst", fields: ROBO_EXP_FIELDS, filterHeaderRows: false },
   "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false },
+  "Dados RPV - Pneus": { table: "pneus_rpv", fields: ROBO_RPV_FIELDS, filterHeaderRows: false },
 };
 
 async function roboRest(path, opts){
