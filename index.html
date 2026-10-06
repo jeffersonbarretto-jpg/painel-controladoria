@@ -1351,15 +1351,155 @@ function wirePeriodToolbar(id, onChange){
 }
 // Renders a dropdown listing all units for a module, placed right below the period toolbar.
 // "" (Todas as unidades) means no filter — the module keeps showing everything, exactly as before.
-function unidadeFilterHtml(id, unidades, current){
+// withExport (opcional): quando true, acrescenta logo abaixo do filtro "Unidade" a barra
+// "Extração de PDF e HTML" daquele módulo (ver PANEL_EXPORT mais abaixo). É opt-in de propósito:
+// esta função também é chamada de dentro do <script id="abast-script"> (aba Exp. Abst), que não
+// pode ser alterada — ali o 4º argumento não é passado e a barra não aparece.
+function unidadeFilterHtml(id, unidades, current, withExport){
   const opts = '<option value="">Todas as unidades</option>' + unidades.map(function(u){
     return '<option value="' + escapeHtml(u) + '"' + (u === current ? " selected" : "") + '>' + escapeHtml(u) + '</option>';
   }).join("");
   return '<div class="filters filters-right" style="margin-top:-4px;">'
     + '<label style="font-size:12px;color:var(--text-secondary);">Unidade:</label>'
     + '<select id="' + id + '-unidade">' + opts + '</select>'
+    + '</div>'
+    + (withExport ? exportBarHtml(id) : "");
+}
+
+// ---------- Extração de PDF e HTML (genérica, por módulo) ----------
+// Barra de 2 botões abaixo do filtro Unidade. Na hora do clique ela pega o que está na tela (já com
+// a data e a unidade filtradas), limpa os controles (filtros, botões, busca), abre os grupos
+// recolhidos e monta um documento standalone com o CSS do próprio painel + capa identificando
+// módulo/unidade/data. HTML = download do arquivo; PDF = abre a janela de impressão do navegador
+// ("Salvar como PDF") com layout A4 paisagem. Não depende de re-renderizar nem de buscar dados de
+// novo — o relatório é exatamente o que o usuário está vendo.
+const PANEL_EXPORT = {
+  telemetria:   { nome: "Telemetria",              area: "telemetria-data-area" },
+  pneus:        { nome: "Pneus",                   area: "pneus-data-area" },
+  retencao:     { nome: "Manutenção · Retenção",   area: "retencao-data-area" },
+  manutprv:     { nome: "Manutenção · Preventiva", area: "manutprv-data-area" },
+  manutmacro:   { nome: "Manutenção · Visão Macro", area: "manutmacro-data-area" },
+  suprimentos:  { nome: "Suprimentos",             area: "suprimentos-data-area" },
+  dashboardevo: { nome: "Dashboard",               area: "dashboardevo-data-area" },
+  inventario:   { nome: "Inventário",              area: "inventario-body" }
+};
+function exportBarHtml(id){
+  return '<div class="filters filters-right export-bar" style="margin-top:-4px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Extração de PDF e HTML:</label>'
+    + '<button type="button" class="ghost" data-panel-export="' + id + '" data-kind="pdf" title="Abre a impressão do navegador — escolha &quot;Salvar como PDF&quot;">&#8681; PDF</button>'
+    + '<button type="button" class="ghost" data-panel-export="' + id + '" data-kind="html" title="Baixa o relatório como arquivo HTML">&#8681; HTML</button>'
     + '</div>';
 }
+function panelExportSlug(s){
+  return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+}
+function panelExportBuildDoc(id){
+  const cfg = PANEL_EXPORT[id];
+  const src = cfg && document.getElementById(cfg.area);
+  if(!src || src.querySelector(".spinner")) return null;
+  const clone = src.cloneNode(true);
+  // controles que só fazem sentido na tela
+  clone.querySelectorAll(".filters, .export-bar, .usec-export, .spinner, input, select, textarea").forEach(function(n){ n.remove(); });
+  clone.querySelectorAll("button").forEach(function(b){ if(!b.closest("table")) b.remove(); });
+  clone.querySelectorAll("details").forEach(function(d){ d.setAttribute("open", ""); });
+  clone.querySelectorAll("[hidden]").forEach(function(n){ n.removeAttribute("hidden"); n.style.display = "none"; });
+  // gráficos em <canvas> viram imagem (cloneNode não copia os pixels)
+  const srcCanvas = src.querySelectorAll("canvas"), cloneCanvas = clone.querySelectorAll("canvas");
+  cloneCanvas.forEach(function(c, i){
+    try{
+      const img = document.createElement("img");
+      img.src = srcCanvas[i].toDataURL("image/png");
+      img.style.maxWidth = "100%";
+      c.replaceWith(img);
+    }catch(e){}
+  });
+  // contexto do relatório: unidade e data escolhidas na tela
+  const selU = document.getElementById(id + "-unidade");
+  const unidade = selU ? (selU.value ? selU.options[selU.selectedIndex].text : "Todas as unidades") : null;
+  const asofEl = document.getElementById(id + "-asof");
+  const dataSel = asofEl ? (asofEl.value ? new Date(asofEl.value + "T00:00:00").toLocaleDateString("pt-BR") : "Mais recente") : null;
+  const selSem = id === "inventario" ? document.getElementById("inventario-sem-select") : null;
+  const semestre = selSem ? selSem.value : null;
+  const agora = new Date();
+  const geradoEm = agora.toLocaleDateString("pt-BR") + " " + agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const metaParts = [];
+  if(unidade) metaParts.push('<span>Unidade <b>' + escapeHtml(unidade) + '</b></span>');
+  if(dataSel) metaParts.push('<span>Data de referência <b>' + escapeHtml(dataSel) + '</b></span>');
+  if(semestre) metaParts.push('<span>Semestre <b>' + escapeHtml(semestre) + '</b></span>');
+  metaParts.push('<span>Gerado em <b>' + escapeHtml(geradoEm) + '</b></span>');
+  const styles = Array.prototype.map.call(document.querySelectorAll("style"), function(s){
+    return s.id === "abast-styles" ? "" : s.outerHTML;
+  }).join("\n");
+  const printCss = '<style>'
+    + '@page{size:A4 landscape;margin:10mm;}'
+    + '*{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;box-shadow:none !important;}'
+    + 'html,body{background:var(--page,#fff);}'
+    + 'body{max-width:1280px;margin:0 auto;padding:18px;}'
+    + '.table-wrap,.plan-table-wrap{overflow:visible !important;}'
+    + 'table{width:100%;}thead{display:table-header-group;}tr,.kpi,.card,.legend-box{break-inside:avoid;page-break-inside:avoid;}'
+    + 'h2,h3{break-after:avoid;page-break-after:avoid;}'
+    + '.rpt-cover{border-bottom:3px double var(--text-primary,#111);padding-bottom:12px;margin-bottom:18px;}'
+    + '.rpt-brand{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary,#666);margin-bottom:8px;}'
+    + '.rpt-brand b{color:var(--text-primary,#111);}'
+    + '.rpt-cover h1{font-size:24px;margin:0 0 10px;color:var(--text-primary,#111);}'
+    + '.rpt-meta{display:flex;gap:26px;flex-wrap:wrap;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-secondary,#666);}'
+    + '.rpt-meta b{color:var(--text-primary,#111);margin-left:4px;text-transform:none;letter-spacing:0;}'
+    + '.rpt-foot{margin-top:22px;padding-top:10px;border-top:1px solid var(--border,#ccc);font-size:10px;color:var(--text-secondary,#666);text-align:center;}'
+    + '</style>';
+  const titulo = 'Relatório · ' + cfg.nome + (unidade && unidade !== "Todas as unidades" ? (' · ' + unidade) : "");
+  const doc = '<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + escapeHtml(titulo) + '</title>'
+    + '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700;9..144,900&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">'
+    + styles + printCss
+    + '</head><body>'
+    + '<div class="rpt-cover"><div class="rpt-brand"><b>Painel Controladoria</b> · Atlântico Transportes · ' + escapeHtml(cfg.nome) + '</div>'
+    + '<h1>' + escapeHtml(titulo) + '</h1><div class="rpt-meta">' + metaParts.join("") + '</div></div>'
+    + '<div id="rpt-conteudo">' + clone.innerHTML + '</div>'
+    + '<div class="rpt-foot">Documento gerado em ' + escapeHtml(geradoEm) + ' pelo Painel Controladoria · Atlântico Transportes · ' + escapeHtml(cfg.nome) + '</div>'
+    + '</body></html>';
+  const nomeArq = [panelExportSlug(cfg.nome), unidade && unidade !== "Todas as unidades" ? panelExportSlug(unidade) : "", panelExportSlug(dataSel || semestre || ""), agora.toISOString().slice(0, 10)].filter(Boolean).join("_");
+  return { doc: doc, titulo: titulo, nomeArq: nomeArq };
+}
+function panelExportRun(id, kind){
+  const built = panelExportBuildDoc(id);
+  if(!built){ alert("Aguarde o carregamento dos dados desta aba para extrair o relatório."); return; }
+  if(kind === "html"){
+    const blob = new Blob([built.doc], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = built.nomeArq + ".html";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    return;
+  }
+  // PDF: imprime o documento num iframe invisível (evita bloqueio de pop-up); o diálogo do
+  // navegador oferece "Salvar como PDF".
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
+  document.body.appendChild(frame);
+  const tituloOriginal = document.title;
+  const limpar = function(){ document.title = tituloOriginal; if(frame.parentNode) frame.parentNode.removeChild(frame); };
+  frame.onload = function(){
+    setTimeout(function(){
+      try{
+        document.title = built.nomeArq;
+        const w = frame.contentWindow;
+        w.addEventListener("afterprint", limpar);
+        w.focus(); w.print();
+        setTimeout(limpar, 120000);
+      }catch(e){ limpar(); alert("Não foi possível abrir a impressão: " + e.message); }
+    }, 600);
+  };
+  frame.srcdoc = built.doc;
+}
+document.addEventListener("click", function(e){
+  const btn = e.target && e.target.closest ? e.target.closest("[data-panel-export]") : null;
+  if(!btn) return;
+  e.preventDefault();
+  panelExportRun(btn.getAttribute("data-panel-export"), btn.getAttribute("data-kind"));
+});
 function wireUnidadeFilter(id, onChange){
   document.getElementById(id + "-unidade").addEventListener("change", function(e){ onChange(e.target.value || null); });
 }
@@ -2889,7 +3029,7 @@ async function renderTelemetria(newAsOf){
     vehicles.forEach(function(v){ (byUnidade[v.unidade] = byUnidade[v.unidade] || []).push(v); });
     const unidades = Object.keys(byUnidade).sort();
 
-    let html = unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro);
+    let html = unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro, true);
 
     if(data.filtroData){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — mostrando os <b>' + fmtNum(total) + '</b> carro(s) cuja "Dt. Verificação" é a data selecionada, de um total de <b>' + fmtNum(data.totalFrota) + '</b> carro(s) na base. Remova a data (botão "Mais recente") para ver a base completa.</p>';
@@ -3266,7 +3406,7 @@ async function renderPneus(newAsOf){
       ? Object.assign(computePneusAggregates(full.tiresAll.filter(function(t){ return (t.local || "Sem unidade") === pneusUnidadeFiltro; }), full.prevKmMap), { resolvedDates: full.resolvedDates })
       : full;
 
-    let html = unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro);
+    let html = unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro, true);
 
     if(pneusUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusUnidadeFiltro) + '</b>.</p>';
@@ -3985,7 +4125,7 @@ async function renderRetencao(newAsOf){
     // boletim de referência (o Panorama lá também não é afetado pelo filtro por unidade das
     // abas individuais) — o filtro de unidade abaixo continua controlando só os KPIs/tabelas.
     let html = retbPanoramaHtml(full);
-    html += unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro);
+    html += unidadeFilterHtml("retencao", unidadesTodas, retencaoUnidadeFiltro, true);
 
     if(retencaoUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(retencaoUnidadeFiltro) + '</b>.</p>';
@@ -4859,7 +4999,7 @@ function manutFrotaTableHtml(uniStats, nVeicVencTotal, nVencido, nLimite){
 
 async function renderManutMacro(){
   const el = document.getElementById("manut-macro-body");
-  el.innerHTML = '<div id="manutmacro-data-area"><div class="spinner">Carregando visão macro...</div></div>';
+  el.innerHTML = exportBarHtml("manutmacro") + '<div id="manutmacro-data-area"><div class="spinner">Carregando visão macro...</div></div>';
   const area = document.getElementById("manutmacro-data-area");
   try{
     const [prv, ret] = await Promise.all([
@@ -4943,7 +5083,7 @@ async function renderManutPreventiva(newAsOf){
     const unidadeLabelOptions = d.unidadesFiltro.map(function(u){ return u.label; });
     const currentUnidadeInfo = ck ? d.porUnidade[ck] : null;
 
-    let html = unidadeFilterHtml("manutprv", unidadeLabelOptions, currentUnidadeInfo ? currentUnidadeInfo.label : null);
+    let html = unidadeFilterHtml("manutprv", unidadeLabelOptions, currentUnidadeInfo ? currentUnidadeInfo.label : null, true);
 
     if(!ck || !currentUnidadeInfo){
       html += '<p class="hint">Nenhum veículo com plano vencido ou no limite no momento.</p>';
@@ -5296,7 +5436,7 @@ async function renderSuprimentos(newAsOf){
       unidades: suprimentosUnidadeFiltro ? full.unidades.filter(function(u){ return u.unidade === suprimentosUnidadeFiltro; }) : full.unidades,
     };
 
-    let html = unidadeFilterHtml("suprimentos", unidadesTodas, suprimentosUnidadeFiltro);
+    let html = unidadeFilterHtml("suprimentos", unidadesTodas, suprimentosUnidadeFiltro, true);
     if(suprimentosUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(suprimentosUnidadeFiltro) + '</b>.</p>';
     }
@@ -5562,7 +5702,7 @@ function renderInventarioBody(data){
     + data.semestres.map(function(s){ return '<option value="' + escapeHtml(s) + '"' + (s === sem ? " selected" : "") + '>' + escapeHtml(s) + '</option>'; }).join("")
     + '</select>'
     + '<button class="ghost" id="inventario-refresh">Atualizar dados</button>'
-    + '</div>';
+    + '</div>' + exportBarHtml("inventario");
 
   html += '<div class="kpi-grid">'
     + kpiCard("Inventário geral", total ? invBRL(total.inventario_geral) : "—", "info")
@@ -6528,7 +6668,7 @@ async function renderDashboardEvolutivo(newAsOf){
     document.getElementById("dashboardevo-mes-slot").innerHTML = dashMesFiltroHtml("dashboardevo", dashTodosMeses, dashboardMesFiltro);
     dashWireMesFiltro("dashboardevo", function(v){ dashboardMesFiltro = v; renderDashboardEvolutivo(); });
 
-    document.getElementById("dashboardevo-unidade-slot").innerHTML = unidadeFilterHtml("dashboardevo", d.unidadesFiltro.map(function(u){ return u.label; }), dashboardUnidadeFiltro ? (d.unidadesFiltro.find(function(u){ return u.cidadeKey === dashboardUnidadeFiltro; })||{}).label : null);
+    document.getElementById("dashboardevo-unidade-slot").innerHTML = unidadeFilterHtml("dashboardevo", d.unidadesFiltro.map(function(u){ return u.label; }), dashboardUnidadeFiltro ? (d.unidadesFiltro.find(function(u){ return u.cidadeKey === dashboardUnidadeFiltro; })||{}).label : null, true);
     wireUnidadeFilter("dashboardevo", function(v){
       const found = d.unidadesFiltro.find(function(u){ return u.label === v; });
       dashboardUnidadeFiltro = found ? found.cidadeKey : null;
