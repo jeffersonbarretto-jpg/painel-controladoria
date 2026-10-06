@@ -1385,8 +1385,7 @@ const PANEL_EXPORT = {
 };
 function exportBarHtml(id){
   return '<div class="filters filters-right export-bar" style="margin-top:-4px;">'
-    + '<label style="font-size:12px;color:var(--text-secondary);">Extração de PDF e HTML:</label>'
-    + '<button type="button" class="ghost" data-panel-export="' + id + '" data-kind="pdf" title="Abre a impressão do navegador — escolha &quot;Salvar como PDF&quot;">&#8681; PDF</button>'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Extração de HTML:</label>'
     + '<button type="button" class="ghost" data-panel-export="' + id + '" data-kind="html" title="Baixa o relatório como arquivo HTML">&#8681; HTML</button>'
     + '</div>';
 }
@@ -1462,43 +1461,21 @@ function panelExportBuildDoc(id){
   const nomeArq = [panelExportSlug(cfg.nome), unidade && unidade !== "Todas as unidades" ? panelExportSlug(unidade) : "", panelExportSlug(dataSel || semestre || ""), agora.toISOString().slice(0, 10)].filter(Boolean).join("_");
   return { doc: doc, titulo: titulo, nomeArq: nomeArq };
 }
-function panelExportRun(id, kind){
+function panelExportRun(id){
   const built = panelExportBuildDoc(id);
   if(!built){ alert("Aguarde o carregamento dos dados desta aba para extrair o relatório."); return; }
-  if(kind === "html"){
-    const blob = new Blob([built.doc], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = built.nomeArq + ".html";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
-    return;
-  }
-  // PDF: imprime o documento num iframe invisível (evita bloqueio de pop-up); o diálogo do
-  // navegador oferece "Salvar como PDF".
-  const frame = document.createElement("iframe");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
-  document.body.appendChild(frame);
-  const tituloOriginal = document.title;
-  const limpar = function(){ document.title = tituloOriginal; if(frame.parentNode) frame.parentNode.removeChild(frame); };
-  frame.onload = function(){
-    setTimeout(function(){
-      try{
-        document.title = built.nomeArq;
-        const w = frame.contentWindow;
-        w.addEventListener("afterprint", limpar);
-        w.focus(); w.print();
-        setTimeout(limpar, 120000);
-      }catch(e){ limpar(); alert("Não foi possível abrir a impressão: " + e.message); }
-    }, 600);
-  };
-  frame.srcdoc = built.doc;
+  const blob = new Blob([built.doc], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = built.nomeArq + ".html";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
 }
 document.addEventListener("click", function(e){
   const btn = e.target && e.target.closest ? e.target.closest("[data-panel-export]") : null;
   if(!btn) return;
   e.preventDefault();
-  panelExportRun(btn.getAttribute("data-panel-export"), btn.getAttribute("data-kind"));
+  panelExportRun(btn.getAttribute("data-panel-export"));
 });
 function wireUnidadeFilter(id, onChange){
   document.getElementById(id + "-unidade").addEventListener("change", function(e){ onChange(e.target.value || null); });
