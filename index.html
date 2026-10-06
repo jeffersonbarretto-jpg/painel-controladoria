@@ -1779,10 +1779,18 @@ async function tabAllDatesAsc(tabName, maxIso, limit){
   const rows = await resp.json();
   return Array.from(new Set(rows.map(function(r){ return r.snapshot_date; })));
 }
-async function roboFetchRowsPage(table, ddmmaaaa, from, to){
+async function roboFetchRowsPage(table, ddmmaaaa, from, to, needCount){
   // ddmmaaaa null = sem filtro de data (leitura cumulativa, ver cfg.cumulative em ROBO_TAB_MAP)
+  // needCount: só a 1ª página de cada busca precisa do total (Content-Range) pra saber quantas
+  // páginas faltam — pedir "Prefer: count=exact" em TODAS as páginas (inclusive as 8 em paralelo)
+  // fazia o Postgres contar a linha inteira (com o filtro de data_referencia) a cada requisição;
+  // em tabelas grandes (ex.: os_fechada_tml, 180k+ linhas) isso sozinho já estourava o
+  // statement_timeout e travava a aba Telemetria com "HTTP 500: canceling statement due to
+  // statement timeout", mesmo com índice em data_referencia/coletado_em.
   const filtro = ddmmaaaa ? ("data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&") : "";
-  return roboRest(table + "?" + filtro + "select=*&order=id.asc", { headers: { Range: from + "-" + to, Prefer: "count=exact" } });
+  const headers = { Range: from + "-" + to };
+  if(needCount) headers.Prefer = "count=exact";
+  return roboRest(table + "?" + filtro + "select=*&order=id.asc", { headers: headers });
 }
 async function roboFetchAllRowsRaw(table, isoDate, cumulative){
   const ddmmaaaa = cumulative ? null : isoToRoboDate(isoDate);
@@ -1792,7 +1800,7 @@ async function roboFetchAllRowsRaw(table, isoDate, cumulative){
   // pedindo Range maior — com pageSize 5000 o site só recebia 1000 de cada bloco de 5000 (ex.:
   // Telemetria travada em "1.000 carros" com base_tml tendo 1.856). pageSize tem que ser <= 1000.
   const pageSize = 1000, maxConcurrent = 8;
-  const first = await roboFetchRowsPage(table, ddmmaaaa, 0, pageSize - 1);
+  const first = await roboFetchRowsPage(table, ddmmaaaa, 0, pageSize - 1, true);
   const firstRows = await first.json();
   out.push.apply(out, firstRows);
   const cr = first.headers.get("content-range");
