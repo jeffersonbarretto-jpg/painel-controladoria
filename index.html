@@ -3726,10 +3726,12 @@ async function buildPneusCalibragemData(asOfDate){
   ]);
 
   const veicByKey = {};
+  const frotaPorUnidade = {}; // tamanho da frota TOTAL por unidade (denominador do % vencido — ver comentário abaixo)
   veicRows.forEach(function(r){
     const key = vehicleKey(r["Nº de Ordem"]);
     const u = (r.Unidade || "").trim();
     if(key && u) veicByKey[key] = u;
+    if(u) frotaPorUnidade[u] = (frotaPorUnidade[u] || 0) + 1;
   });
   const unidadeTmlByKey = {};
   tmlRows.forEach(function(r){
@@ -3752,14 +3754,21 @@ async function buildPneusCalibragemData(asOfDate){
     };
   });
 
+  // IMPORTANTE: o relatório CRelatorioSugestaoManutencaoPreventiva só retorna planos JÁ VENCIDOS
+  // hoje (confirmado no robô que coleta essa tabela, main_manutencao_prv.py — é uma "sugestão de
+  // manutenção", não a grade completa de planos em dia) — ou seja, praticamente toda linha que
+  // chega aqui já é "vencido" por construção. Calcular o % sobre o total de linhas desse relatório
+  // dava sempre ~100% (testado 14/10/2026) e não dizia nada de útil. O percentual que importa é
+  // sobre a FROTA TOTAL da unidade (mesma convenção do Ranking de Manutenção — Preventiva):
+  // "quantos % da frota daquela unidade estão com a calibragem vencida agora".
   const porUnidade = {};
   itens.forEach(function(it){
-    porUnidade[it.local] = porUnidade[it.local] || { nome: it.local, total: 0, vencidos: 0 };
+    porUnidade[it.local] = porUnidade[it.local] || { nome: it.local, total: 0, vencidos: 0, frotaTotal: frotaPorUnidade[it.local] || 0 };
     porUnidade[it.local].total++;
     if(it.vencido) porUnidade[it.local].vencidos++;
   });
   const ranking = Object.values(porUnidade).map(function(r){
-    r.pctVencido = r.total ? (r.vencidos / r.total * 100) : 0;
+    r.pctVencido = r.frotaTotal ? (r.vencidos / r.frotaTotal * 100) : 0;
     return r;
   }).sort(function(a, b){ return b.pctVencido - a.pctVencido; });
 
@@ -3791,18 +3800,22 @@ async function renderPneusCalibragem(newAsOf){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusCalibragemUnidadeFiltro) + '</b>.</p>';
     }
 
+    const frotaTotalExibida = pneusCalibragemUnidadeFiltro
+      ? (full.ranking.find(function(r){ return r.nome === pneusCalibragemUnidadeFiltro; }) || {}).frotaTotal || 0
+      : full.ranking.reduce(function(s, r){ return s + (r.frotaTotal || 0); }, 0);
+
     html += '<div class="kpi-grid">'
-      + kpiCard("Veículos no plano", fmtNum(itensExibidos.length), "info")
-      + kpiCard("Vencidos", fmtNum(vencidosExibidos), vencidosExibidos ? "critical" : "good")
-      + kpiCard("% vencido", itensExibidos.length ? (Math.round(vencidosExibidos / itensExibidos.length * 1000) / 10) + "%" : "—", vencidosExibidos ? "warning" : "good")
+      + kpiCard("Calibragem vencida", fmtNum(itensExibidos.length), itensExibidos.length ? "critical" : "good")
+      + kpiCard("Frota total (unidade(s) exibida(s))", fmtNum(frotaTotalExibida), "info")
+      + kpiCard("% da frota com calibragem vencida", frotaTotalExibida ? (Math.round(itensExibidos.length / frotaTotalExibida * 1000) / 10) + "%" : "—", itensExibidos.length ? "warning" : "good")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Ranking por unidade — % vencido</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>No plano</th><th>Vencidos</th><th>% vencido</th></tr></thead><tbody>'
+    html += '<div class="subsection"><h3>Ranking por unidade — % da frota com calibragem vencida</h3><p class="hint">Este relatório do Tr@nsnet só lista planos já vencidos — por isso o percentual é sobre o tamanho da frota da unidade, não sobre as linhas deste relatório (que seriam sempre ~100%).</p><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Frota total</th><th>Com calibragem vencida</th><th>% da frota</th></tr></thead><tbody>'
       + (full.ranking.length ? full.ranking.map(function(r){
           const pctCell = r.pctVencido > 0
             ? '<span class="badge ' + (r.pctVencido >= 50 ? "b-critical" : "b-warning") + '">' + (Math.round(r.pctVencido * 10) / 10) + '%</span>'
             : '<span class="badge b-good">0%</span>';
-          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + r.total + '</td><td>' + r.vencidos + '</td><td>' + pctCell + '</td></tr>';
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + r.frotaTotal + '</td><td>' + r.vencidos + '</td><td>' + pctCell + '</td></tr>';
         }).join("") : '<tr><td colspan="4">Sem dados.</td></tr>')
       + '</tbody></table></div></div>';
 
