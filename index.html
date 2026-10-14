@@ -5933,25 +5933,32 @@ function renderComprasListaPorUnidade(area, enriquecidosTodos, dados, entregues)
   let html = unidadeFilterHtml("compras", unidadesTodas, comprasUnidadeFiltro, true);
   html += comprasFiltroBarHtml(enriquecidosTodos);
 
-  const codigosUnicos = new Set(enriquecidos.map(function(it){ return it.codigo; })).size;
+  // KPIs sempre escopados pro que está REALMENTE sendo exibido embaixo (unidade selecionada, se
+  // houver) — bug real reportado por Jefferson em 14/10/2026: ao filtrar uma unidade e exportar,
+  // os KPIs continuavam somando TODAS as unidades (ex.: "1.772 itens em aberto" ao lado de uma
+  // tabela com só 41 linhas de uma unidade só), o que saía "embolado"/contraditório no relatório.
+  const enriquecidosExibidos = comprasUnidadeFiltro
+    ? enriquecidos.filter(function(it){ return it.almoxarifado === comprasUnidadeFiltro; })
+    : enriquecidos;
+  const codigosUnicos = new Set(enriquecidosExibidos.map(function(it){ return it.codigo; })).size;
   if(!entregues){
-    const aguardando = enriquecidos.filter(function(it){ return /aguardando/i.test(it.situacao || ""); }).length;
-    const liberado = enriquecidos.filter(function(it){ return /liberado/i.test(it.situacao || ""); }).length;
-    const criticos = enriquecidos.filter(function(it){ return it.dias !== null && it.dias >= COMPRAS_DIAS_CRITICO; }).length;
+    const aguardando = enriquecidosExibidos.filter(function(it){ return /aguardando/i.test(it.situacao || ""); }).length;
+    const liberado = enriquecidosExibidos.filter(function(it){ return /liberado/i.test(it.situacao || ""); }).length;
+    const criticos = enriquecidosExibidos.filter(function(it){ return it.dias !== null && it.dias >= COMPRAS_DIAS_CRITICO; }).length;
     html += '<div class="kpi-grid">'
-      + kpiCard("Itens em aberto", fmtNum(enriquecidos.length), enriquecidos.length ? "warning" : "good")
+      + kpiCard("Itens em aberto", fmtNum(enriquecidosExibidos.length), enriquecidosExibidos.length ? "warning" : "good")
       + kpiCard("Solicitações distintas", fmtNum(codigosUnicos), "info")
       + kpiCard("Aguardando assinatura", fmtNum(aguardando), aguardando ? "critical" : "good")
       + kpiCard("Liberado (aguardando atendimento)", fmtNum(liberado), "warning")
-      + kpiCard("Já atendido (total)", fmtNum(dados.totalAtendidos), "good")
+      + kpiCard("Já atendido (total geral, todas unidades)", fmtNum(dados.totalAtendidos), "good")
       + kpiCard("Críticos (" + COMPRAS_DIAS_CRITICO + "d+ em aberto)", fmtNum(criticos), criticos ? "critical" : "good")
-      + kpiCard("Unidades com pendência", fmtNum(unidadesTodas.length), "info")
+      + kpiCard("Unidades com pendência", fmtNum(comprasUnidadeFiltro ? 1 : unidadesTodas.length), "info")
       + '</div>';
   } else {
     html += '<div class="kpi-grid">'
-      + kpiCard("Itens entregues", fmtNum(enriquecidos.length), "good")
+      + kpiCard("Itens entregues", fmtNum(enriquecidosExibidos.length), "good")
       + kpiCard("Solicitações distintas", fmtNum(codigosUnicos), "info")
-      + kpiCard("Unidades com entregas", fmtNum(unidadesTodas.length), "info")
+      + kpiCard("Unidades com entregas", fmtNum(comprasUnidadeFiltro ? 1 : unidadesTodas.length), "info")
       + '</div>';
   }
 
