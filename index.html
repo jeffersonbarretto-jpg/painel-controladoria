@@ -1408,6 +1408,11 @@ function panelExportBuildDoc(id){
   const cfg = PANEL_EXPORT[id];
   const src = cfg && document.getElementById(cfg.area);
   if(!src || src.querySelector(".spinner")) return null;
+  // Expande qualquer lista paginada (ex.: botões "Mostrar mais N item(ns)" do módulo Compras)
+  // ANTES de clonar — senão o botão é removido linhas abaixo (todo <button> fora de <table>) e o
+  // relatório sai com menos linhas do que o cabeçalho da unidade diz ter (ex.: "— 6.745 item(ns)"
+  // só com as 50 primeiras). Jefferson reportou isso em 14/10/2026 ("os dados saem embolados").
+  src.querySelectorAll("[data-expand-before-export]").forEach(function(btn){ btn.click(); });
   const clone = src.cloneNode(true);
   // controles que só fazem sentido na tela
   clone.querySelectorAll(".filters, .export-bar, .usec-export, .spinner, input, select, textarea").forEach(function(n){ n.remove(); });
@@ -5980,7 +5985,7 @@ function renderComprasListaPorUnidade(area, enriquecidosTodos, dados, entregues)
       + '</tr></thead><tbody id="' + tbodyId + '">'
       + visiveis.map(function(it){ return comprasLinhaHtml(it, entregues); }).join("")
       + '</tbody></table></div>'
-      + (resto.length ? '<button type="button" class="ghost" id="' + btnId + '" style="margin-top:8px;">Mostrar mais ' + fmtNum(resto.length) + ' item(ns)</button>' : '')
+      + (resto.length ? '<button type="button" class="ghost" id="' + btnId + '" data-expand-before-export="1" style="margin-top:8px;">Mostrar mais ' + fmtNum(resto.length) + ' item(ns)</button>' : '')
       + '</div>';
     if(resto.length) expandiveis.push({ tbodyId: tbodyId, btnId: btnId, resto: resto });
   });
@@ -6362,12 +6367,24 @@ function renderInventarioBody(data){
 // A Home sempre mostra o snapshot mais recente sincronizado (o "hoje" de cada planilha) — sem
 // seletor de data. Quem precisar de uma data anterior busca diretamente na aba do módulo, que
 // mantém seu próprio seletor de período.
+// Resumo leve pro card da Home — só contagens (comprasCount, sem baixar linha nenhuma), bem mais
+// barato que comprasFetchDados() (que baixa ~20 mil solicitações inteiras). A Home já faz bastante
+// requisição sozinha pros outros módulos; não faz sentido pesar ainda mais só pra um preview.
+async function getComprasHomeSummary(){
+  const [aguardando, liberado, atendido] = await Promise.all([
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Aguardando*"),
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Liberado*"),
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*"),
+  ]);
+  return { aguardando: aguardando, liberado: liberado, atendido: atendido };
+}
+
 async function renderHome(){
   const el = document.getElementById("home-body");
   el.innerHTML = '<div id="home-data-area"><div class="spinner">Carregando...</div></div>';
   const area = document.getElementById("home-data-area");
   try{
-    const [t, p, inv, ret, manut, abast] = await Promise.all([
+    const [t, p, inv, ret, manut, abast, compras] = await Promise.all([
       getTelemetriaData(null, false),
       getPneusData(null, false),
       getInventarioData(false).catch(function(){ return null; }),
@@ -6379,6 +6396,7 @@ async function renderHome(){
           computeHomeAbastecimentoSummary()
         );
       }).catch(function(){ return null; }),
+      getComprasHomeSummary().catch(function(){ return null; }),
     ]);
     const resolved = Object.assign({}, t.resolvedDates, p.resolvedDates, ret ? ret.resolvedDates : {}, manut ? manut.resolvedDates : {}, abast ? abast.resolvedDates : {});
     const totalCarros = t.vehicles.length;
@@ -6439,6 +6457,15 @@ async function renderHome(){
             { n: fmtNum(abast.setoresMapaAberto), l:"unidades c/ mapa aberto (mês)" },
             { n: fmtNum(abast.unidadesForaMeta), l:"unidades fora da meta" },
             { n: fmtBRL(abast.custoMesAtual), l:"custo total (mês atual)" },
+          ] : null,
+        })
+      + previewCard({
+          icon:"🛒", title:"Compras", section:"compras",
+          badge: !compras ? { text:"sem dados", tone:"critical" }
+            : (compras.aguardando ? { text: fmtNum(compras.aguardando) + " aguardando assinatura", tone:"critical" } : { text:"nada aguardando assinatura", tone:"good" }),
+          kpis: compras ? [
+            { n: fmtNum(compras.aguardando), l:"aguardando assinatura" },
+            { n: fmtNum(compras.liberado), l:"liberado, aguard. atendimento" },
           ] : null,
         })
       + previewCardSoon("📦","Suprimentos","Suprimentos")
