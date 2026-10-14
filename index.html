@@ -1342,22 +1342,18 @@ function fmtDateBR(iso){
   return d.toLocaleDateString("pt-BR");
 }
 // Renders a small "period" toolbar (date input + apply/reset) reusable across sections.
+// Simplificado em 14/10/2026 (pedido do Jefferson, mesmo padrão em todo o painel): sem os
+// botões "Aplicar"/"Mais recente" — o próprio campo de data já dispara a busca sozinho no
+// "change" (escolheu uma data = aplica; limpou o campo = volta pro mais recente, null).
 function periodToolbarHtml(id, currentValue, label){
   return '<div class="filters filters-right" style="margin-bottom:18px;">'
     + '<label style="font-size:12px;color:var(--text-secondary);">' + (label || "Período (dados até a data selecionada):") + '</label>'
     + '<input type="date" id="' + id + '-asof" min="' + MIN_PERIOD_DATE + '" max="' + todayStr() + '" value="' + (currentValue || "") + '" />'
-    + '<button class="primary" id="' + id + '-apply">Aplicar</button>'
-    + '<button class="ghost" id="' + id + '-reset">Mais recente</button>'
     + '</div>';
 }
 function wirePeriodToolbar(id, onChange){
-  document.getElementById(id + "-apply").addEventListener("click", function(){
-    const v = document.getElementById(id + "-asof").value;
-    onChange(v || null);
-  });
-  document.getElementById(id + "-reset").addEventListener("click", function(){
-    document.getElementById(id + "-asof").value = "";
-    onChange(null);
+  document.getElementById(id + "-asof").addEventListener("change", function(e){
+    onChange(e.target.value || null);
   });
 }
 // Renders a dropdown listing all units for a module, placed right below the period toolbar.
