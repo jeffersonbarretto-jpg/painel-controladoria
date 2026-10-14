@@ -3009,8 +3009,11 @@ function renderSetorOperacional(mountEl, data, opts){
 async function renderTelemetria(newAsOf){
   if(newAsOf !== undefined) telemetriaAsOf = newAsOf;
   const el = document.getElementById("telemetria-body");
-  el.innerHTML = periodToolbarHtml("telemetria", telemetriaAsOf, "Data de verificação:") + '<div id="telemetria-data-area"><div class="spinner">Carregando dados de telemetria...</div></div>';
-  wirePeriodToolbar("telemetria", function(v){ renderTelemetria(v); });
+  // Sub-abas (Tabela/Cards/Kanban/Resumo executivo) vêm ANTES de tudo — mesmo padrão do módulo
+  // Compras (pedido por Jefferson em 14/10/2026). Renderizadas já na primeira passada (síncrona,
+  // antes da busca dos dados) porque não dependem deles — só o filtro/KPIs/conteúdo abaixo dependem.
+  el.innerHTML = VizModes.modeTabsHtml("telemetria", telemetriaVizMode) + '<div id="telemetria-data-area"><div class="spinner">Carregando dados de telemetria...</div></div>';
+  VizModes.wireModeTabs(el, "telemetria", function(m){ telemetriaVizMode = m; renderTelemetria(); });
   const area = document.getElementById("telemetria-data-area");
   try{
     const data = await getTelemetriaData(telemetriaAsOf, newAsOf !== undefined);
@@ -3031,7 +3034,8 @@ async function renderTelemetria(newAsOf){
     vehicles.forEach(function(v){ (byUnidade[v.unidade] = byUnidade[v.unidade] || []).push(v); });
     const unidades = Object.keys(byUnidade).sort();
 
-    let html = unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro, true);
+    let html = periodToolbarHtml("telemetria", telemetriaAsOf, "Data de verificação:");
+    html += unidadeFilterHtml("telemetria", unidadesTodas, telemetriaUnidadeFiltro, true);
 
     if(data.filtroData){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de período ativo — mostrando os <b>' + fmtNum(total) + '</b> carro(s) cuja "Dt. Verificação" é a data selecionada, de um total de <b>' + fmtNum(data.totalFrota) + '</b> carro(s) na base. Remova a data (botão "Mais recente") para ver a base completa.</p>';
@@ -3053,8 +3057,6 @@ async function renderTelemetria(newAsOf){
     const telVizStoredThresh = VizModes.loadThresholds("telemetria");
     const telVizAutoThresh = VizModes.computeDefaultThresholds(telVizItemsAll.map(function(it){ return it.severity; }));
     let telVizActiveThresh = telVizStoredThresh || telVizAutoThresh;
-
-    html += VizModes.modeTabsHtml("telemetria", telemetriaVizMode);
 
     if(telemetriaVizMode === "tabela"){
       if(recorrentes.length){
@@ -3106,7 +3108,7 @@ async function renderTelemetria(newAsOf){
 
     area.innerHTML = html || '<p class="empty-hint">Nenhum dado disponível.</p>';
     fitAllKpiValues(area);
-    VizModes.wireModeTabs(area, "telemetria", function(m){ telemetriaVizMode = m; renderTelemetria(); });
+    wirePeriodToolbar("telemetria", function(v){ renderTelemetria(v); });
 
     if(telemetriaVizMode === "tabela"){
       enableSortableTables(area);
@@ -3397,8 +3399,9 @@ let pneusGroupField = VizModes.loadGroupField("pneus", PNEUS_GROUP_FIELDS.map(fu
 async function renderPneus(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
   const el = document.getElementById("pneus-body");
-  el.innerHTML = periodToolbarHtml("pneus", pneusAsOf) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
-  wirePeriodToolbar("pneus", function(v){ renderPneus(v); });
+  // Sub-abas primeiro, mesmo padrão de renderTelemetria/Compras (ver comentário lá).
+  el.innerHTML = VizModes.modeTabsHtml("pneus", pneusVizMode) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
+  VizModes.wireModeTabs(el, "pneus", function(m){ pneusVizMode = m; renderPneus(); });
   const area = document.getElementById("pneus-data-area");
   try{
     const full = await getPneusData(pneusAsOf, newAsOf !== undefined);
@@ -3408,7 +3411,8 @@ async function renderPneus(newAsOf){
       ? Object.assign(computePneusAggregates(full.tiresAll.filter(function(t){ return (t.local || "Sem unidade") === pneusUnidadeFiltro; }), full.prevKmMap), { resolvedDates: full.resolvedDates })
       : full;
 
-    let html = unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro, true);
+    let html = periodToolbarHtml("pneus", pneusAsOf);
+    html += unidadeFilterHtml("pneus", unidadesTodas, pneusUnidadeFiltro, true);
 
     if(pneusUnidadeFiltro){
       html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusUnidadeFiltro) + '</b>.</p>';
@@ -3432,8 +3436,6 @@ async function renderPneus(newAsOf){
     const pneuVizStoredThresh = VizModes.loadThresholds("pneus");
     const pneuVizAutoThresh = VizModes.computeDefaultThresholds(pneuVizItemsAll.map(function(it){ return it.severity; }), true);
     let pneuVizActiveThresh = pneuVizStoredThresh || pneuVizAutoThresh;
-
-    html += VizModes.modeTabsHtml("pneus", pneusVizMode);
 
     if(pneusVizMode === "tabela"){
       html += '<div class="subsection"><h3>Ranking por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
@@ -3497,7 +3499,7 @@ async function renderPneus(newAsOf){
 
     area.innerHTML = html;
     fitAllKpiValues(area);
-    VizModes.wireModeTabs(area, "pneus", function(m){ pneusVizMode = m; renderPneus(); });
+    wirePeriodToolbar("pneus", function(v){ renderPneus(v); });
 
     if(pneusVizMode === "tabela"){
       enableSortableTables(area);
@@ -4104,7 +4106,10 @@ function wireRtbMapa(area){
 async function renderRetencao(newAsOf){
   if(newAsOf !== undefined) retencaoAsOf = newAsOf;
   const el = document.getElementById("retencao-body");
-  el.innerHTML = periodToolbarHtml("retencao", retencaoAsOf, "Data de abertura (snapshot):") + '<div id="retencao-data-area"><div class="spinner">Carregando dados de retenção...</div></div>';
+  el.innerHTML = VizModes.modeTabsHtml("retencao", retencaoVizMode)
+    + periodToolbarHtml("retencao", retencaoAsOf, "Data de abertura (snapshot):")
+    + '<div id="retencao-data-area"><div class="spinner">Carregando dados de retenção...</div></div>';
+  VizModes.wireModeTabs(el, "retencao", function(m){ retencaoVizMode = m; renderRetencao(); });
   wirePeriodToolbar("retencao", function(v){ renderRetencao(v); });
   const area = document.getElementById("retencao-data-area");
   try{
@@ -4146,8 +4151,6 @@ async function renderRetencao(newAsOf){
       + kpiCard("Terceiros — próx. vencimento", fmtNum(d.terceirosProximos.length), d.terceirosProximos.length?"warning":"good")
       + kpiCard("Prazo alterado (histórico)", fmtNum(d.prazoAlterados.length), "info")
       + '</div>';
-
-    html += VizModes.modeTabsHtml("retencao", retencaoVizMode);
 
     if(retencaoVizMode === "tabela"){
       let terceirosIdxCounter = 0;
@@ -4211,7 +4214,6 @@ async function renderRetencao(newAsOf){
     area.innerHTML = html;
     wireRtbMapa(area);
     fitAllKpiValues(area);
-    VizModes.wireModeTabs(area, "retencao", function(m){ retencaoVizMode = m; renderRetencao(); });
 
     if(retencaoVizMode === "tabela"){
       enableSortableTables(area);
