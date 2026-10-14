@@ -165,6 +165,10 @@
   .badge.b-warning{ color:var(--warning); background:color-mix(in srgb, var(--warning) 20%, transparent); }
   .badge.b-critical{ color:var(--critical); background:color-mix(in srgb, var(--critical) 15%, transparent); }
   .badge.b-info{ color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
+  .trend-arrow{ font-size:11px; font-weight:700; margin-left:5px; display:inline-block; }
+  .trend-arrow.trend-up{ color:var(--critical); }
+  .trend-arrow.trend-down{ color:var(--good); }
+  .trend-arrow.trend-flat{ color:var(--text-muted); }
   .empty-hint{ font-size:13px; color:var(--text-muted); padding:14px 0; }
   .os-link{ border:none; background:none; padding:0; color:var(--accent); font-weight:700; font-size:inherit; cursor:pointer; text-decoration:underline; }
   .os-link:hover{ opacity:.75; }
@@ -966,7 +970,15 @@
       <nav>
         <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home</button>
         <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
-        <button class="nav-btn" data-section="pneus"><span class="ico">🛞</span> Pneus</button>
+        <div class="nav-group" id="nav-pneus-group">
+          <button class="nav-btn nav-btn-expand" id="nav-pneus-toggle" type="button"><span class="ico">🛞</span> Pneus <span class="nav-caret">▾</span></button>
+          <div class="nav-sub" id="nav-pneus-sub">
+            <button class="nav-btn nav-sub-btn" data-section="pneus-macro">Visão Macro</button>
+            <button class="nav-btn nav-sub-btn" data-section="pneus-calibragem">Calibragem</button>
+            <button class="nav-btn nav-sub-btn" data-section="pneus-sucateamento">Sucateamento</button>
+            <button class="nav-btn nav-sub-btn" data-section="pneus-divergencia-km">Divergência KM</button>
+          </div>
+        </div>
         <button class="nav-btn" data-section="inventario"><span class="ico">🗃️</span> Inventário</button>
         <div class="nav-group" id="nav-manut-group">
           <button class="nav-btn nav-btn-expand" id="nav-manut-toggle" type="button"><span class="ico">🛠️</span> Manutenção <span class="nav-caret">▾</span></button>
@@ -1016,11 +1028,36 @@
           <div id="telemetria-body"><div class="spinner">Carregando...</div></div>
         </div>
 
-        <div class="section" id="sec-pneus">
+        <div class="section" id="sec-pneus-macro">
           <div class="section-head">
-            <h2>Pneus</h2>
+            <h2>Pneus — Visão Macro</h2>
+            <p>Panorama consolidado por unidade — sulco crítico, rodízio, reforma, sucata e pendências, com setas de evolução desde a última coleta.</p>
           </div>
-          <div id="pneus-body"><div class="spinner">Carregando...</div></div>
+          <div id="pneus-macro-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus-calibragem">
+          <div class="section-head">
+            <h2>Pneus — Calibragem</h2>
+            <p>Plano de prevenção de calibragem de pressão dos pneus (229-CALIBRAGEM PRESSAO PNEUS, a cada 3.000km) — vencidos x em dia, por unidade.</p>
+          </div>
+          <div id="pneus-calibragem-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus-sucateamento">
+          <div class="section-head">
+            <h2>Pneus — Sucateamento</h2>
+            <p>Pneus sucateados por unidade — data de sucateamento, motivo, vida útil e último veículo.</p>
+          </div>
+          <div id="pneus-sucateamento-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus-divergencia-km">
+          <div class="section-head">
+            <h2>Pneus — Divergência de KM</h2>
+            <p>Veículos com quilometragem total do pneu (KM. Vida) fora do padrão esperado — possível erro de digitação/leitura na base.</p>
+          </div>
+          <div id="pneus-divergencia-km-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-inventario">
@@ -1717,6 +1754,7 @@ const ROBO_TML_FIELDS = {
 const ROBO_EXP_FIELDS = { "Setor de Abastecimento":"setor_de_abastecimento", Data:"data", Turno:"turno", "Situação":"situacao", "Situação da Exportação":"situacao_da_exportacao" };
 const ROBO_ABAST_FIELDS = { Veiculo:"veiculo", Comb:"comb", Data:"data", Km_Rod:"km_rod", Km_Lt:"km_lt", Meta:"meta", Dif_Pct:"dif_percentual", St_Abast:"st_abast", Tur:"tur", Vl_Ab:"vl_ab" };
 const ROBO_RPV_FIELDS = { Veiculo:"empresa_veiculo", Empresa:"empresa", Posicao:"posicao", Pneu:"pneu", Data:"data", KM_Total:"km_total", KM_Vida:"km_vida", KM_Perc:"km_perc", Situacao:"situacao", Desenho:"desenho", Marca:"marca", Medida:"medida", Ult_Recapagem:"ult_recapagem", Ult_Media_Ap:"ult_media_ap", Dt_Media_Ap:"dt_media_ap" };
+const ROBO_SUCAT_FIELDS = { Empresa:"empresa", Pneu:"pneu", Marca:"marca", Desenho:"desenho", Dt_Inicial:"dt_inicial", Dt_Sucat:"dt_sucat", Vida_Util:"vida_util", Ult_Veic:"ult_veic", Tipo_Servico:"tipo_servico", KM_Total:"km_total", Total:"total", KM:"km", Vida:"vida", Motivo:"motivo", Setor:"setor", Medida:"medida" };
 const ROBO_TAB_MAP = {
   "Oficina - RT": { table: "oficina_rt", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
   "O.S Aberta - TML": { table: "os_aberta_tml", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
@@ -1727,6 +1765,7 @@ const ROBO_TAB_MAP = {
   "Exp. Abst": { table: "exp_abst", fields: ROBO_EXP_FIELDS, filterHeaderRows: false },
   "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false, cumulative: true },
   "Dados RPV - Pneus": { table: "pneus_rpv", fields: ROBO_RPV_FIELDS, filterHeaderRows: false },
+  "Pneus Sucateados": { table: "pneus_sucateados_tml", fields: ROBO_SUCAT_FIELDS, filterHeaderRows: false },
 };
 
 async function roboRest(path, opts){
@@ -1779,6 +1818,18 @@ async function roboResolveSnapshotDate(table, asOfIso){
   if(!asOfIso) return idx[0] || null;
   for(let i=0;i<idx.length;i++){ if(idx[i] <= asOfIso) return idx[i]; }
   return null;
+}
+// Acha a data de sincronização IMEDIATAMENTE ANTERIOR a uma data já resolvida (p.ex. "ontem" de
+// verdade, pulando fins de semana/dias sem coleta) — usado pelas setas de evolução (Crítico/Rodízio
+// em Pneus): compara contagem de hoje vs. a última coleta anterior disponível, não "ontem no
+// calendário" (que pode não ter coleta). Retorna null se não houver nenhuma coleta anterior (ex.:
+// primeiro dia de dados).
+async function roboPreviousSnapshotDate(table, currentIso){
+  if(!currentIso) return null;
+  const idx = await roboFetchDateIndex(table);
+  const i = idx.indexOf(currentIso);
+  if(i === -1 || i + 1 >= idx.length) return null;
+  return idx[i + 1];
 }
 // Lista (ascendente) as datas <= maxIso já coletadas de um tab_name, limitada a `limit` — usada
 // pelos módulos que reconstroem histórico varrendo vários snapshots (Retenção/prazo, Telemetria
@@ -2557,7 +2608,10 @@ if(themeMenuBtn){
 const SECTION_TITLES = {
   home: "Home",
   telemetria: "Telemetria",
-  pneus: "Pneus",
+  "pneus-macro": "Pneus — Visão Macro",
+  "pneus-calibragem": "Pneus — Calibragem",
+  "pneus-sucateamento": "Pneus — Sucateamento",
+  "pneus-divergencia-km": "Pneus — Divergência de KM",
   inventario: "Inventário",
   "manut-macro": "Manutenção — Visão Macro",
   "manut-preventiva": "Manutenção — Preventiva",
@@ -2568,20 +2622,35 @@ const SECTION_TITLES = {
   dashboard: "Dashboard",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, "manut-macro":false, "manut-preventiva":false, "manut-retencao":false, abastecimento:false, suprimentos:false, compras:false, dashboard:false, dados:false };
-// Seções que pertencem ao grupo expansível "Manutenção" — controla o submenu lateral aberto/
-// fechado e (por enquanto) a barra lateral secundária de Unidades.
+const sectionLoaded = {
+  home:false, telemetria:false, inventario:false,
+  "pneus-macro":false, "pneus-calibragem":false, "pneus-sucateamento":false, "pneus-divergencia-km":false,
+  "manut-macro":false, "manut-preventiva":false, "manut-retencao":false,
+  abastecimento:false, suprimentos:false, compras:false, dashboard:false, dados:false,
+};
+// Grupos expansíveis do menu lateral (ex.: "Manutenção" -> Visão Macro/Preventiva/Retenção,
+// "Pneus" -> Visão Macro/Calibragem/Sucateamento/Divergência KM) — cada grupo controla seu
+// próprio submenu aberto/fechado; MANUT_SECTIONS também aciona a barra lateral secundária de
+// Unidades (só implementada pra Manutenção por enquanto).
 const MANUT_SECTIONS = ["manut-macro", "manut-preventiva", "manut-retencao"];
+const PNEUS_SECTIONS = ["pneus-macro", "pneus-calibragem", "pneus-sucateamento", "pneus-divergencia-km"];
+const NAV_GROUPS = [
+  { groupId: "nav-manut-group", sections: MANUT_SECTIONS },
+  { groupId: "nav-pneus-group", sections: PNEUS_SECTIONS },
+];
 
-const navManutToggle = document.getElementById("nav-manut-toggle");
-if(navManutToggle){
-  navManutToggle.addEventListener("click", function(){
-    document.getElementById("nav-manut-group").classList.toggle("open");
-  });
-}
+["nav-manut-toggle", "nav-pneus-toggle"].forEach(function(toggleId){
+  const toggleBtn = document.getElementById(toggleId);
+  const groupId = toggleId.replace("-toggle", "-group");
+  if(toggleBtn){
+    toggleBtn.addEventListener("click", function(){
+      document.getElementById(groupId).classList.toggle("open");
+    });
+  }
+});
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
-  if(btn.id === "nav-manut-toggle") return; // tratado separadamente acima (abre/fecha o submenu)
+  if(btn.id === "nav-manut-toggle" || btn.id === "nav-pneus-toggle") return; // tratados separadamente acima (abrem/fecham o submenu)
   btn.addEventListener("click", function(){
     if(btn.dataset.soon){
       activatePlaceholder(btn.dataset.soon);
@@ -2598,12 +2667,15 @@ document.querySelectorAll(".nav-btn").forEach(function(btn){
 
 function activateSection(section){
   document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.section === section); });
-  const manutGroup = document.getElementById("nav-manut-group");
-  const isManut = MANUT_SECTIONS.indexOf(section) !== -1;
-  if(manutGroup){
-    manutGroup.classList.toggle("has-active", isManut);
-    if(isManut) manutGroup.classList.add("open"); // ao chegar via Home/link direto, já abre o submenu
-  }
+  let isManut = false;
+  NAV_GROUPS.forEach(function(g){
+    const groupEl = document.getElementById(g.groupId);
+    if(!groupEl) return;
+    const belongs = g.sections.indexOf(section) !== -1;
+    if(g.sections === MANUT_SECTIONS) isManut = belongs;
+    groupEl.classList.toggle("has-active", belongs);
+    if(belongs) groupEl.classList.add("open"); // ao chegar via Home/link direto, já abre o submenu
+  });
   document.querySelectorAll(".section").forEach(function(s){ s.classList.remove("active"); });
   document.getElementById("sec-" + section).classList.add("active");
   updateSidebarSecondary(isManut ? section : null);
@@ -2611,7 +2683,10 @@ function activateSection(section){
     sectionLoaded[section] = true;
     if(section === "home") renderHome();
     if(section === "telemetria") renderTelemetria();
-    if(section === "pneus") renderPneus();
+    if(section === "pneus-macro") renderPneusMacro();
+    if(section === "pneus-calibragem") renderPneusCalibragem();
+    if(section === "pneus-sucateamento") renderPneusSucateamento();
+    if(section === "pneus-divergencia-km") renderPneusDivergenciaKm();
     if(section === "inventario") renderInventario();
     if(section === "manut-macro") renderManutMacro();
     if(section === "manut-preventiva") renderManutPreventiva();
@@ -3220,7 +3295,47 @@ async function buildPneusData(asOfDate){
     if(key) prevKmMap[key] = num(r.Km_Rodado);
   });
 
-  const tires = rpvRows.map(function(r){
+  const tires = montaPneusDeRpv(rpvRows, veicByKey, unidadeTmlByKey, companyByCode);
+
+  // --- Setas de evolução (Crítico/Rodízio) — compara com a coleta anterior disponível ---
+  // Pedido do Jefferson (14/10/2026): no "Ranking por unidade", mostrar se o número de pneus
+  // críticos/com rodízio pendente SUBIU (seta pra cima, vermelha — "não foi feito, só foi
+  // agregado mais") ou CAIU (seta pra baixo, verde) desde a última coleta. Reaproveita os mesmos
+  // mapas de unidade/empresa de hoje pro dia anterior (a vinculação veículo→unidade não muda de um
+  // dia pro outro) — só os dados de pneu (Dados RPV - Pneus) em si são de uma data diferente.
+  let trendPorUnidade = {};
+  let trendDataAnteriorIso = null;
+  try{
+    const rpvSnapAnterior = await roboPreviousSnapshotDate("pneus_rpv", rpvSnap);
+    if(rpvSnapAnterior){
+      trendDataAnteriorIso = rpvSnapAnterior;
+      const rpvRowsAnterior = await fetchAllRows("Dados RPV - Pneus", rpvSnapAnterior);
+      const tiresAnterior = montaPneusDeRpv(rpvRowsAnterior, veicByKey, unidadeTmlByKey, companyByCode);
+      const aggAnterior = computePneusAggregates(tiresAnterior, {});
+      aggAnterior.ranking.forEach(function(r){
+        trendPorUnidade[r.nome] = { critico: r.critico, rodizio: r.rodizio };
+      });
+    }
+  }catch(e){
+    // Melhor mostrar o ranking sem as setas do que quebrar a aba inteira por causa de uma
+    // comparação que é só informativa.
+    trendPorUnidade = {};
+    trendDataAnteriorIso = null;
+  }
+
+  return Object.assign(computePneusAggregates(tires, prevKmMap), {
+    tiresAll: tires, prevKmMap: prevKmMap,
+    trendPorUnidade: trendPorUnidade, trendDataAnteriorIso: trendDataAnteriorIso,
+    resolvedDates: {
+      "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
+    },
+  });
+}
+
+// Extraído de buildPneusData pra poder rodar tanto na coleta de hoje quanto na coleta anterior
+// (setas de evolução) sem duplicar a lógica de resolução de unidade/empresa por veículo.
+function montaPneusDeRpv(rpvRows, veicByKey, unidadeTmlByKey, companyByCode){
+  return rpvRows.map(function(r){
     const veiculo = r.Veiculo || "";
     const isAgreg = /^AGREG/i.test(veiculo.trim());
     const key = vehicleKey(veiculo);
@@ -3243,13 +3358,15 @@ async function buildPneusData(asOfDate){
       dtSulco: parseLenientDate(r.Dt_Media_Ap) || parseLenientDate(r.Data),
     };
   }).filter(function(t){ return t.veiculoKey || t.pneu === "S/PNEU"; });
+}
 
-  return Object.assign(computePneusAggregates(tires, prevKmMap), {
-    tiresAll: tires, prevKmMap: prevKmMap,
-    resolvedDates: {
-      "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
-    },
-  });
+// Renderiza a seta de evolução (▲ subiu / ▼ caiu / — sem variação) comparando a contagem de hoje
+// com a da coleta anterior. `anterior` undefined/null = sem dado pra comparar (não mostra seta).
+function pneusTrendArrowHtml(atual, anterior){
+  if(anterior === undefined || anterior === null) return "";
+  if(atual > anterior) return ' <span class="trend-arrow trend-up" title="Subiu de ' + anterior + ' para ' + atual + ' desde a coleta anterior — aumentou, não foi resolvido">▲</span>';
+  if(atual < anterior) return ' <span class="trend-arrow trend-down" title="Caiu de ' + anterior + ' para ' + atual + ' desde a coleta anterior">▼</span>';
+  return ' <span class="trend-arrow trend-flat" title="Sem variação desde a coleta anterior (' + atual + ')">—</span>';
 }
 
 // Recalcula todos os agregados (alertas, ranking, vinculação de unidade) a partir de uma lista de
@@ -3396,19 +3513,19 @@ let pneusAsOf = null;
 let pneusUnidadeFiltro = null;
 let pneusVizMode = VizModes.loadMode("pneus", "kanban");
 let pneusGroupField = VizModes.loadGroupField("pneus", PNEUS_GROUP_FIELDS.map(function(f){ return f.key; }), "local");
-async function renderPneus(newAsOf){
+async function renderPneusMacro(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
-  const el = document.getElementById("pneus-body");
+  const el = document.getElementById("pneus-macro-body");
   // Sub-abas primeiro, mesmo padrão de renderTelemetria/Compras (ver comentário lá).
   el.innerHTML = VizModes.modeTabsHtml("pneus", pneusVizMode) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
-  VizModes.wireModeTabs(el, "pneus", function(m){ pneusVizMode = m; renderPneus(); });
+  VizModes.wireModeTabs(el, "pneus", function(m){ pneusVizMode = m; renderPneusMacro(); });
   const area = document.getElementById("pneus-data-area");
   try{
     const full = await getPneusData(pneusAsOf, newAsOf !== undefined);
     const unidadesTodas = Array.from(new Set(full.tiresAll.map(function(t){ return t.local || "Sem unidade"; }))).sort();
     if(pneusUnidadeFiltro && unidadesTodas.indexOf(pneusUnidadeFiltro) === -1) pneusUnidadeFiltro = null;
     const d = pneusUnidadeFiltro
-      ? Object.assign(computePneusAggregates(full.tiresAll.filter(function(t){ return (t.local || "Sem unidade") === pneusUnidadeFiltro; }), full.prevKmMap), { resolvedDates: full.resolvedDates })
+      ? Object.assign(computePneusAggregates(full.tiresAll.filter(function(t){ return (t.local || "Sem unidade") === pneusUnidadeFiltro; }), full.prevKmMap), { resolvedDates: full.resolvedDates, trendPorUnidade: full.trendPorUnidade, trendDataAnteriorIso: full.trendDataAnteriorIso })
       : full;
 
     let html = periodToolbarHtml("pneus", pneusAsOf);
@@ -3438,9 +3555,14 @@ async function renderPneus(newAsOf){
     let pneuVizActiveThresh = pneuVizStoredThresh || pneuVizAutoThresh;
 
     if(pneusVizMode === "tabela"){
-      html += '<div class="subsection"><h3>Ranking por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
+      html += '<div class="subsection"><h3>Ranking por unidade'
+        + (d.trendDataAnteriorIso ? ' <span class="hint" style="font-weight:400;font-size:11.5px;">(setas comparam com a coleta de ' + fmtDateBR(d.trendDataAnteriorIso) + ')</span>' : '')
+        + '</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
         + d.ranking.map(function(r){
-          return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+r.critico+'</td><td>'+r.atencao+'</td><td>'+r.rodizio+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
+          const trendAnterior = (d.trendPorUnidade || {})[r.nome];
+          const criticoCell = r.critico + pneusTrendArrowHtml(r.critico, trendAnterior ? trendAnterior.critico : null);
+          const rodizioCell = r.rodizio + pneusTrendArrowHtml(r.rodizio, trendAnterior ? trendAnterior.rodizio : null);
+          return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+criticoCell+'</td><td>'+r.atencao+'</td><td>'+rodizioCell+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
         }).join("") + '</tbody></table></div></div>';
 
       html += '<div class="subsection"><h3>Veículos sem unidade (' + d.semUnidadeCount + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Placa</th><th>Empresa</th></tr></thead><tbody>'
@@ -3494,18 +3616,19 @@ async function renderPneus(newAsOf){
       { label:"Sucata", desc:"pneu marcado com situação SUC — troca imediata." },
       { label:"Sem pneu", desc:"posição do veículo sem nenhum pneu cadastrado (vaga)." },
       { label:"Vinculados à unidade / Sem unidade", desc:"se o veículo tem uma Unidade/Local identificado na base cadastral (Base de Veículos - Pneus ou, como reserva, a Base - TML)." },
+      { label:"Setas no Ranking por unidade (Crítico/Rodízio)", desc:'<span class="trend-arrow trend-up">▲</span> o número subiu desde a coleta anterior (acumulou, não foi resolvido) · <span class="trend-arrow trend-down">▼</span> caiu (foi tratado) · <span class="trend-arrow trend-flat">—</span> sem variação.' },
     ]);
     html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Manutencao - PRV, Base - TML (conciliação de unidade)") + resolvedDatesNote(d.resolvedDates) + '</div>';
 
     area.innerHTML = html;
     fitAllKpiValues(area);
-    wirePeriodToolbar("pneus", function(v){ renderPneus(v); });
+    wirePeriodToolbar("pneus", function(v){ renderPneusMacro(v); });
 
     if(pneusVizMode === "tabela"){
       enableSortableTables(area);
-      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
+      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneusMacro(); });
     } else {
-      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneus(); });
+      wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneusMacro(); });
 
       const pneuVizMount = document.getElementById("pneus-viz-mount");
       const pneuVizGroupMeta = PNEUS_GROUP_FIELDS.reduce(function(m,f){ m[f.key]=f.label; return m; }, {});
@@ -3519,7 +3642,7 @@ async function renderPneus(newAsOf){
             pneusUnidadeFiltro = groupName;
             pneusVizMode = "tabela";
             VizModes.saveMode("pneus", "tabela");
-            renderPneus();
+            renderPneusMacro();
           }
         },
       };
@@ -3543,11 +3666,371 @@ async function renderPneus(newAsOf){
           const noteEl = pneuVizControlsEl.querySelector(".vc-note");
           if(noteEl) noteEl.textContent = "Limiares calculados automaticamente pela distribuição dos dados (percentis).";
         }, true);
-        VizModes.wireGroupSelect(pneuVizControlsEl, "pneus", function(key){ pneusGroupField = key; renderPneus(); });
+        VizModes.wireGroupSelect(pneuVizControlsEl, "pneus", function(key){ pneusGroupField = key; renderPneusMacro(); });
       }
     }
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Pneus: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS — CALIBRAGEM (plano de prevenção "229-CALIBRAGEM PRESSAO PNEUS", a cada 3.000km)
+// Fonte: Manutencao - PRV (mesma tabela/robô já usado em Pneus — Visão Macro e em Manutenção),
+// filtrada só pro plano de calibragem. Pedido do Jefferson (14/10/2026): não precisa de coleta
+// nova, esse plano já vem no relatório CRelatorioSugestaoManutencaoPreventiva coletado todo dia.
+// =====================================================================
+const PNEUS_CALIBRAGEM_PLANO = "229-CALIBRAGEM PRESSAO PNEUS";
+
+let pneusCalibragemAsOf = null;
+let pneusCalibragemUnidadeFiltro = null;
+const pneusCalibragemCacheByDate = {};
+async function getPneusCalibragemData(asOfDate, force){
+  const key = asOfDate || "latest";
+  if(force || !pneusCalibragemCacheByDate[key]){
+    pneusCalibragemCacheByDate[key] = buildPneusCalibragemData(asOfDate).catch(function(err){ delete pneusCalibragemCacheByDate[key]; throw err; });
+  }
+  return pneusCalibragemCacheByDate[key];
+}
+
+async function buildPneusCalibragemData(asOfDate){
+  const [prvSnap, veicSnap, tmlSnap] = await Promise.all([
+    resolveSnapshotDate("Manutencao - PRV", asOfDate),
+    resolveSnapshotDate("Base de Veiculos - Pneus", asOfDate),
+    resolveSnapshotDate("Base - TML", asOfDate),
+  ]);
+  const [prvRows, veicRows, tmlRows] = await Promise.all([
+    fetchAllRows("Manutencao - PRV", prvSnap),
+    fetchAllRows("Base de Veiculos - Pneus", veicSnap),
+    fetchAllRows("Base - TML", tmlSnap),
+  ]);
+
+  const veicByKey = {};
+  veicRows.forEach(function(r){
+    const key = vehicleKey(r["Nº de Ordem"]);
+    const u = (r.Unidade || "").trim();
+    if(key && u) veicByKey[key] = u;
+  });
+  const unidadeTmlByKey = {};
+  tmlRows.forEach(function(r){
+    const key = vehicleKey(r.Carro);
+    const u = (r.Unidade || "").trim();
+    if(key && u) unidadeTmlByKey[key] = u;
+  });
+
+  const itens = prvRows.filter(function(r){ return r.Plano_de_Manutencao === PNEUS_CALIBRAGEM_PLANO; }).map(function(r){
+    const key = vehicleKey(r.Veiculo);
+    const local = (key && (veicByKey[key] || unidadeTmlByKey[key])) || "Sem unidade";
+    const obs = String(r.Observacao || "").trim();
+    // Mesmo critério do boletim de Manutenção (manutClassifyObs): só "Vencido" e "Atingiu o
+    // limite inferior/superior" contam como pendência — qualquer outro texto não entra na conta.
+    const vencido = /vencido/i.test(obs) || /atingiu o limite/i.test(obs);
+    return {
+      veiculoRaw: r.Veiculo || "", local: local, observacao: obs, vencido: vencido,
+      ultimaData: r.Ult_Data || "", diferencaKm: num(r.Km_Diferenca), diferencaDias: num(r.Dias_Diferenca),
+      percentual: r.Pct_Vencido || "",
+    };
+  });
+
+  const porUnidade = {};
+  itens.forEach(function(it){
+    porUnidade[it.local] = porUnidade[it.local] || { nome: it.local, total: 0, vencidos: 0 };
+    porUnidade[it.local].total++;
+    if(it.vencido) porUnidade[it.local].vencidos++;
+  });
+  const ranking = Object.values(porUnidade).map(function(r){
+    r.pctVencido = r.total ? (r.vencidos / r.total * 100) : 0;
+    return r;
+  }).sort(function(a, b){ return b.pctVencido - a.pctVencido; });
+
+  return {
+    itens: itens, ranking: ranking,
+    totalVeiculosNoPlano: itens.length,
+    totalVencidos: itens.filter(function(i){ return i.vencido; }).length,
+    resolvedDates: { "Manutencao - PRV": prvSnap, "Base de Veiculos - Pneus": veicSnap, "Base - TML": tmlSnap },
+  };
+}
+
+async function renderPneusCalibragem(newAsOf){
+  if(newAsOf !== undefined) pneusCalibragemAsOf = newAsOf;
+  const el = document.getElementById("pneus-calibragem-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de calibragem...</div>';
+  try{
+    const full = await getPneusCalibragemData(pneusCalibragemAsOf, newAsOf !== undefined);
+    const unidadesTodas = Array.from(new Set(full.itens.map(function(i){ return i.local; }))).sort();
+    if(pneusCalibragemUnidadeFiltro && unidadesTodas.indexOf(pneusCalibragemUnidadeFiltro) === -1) pneusCalibragemUnidadeFiltro = null;
+    const itensExibidos = pneusCalibragemUnidadeFiltro
+      ? full.itens.filter(function(i){ return i.local === pneusCalibragemUnidadeFiltro; })
+      : full.itens;
+    const vencidosExibidos = itensExibidos.filter(function(i){ return i.vencido; }).length;
+
+    let html = periodToolbarHtml("pneuscalibragem", pneusCalibragemAsOf, "Data da sugestão de manutenção (snapshot):");
+    html += unidadeFilterHtml("pneuscalibragem", unidadesTodas, pneusCalibragemUnidadeFiltro, true);
+
+    if(pneusCalibragemUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusCalibragemUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Veículos no plano", fmtNum(itensExibidos.length), "info")
+      + kpiCard("Vencidos", fmtNum(vencidosExibidos), vencidosExibidos ? "critical" : "good")
+      + kpiCard("% vencido", itensExibidos.length ? (Math.round(vencidosExibidos / itensExibidos.length * 1000) / 10) + "%" : "—", vencidosExibidos ? "warning" : "good")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Ranking por unidade — % vencido</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>No plano</th><th>Vencidos</th><th>% vencido</th></tr></thead><tbody>'
+      + (full.ranking.length ? full.ranking.map(function(r){
+          const pctCell = r.pctVencido > 0
+            ? '<span class="badge ' + (r.pctVencido >= 50 ? "b-critical" : "b-warning") + '">' + (Math.round(r.pctVencido * 10) / 10) + '%</span>'
+            : '<span class="badge b-good">0%</span>';
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + r.total + '</td><td>' + r.vencidos + '</td><td>' + pctCell + '</td></tr>';
+        }).join("") : '<tr><td colspan="4">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Veículos (' + itensExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Situação</th><th>Última calibragem</th><th>Km desde então</th><th>Dias desde então</th></tr></thead><tbody>'
+      + (itensExibidos.length ? itensExibidos.slice().sort(function(a, b){ return (b.vencido?1:0) - (a.vencido?1:0); }).map(function(i){
+          const sitCell = i.vencido ? '<span class="badge b-critical">' + escapeHtml(i.observacao || "Vencido") + '</span>' : '<span class="badge b-good">Em dia</span>';
+          return '<tr><td>' + escapeHtml(i.local) + '</td><td>' + escapeHtml(i.veiculoRaw) + '</td><td>' + sitCell + '</td><td>' + escapeHtml(i.ultimaData || "—") + '</td><td>' + (isNaN(i.diferencaKm) ? "—" : fmtNum(i.diferencaKm) + " km") + '</td><td>' + (isNaN(i.diferencaDias) ? "—" : i.diferencaDias) + '</td></tr>';
+        }).join("") : '<tr><td colspan="6">Nenhum veículo no plano de calibragem.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Plano", desc:'"' + PNEUS_CALIBRAGEM_PLANO + '" — plano de prevenção de calibragem de pressão dos pneus, intervalo de 3.000km, do relatório de Sugestão de Manutenção Preventiva do Tr@nsnet.' },
+      { label:"Vencido", desc:'veículo já passou do km/dias previstos pra próxima calibragem (observação "Vencido" ou "Atingiu o limite inferior/superior") — mesmo critério usado em Manutenção.' },
+      { label:"Em dia", desc:"veículo dentro do intervalo previsto — ainda não chegou a hora de calibrar de novo." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Manutencao - PRV (CRelatorioSugestaoManutencaoPreventiva), Base de Veiculos - Pneus, Base - TML (conciliação de unidade)") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    wirePeriodToolbar("pneuscalibragem", function(v){ renderPneusCalibragem(v); });
+    enableSortableTables(el);
+    wireUnidadeFilter("pneuscalibragem", function(v){ pneusCalibragemUnidadeFiltro = v; renderPneusCalibragem(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Calibragem: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS — DIVERGÊNCIA DE KM (KM. Vida muito acima do esperado — provável erro de leitura/digitação)
+// Fonte: Dados RPV - Pneus (mesma tabela de Pneus — Visão Macro, reaproveitando getPneusData/
+// getPneusData já cacheado — nenhuma coleta nova). Pedido do Jefferson (14/10/2026): limite de
+// 300.000km, testado contra a base real em 14/10/2026 (32 pneus acima disso, todos na mesma
+// unidade naquele dia — confirma que o limite separa bem o que é divergência real).
+// =====================================================================
+const PNEUS_KM_DIVERGENCIA_LIMITE = 300000;
+
+let pneusDivergenciaKmAsOf = null;
+let pneusDivergenciaKmUnidadeFiltro = null;
+
+async function renderPneusDivergenciaKm(newAsOf){
+  if(newAsOf !== undefined) pneusDivergenciaKmAsOf = newAsOf;
+  const el = document.getElementById("pneus-divergencia-km-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de pneus...</div>';
+  try{
+    const full = await getPneusData(pneusDivergenciaKmAsOf, newAsOf !== undefined);
+
+    // Um veículo pode ter mais de um pneu com KM divergente — a lista pedida é de VEÍCULOS
+    // (não de pneus), então agrupa por veiculoKey e guarda o maior KM encontrado nele.
+    const porVeiculo = {};
+    full.tiresAll.forEach(function(t){
+      const km = num(t.raw && t.raw.KM_Total);
+      if(isNaN(km) || km <= PNEUS_KM_DIVERGENCIA_LIMITE) return;
+      const k = t.veiculoKey || ("__" + t.veiculoRaw);
+      const atual = porVeiculo[k];
+      if(!atual || km > atual.km){
+        porVeiculo[k] = { veiculoRaw: t.veiculoRaw, local: t.local || "Sem unidade", placa: t.placa, pneu: t.pneu, posicao: t.posicao, km: km };
+      }
+    });
+    const veiculosDivergentes = Object.values(porVeiculo).sort(function(a, b){ return b.km - a.km; });
+
+    const unidadesTodas = Array.from(new Set(full.tiresAll.map(function(t){ return t.local || "Sem unidade"; }))).sort();
+    if(pneusDivergenciaKmUnidadeFiltro && unidadesTodas.indexOf(pneusDivergenciaKmUnidadeFiltro) === -1) pneusDivergenciaKmUnidadeFiltro = null;
+    const veiculosExibidos = pneusDivergenciaKmUnidadeFiltro
+      ? veiculosDivergentes.filter(function(v){ return v.local === pneusDivergenciaKmUnidadeFiltro; })
+      : veiculosDivergentes;
+
+    const porUnidade = {};
+    veiculosDivergentes.forEach(function(v){
+      porUnidade[v.local] = (porUnidade[v.local] || 0) + 1;
+    });
+    const ranking = Object.keys(porUnidade).map(function(nome){ return { nome: nome, total: porUnidade[nome] }; })
+      .sort(function(a, b){ return b.total - a.total; });
+
+    let html = periodToolbarHtml("pneusdivkm", pneusDivergenciaKmAsOf);
+    html += unidadeFilterHtml("pneusdivkm", unidadesTodas, pneusDivergenciaKmUnidadeFiltro, true);
+
+    if(pneusDivergenciaKmUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusDivergenciaKmUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Veículos com KM divergente", fmtNum(veiculosExibidos.length), veiculosExibidos.length ? "critical" : "good")
+      + kpiCard("Limite considerado", fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + " km", "info")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Veículos por unidade com divergência</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th></tr></thead><tbody>'
+      + (ranking.length ? ranking.map(function(r){
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td><b>' + r.total + '</b></td></tr>';
+        }).join("") : '<tr><td colspan="2">Nenhuma divergência encontrada acima de ' + fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + ' km.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Veículos (' + veiculosExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Placa</th><th>Pneu (posição com maior KM)</th><th>KM. Vida</th></tr></thead><tbody>'
+      + (veiculosExibidos.length ? veiculosExibidos.map(function(v){
+          return '<tr><td>' + escapeHtml(v.local) + '</td><td>' + escapeHtml(v.veiculoRaw) + '</td><td>' + escapeHtml(v.placa || "—") + '</td><td>' + escapeHtml(v.pneu || "—") + ' (' + escapeHtml(v.posicao || "—") + ')</td><td><b>' + fmtNum(v.km) + ' km</b></td></tr>';
+        }).join("") : '<tr><td colspan="5">Nenhum veículo com divergência de KM.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Divergência de KM", desc:'pneu com "KM. Vida" (coluna KM_Total do relatório RPV) acima de ' + fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + ' km — valor fora do esperado pra vida útil de um pneu, provável erro de leitura/digitação na base de origem.' },
+      { label:"Um veículo por linha", desc:"se mais de um pneu do mesmo veículo estiver divergente, a tabela mostra só o de maior KM — a contagem de veículos nunca duplica por causa disso." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Dados RPV - Pneus, Base de Veiculos - Pneus, Base - TML (conciliação de unidade)") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    wirePeriodToolbar("pneusdivkm", function(v){ renderPneusDivergenciaKm(v); });
+    enableSortableTables(el);
+    wireUnidadeFilter("pneusdivkm", function(v){ pneusDivergenciaKmUnidadeFiltro = v; renderPneusDivergenciaKm(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Divergência de KM: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS — SUCATEAMENTO (fonte: Relatório de Pneus Sucateados / CRelPneusSucateados, coletado por
+// main_pneus_sucateados.py). Sem seletor de período: diferente das outras fontes, o robô faz
+// upsert do HISTÓRICO INTEIRO todo dia (ver comentário do robô) — por isso toda linha da tabela
+// sempre tem a MESMA data_referencia (a do último robô que rodou), não existe "snapshot de um dia
+// passado" pra escolher aqui.
+//
+// Unidade = "Setor" (coluna do próprio relatório, ex.: "003-GARAGEM SÃO FRANCISCO DO CONDE") —
+// não a Unidade da Base de Veículos: o relatório não traz o código do veículo em formato
+// compatível (só "Ult. Veic.", um identificador interno do Tr@nsnet, não o Nº de Ordem usado no
+// resto do painel), mas já vem agrupado por garagem/setor, que É a unidade operacional de verdade
+// pra controle de sucateamento.
+//
+// NÃO existe "laudo anexado" nesse relatório — confirmado por inspeção real (14/10/2026), decisão
+// de Jefferson foi seguir sem esse campo por enquanto.
+// =====================================================================
+let pneusSucateamentoUnidadeFiltro = null;
+let pneusSucateamentoCache = null;
+async function getPneusSucateamentoData(force){
+  if(force || !pneusSucateamentoCache){
+    pneusSucateamentoCache = buildPneusSucateamentoData().catch(function(err){ pneusSucateamentoCache = null; throw err; });
+  }
+  return pneusSucateamentoCache;
+}
+
+function pneusSucateamentoUnidadeLabel(setor){
+  const s = String(setor || "").trim();
+  if(!s) return "Sem setor";
+  const m = /^\d+-\s*(.+)$/.exec(s);
+  return m ? m[1].trim() : s;
+}
+
+async function buildPneusSucateamentoData(){
+  const sucatSnap = await resolveSnapshotDate("Pneus Sucateados", null);
+  if(!sucatSnap){
+    return { itens: [], ranking: [], resolvedDates: {}, semDados: true };
+  }
+  const sucatRows = await fetchAllRows("Pneus Sucateados", sucatSnap);
+
+  const itens = sucatRows.map(function(r){
+    return {
+      empresa: r.Empresa || "", pneu: r.Pneu || "", marca: r.Marca || "", desenho: r.Desenho || "",
+      dtInicial: r.Dt_Inicial || "", dtSucat: r.Dt_Sucat || "", dtSucatOrd: parseLenientDate(r.Dt_Sucat),
+      vidaUtil: r.Vida_Util || "", ultVeic: r.Ult_Veic || "", tipoServico: r.Tipo_Servico || "",
+      kmTotal: num(r.KM_Total), total: r.Total || "", custoKm: r.KM || "", vida: r.Vida || "",
+      motivo: r.Motivo || "", setor: r.Setor || "", unidade: pneusSucateamentoUnidadeLabel(r.Setor), medida: r.Medida || "",
+    };
+  });
+
+  const porUnidade = {};
+  const porMotivo = {};
+  itens.forEach(function(it){
+    porUnidade[it.unidade] = porUnidade[it.unidade] || { nome: it.unidade, total: 0, somaVidaDias: 0, comVidaDias: 0 };
+    porUnidade[it.unidade].total++;
+    porMotivo[it.motivo] = (porMotivo[it.motivo] || 0) + 1;
+  });
+  const ranking = Object.values(porUnidade).sort(function(a, b){ return b.total - a.total; });
+  const rankingMotivo = Object.keys(porMotivo).map(function(m){ return { motivo: m, total: porMotivo[m] }; })
+    .sort(function(a, b){ return b.total - a.total; });
+
+  // Sucateamentos dos últimos 30 dias (vs. total histórico) — recorte "recente" pra cobrança de
+  // laudo/acompanhamento, já que o relatório traz anos de histórico de uma vez.
+  const hoje = new Date();
+  const limite30d = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const recentes = itens.filter(function(it){ return it.dtSucatOrd && it.dtSucatOrd >= limite30d; });
+
+  return {
+    itens: itens, ranking: ranking, rankingMotivo: rankingMotivo, recentesCount: recentes.length,
+    resolvedDates: { "Pneus Sucateados": sucatSnap },
+  };
+}
+
+async function renderPneusSucateamento(){
+  const el = document.getElementById("pneus-sucateamento-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de sucateamento...</div>';
+  try{
+    const full = await getPneusSucateamentoData(false);
+
+    if(full.semDados){
+      el.innerHTML = '<p class="empty-hint">Nenhum dado de Pneus Sucateados sincronizado ainda — a coleta diária (main_pneus_sucateados.py) ainda não rodou ou a tabela ainda não foi criada no Supabase.</p>';
+      return;
+    }
+
+    const unidadesTodas = Array.from(new Set(full.itens.map(function(i){ return i.unidade; }))).sort();
+    if(pneusSucateamentoUnidadeFiltro && unidadesTodas.indexOf(pneusSucateamentoUnidadeFiltro) === -1) pneusSucateamentoUnidadeFiltro = null;
+    const itensExibidos = pneusSucateamentoUnidadeFiltro
+      ? full.itens.filter(function(i){ return i.unidade === pneusSucateamentoUnidadeFiltro; })
+      : full.itens;
+
+    let html = unidadeFilterHtml("pneussucat", unidadesTodas, pneusSucateamentoUnidadeFiltro, true);
+
+    if(pneusSucateamentoUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusSucateamentoUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Pneus sucateados (histórico)", fmtNum(itensExibidos.length), "info")
+      + kpiCard("Sucateados nos últimos 30 dias", fmtNum(pneusSucateamentoUnidadeFiltro ? itensExibidos.filter(function(i){ const l=new Date(Date.now()-30*86400000); return i.dtSucatOrd && i.dtSucatOrd>=l; }).length : full.recentesCount), "warning")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Por unidade (histórico completo)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneus sucateados</th></tr></thead><tbody>'
+      + (full.ranking.length ? full.ranking.map(function(r){
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td><b>' + r.total + '</b></td></tr>';
+        }).join("") : '<tr><td colspan="2">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Por motivo (histórico completo)</h3><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Quantidade</th></tr></thead><tbody>'
+      + (full.rankingMotivo.length ? full.rankingMotivo.slice(0, 20).map(function(r){
+          return '<tr><td>' + escapeHtml(r.motivo || "—") + '</td><td><b>' + r.total + '</b></td></tr>';
+        }).join("") : '<tr><td colspan="2">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Pneus sucateados (' + itensExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneu</th><th>Marca</th><th>Dt. Sucat.</th><th>Vida útil</th><th>Último veículo</th><th>Vida</th><th>Motivo</th></tr></thead><tbody>'
+      + (itensExibidos.length ? itensExibidos.slice().sort(function(a, b){
+          const da = a.dtSucatOrd ? a.dtSucatOrd.getTime() : 0, db = b.dtSucatOrd ? b.dtSucatOrd.getTime() : 0;
+          return db - da;
+        }).slice(0, 1000).map(function(i){
+          return '<tr><td>' + escapeHtml(i.unidade) + '</td><td style="font-family:monospace">' + escapeHtml(i.pneu) + '</td><td>' + escapeHtml(i.marca) + '</td><td>' + escapeHtml(i.dtSucat || "—") + '</td><td>' + escapeHtml(i.vidaUtil || "—") + '</td><td>' + escapeHtml(i.ultVeic || "—") + '</td><td>' + escapeHtml(i.vida || "—") + '</td><td>' + escapeHtml(i.motivo || "—") + '</td></tr>';
+        }).join("") : '<tr><td colspan="8">Nenhum pneu sucateado.</td></tr>')
+      + (itensExibidos.length > 1000 ? '<tr><td colspan="8" class="hint">Mostrando os 1.000 mais recentes de ' + itensExibidos.length + '.</td></tr>' : '')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Unidade", desc:'"Setor" do relatório (garagem/base operacional) — não é a mesma Unidade cadastrada na Base de Veículos, mas representa a mesma coisa na prática (onde o pneu foi sucateado).' },
+      { label:"Vida", desc:'1ª/2ª/3ª vida ou "Novo" — quantas vezes esse pneu já foi recapado antes de ser sucateado.' },
+      { label:"Laudo anexado", desc:"não disponível nesse relatório do Tr@nsnet — decisão de seguir sem esse controle por enquanto (14/10/2026)." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Pneus Sucateados (CRelPneusSucateados)") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    enableSortableTables(el);
+    wireUnidadeFilter("pneussucat", function(v){ pneusSucateamentoUnidadeFiltro = v; renderPneusSucateamento(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Sucateamento: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
