@@ -365,11 +365,6 @@
   .so-bar-fill-warn{ display:block; height:100%; background:var(--warning); border-radius:999px; }
   .so-bar-fill-info{ display:block; height:100%; background:var(--accent); border-radius:999px; }
   .so-bar-pct{ font-size:12px; color:var(--text-secondary); white-space:nowrap; }
-  /* Tabs internas simples (Compras: Pendências / Entregues / Resumo Executivo) — mesmo visual dos
-     chips so-chip, mas memorizando estado local em vez de navegar seção. */
-  .local-tabs{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
-  .local-tab{ padding:7px 16px; border-radius:999px; border:1px solid var(--border); background:var(--surface-1); color:var(--text-secondary); font-size:13px; font-weight:600; cursor:pointer; }
-  .local-tab.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .so-detail-panel{ padding:14px 4px 4px; }
   .so-detail-head{ font-weight:700; font-size:13.5px; margin-bottom:10px; }
   .so-filter-chips{ display:flex; gap:8px; margin-bottom:12px; }
@@ -5567,37 +5562,44 @@ async function renderSuprimentos(newAsOf){
 // apagam/atualizam uma linha, só acrescentam — então aqui sempre reduzimos
 // pro registro mais recente conhecido por chave.
 //
-// 3 abas internas (comprasView): Pendências (Aguardando/Liberado),
+// 3 abas internas (comprasView, estilo "Tabela/Cards/Kanban" da Telemetria
+// — pedido por Jefferson em 14/10/2026): Pendências (Aguardando/Liberado),
 // Entregues (Atendido) e Resumo Executivo (totais + detalhamento mensal
-// por Tipo, pedido por Jefferson em 14/10/2026, no mesmo modelo visual
-// "Setor Operacional" já usado em Telemetria — barra de progresso
-// colorida + percentual).
+// por Status e por Tipo, modelo "Setor Operacional" já usado em
+// Telemetria — barra de progresso colorida + percentual).
 //
-// Status "em aberto"/"entregue" usa SEMPRE compras_itens.situacao_assinatura
-// (ver classificar_situacao() em main_compras.py), nunca
-// compras_solicitacoes.status — esse último pode ficar desatualizado
-// porque o robô só recheca todo dia quem já tem pedido Aberto/Liberado,
-// não revisita solicitações antigas sem pedido algum. compras_solicitacoes
-// só fornece os dados de cabeçalho (Tipo, Usuário, Dt. Abertura), que não
-// mudam depois de criados — EXCETO no Resumo Executivo mensal, onde
-// "entregue" é aproximado por compras_solicitacoes.status === "Fechada"
-// (ver comprasResumoExecutivoDados) porque ali o que importa é o
-// histórico fechado há mais tempo, não o estado mais recente de quem
-// ainda está em andamento.
+// Status "pendente"/"entregue"/"cancelado" usa SEMPRE
+// compras_itens.situacao_assinatura (ver classificar_situacao() em
+// main_compras.py), nunca compras_solicitacoes.status — esse último pode
+// ficar desatualizado porque o robô só recheca todo dia quem já tem
+// pedido Aberto/Liberado, não revisita solicitações antigas sem pedido
+// algum (testado em 14/10/2026: só 4,9% tinham status "Fechada" mesmo com
+// 46 mil itens já "Atendido" em compras_itens). compras_solicitacoes só
+// fornece os dados de cabeçalho (Tipo, Usuário, Dt. Abertura,
+// Almoxarifado), que não mudam depois de criados.
 const COMPRAS_SOL_TABLE = "compras_solicitacoes";
 const COMPRAS_ITEM_TABLE = "compras_itens";
 const COMPRAS_DIAS_CRITICO = 30;
 const COMPRAS_DIAS_ATENCAO = 10;
 const COMPRAS_TIPOS = ["Normal", "Urgente", "Emergencial"];
 const COMPRAS_TIPO_BARCLASS = { Normal:"good", Urgente:"warn", Emergencial:"bad" };
+const COMPRAS_STATUS_BARCLASS = { Entregue:"good", Pendente:"warn", Cancelado:"bad" };
+// Só as colunas realmente exibidas na tela — "select=*" baixava campos nunca usados aqui
+// (valor_produto, qtd_cancelada, status_item, status_pedido, dt_pedido, valor_entrada,
+// data_referencia, data_verificacao) e deixava a aba Entregues pesada pra carregar
+// (~46 mil linhas inteiras). Ajustado depois de Jefferson reclamar da demora em 14/10/2026.
+const COMPRAS_ITEM_SELECT = "codigo_solicitacao,produto,quantidade,situacao_assinatura,pedido,fornecedor,almoxarifado,dt_entrada,coletado_em";
+const COMPRAS_SOL_SELECT = "codigo,tipo,status,almoxarifado,usuario,dt_abertura";
+const COMPRAS_ITENS_POR_UNIDADE_INICIAL = 50; // cap de linhas renderizadas por unidade, com botão "mostrar mais"
 
-async function comprasFetchPaginado(table, filtroQuery){
+async function comprasFetchPaginado(table, filtroQuery, selectCols){
   const out = [];
   const pageSize = 1000, maxConcurrent = 8; // PostgREST do Supabase corta em 1000 linhas por página
+  const select = selectCols || "*";
   async function pagina(from, to, needCount){
     const headers = { Range: from + "-" + to };
     if(needCount) headers.Prefer = "count=exact";
-    return roboRest(table + "?" + (filtroQuery ? filtroQuery + "&" : "") + "select=*&order=id.asc", { headers: headers });
+    return roboRest(table + "?" + (filtroQuery ? filtroQuery + "&" : "") + "select=" + select + "&order=id.asc", { headers: headers });
   }
   const first = await pagina(0, pageSize - 1, true);
   const firstRows = await first.json();
@@ -5634,14 +5636,21 @@ async function comprasFetchPaginado(table, filtroQuery){
   }
   return out;
 }
-// Só o total via Content-Range (Range 0-0 + count=exact), sem baixar as linhas — usado pro KPI
-// "Já atendido (total)" sem precisar carregar os ~50 mil itens entregues na aba Pendências.
+// Só o total via Content-Range (Range 0-0 + count=exact), sem baixar as linhas.
 async function comprasCount(table, filtroQuery){
   const resp = await roboRest(table + "?" + (filtroQuery ? filtroQuery + "&" : "") + "select=id", { headers: { Range: "0-0", Prefer: "count=exact" } });
   const cr = resp.headers.get("content-range");
   if(!cr) return 0;
   const t = cr.split("/")[1];
   return t === "*" ? 0 : parseInt(t, 10);
+}
+// Só a coluna codigo_solicitacao (vira um Set) — usado no Resumo Executivo pra classificar
+// Entregue/Cancelado sem depender da busca pesada (com todas as colunas) da aba Entregues.
+async function comprasFetchCodigosSet(filtroQuery){
+  const rows = await comprasFetchPaginado(COMPRAS_ITEM_TABLE, filtroQuery, "codigo_solicitacao");
+  const set = new Set();
+  rows.forEach(function(r){ if(r.codigo_solicitacao) set.add(r.codigo_solicitacao); });
+  return set;
 }
 
 function comprasDiasBadge(dias){
@@ -5688,8 +5697,8 @@ async function comprasFetchDados(force){
   if(comprasCache && !force) return comprasCache;
   const filtroPendentes = "or=(situacao_assinatura.ilike.*Aguardando*,situacao_assinatura.ilike.*Liberado*)";
   const [itensRaw, solsRaw, totalAtendidos] = await Promise.all([
-    comprasFetchPaginado(COMPRAS_ITEM_TABLE, filtroPendentes),
-    comprasFetchPaginado(COMPRAS_SOL_TABLE, null),
+    comprasFetchPaginado(COMPRAS_ITEM_TABLE, filtroPendentes, COMPRAS_ITEM_SELECT),
+    comprasFetchPaginado(COMPRAS_SOL_TABLE, null, COMPRAS_SOL_SELECT),
     comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*"),
   ]);
 
@@ -5718,7 +5727,7 @@ async function comprasFetchDados(force){
 let comprasEntreguesCache = null;
 async function comprasFetchEntregues(force){
   if(comprasEntreguesCache && !force) return comprasEntreguesCache;
-  const raw = await comprasFetchPaginado(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*");
+  const raw = await comprasFetchPaginado(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*", COMPRAS_ITEM_SELECT);
   const bestItem = new Map();
   raw.forEach(function(r){
     const k = (r.codigo_solicitacao || "") + "||" + (r.produto || "") + "||" + (r.pedido || "");
@@ -5729,78 +5738,185 @@ async function comprasFetchEntregues(force){
   return comprasEntreguesCache;
 }
 
-// Agrega compras_solicitacoes por mês de Dt. Abertura — total, entregue e quantidade por Tipo
-// (Normal/Urgente/Emergencial), pro Resumo Executivo.
-//
-// "Entregue" aqui NÃO usa compras_solicitacoes.status (testado em 14/10/2026: só 4,9% das
-// solicitações tinham status "Fechada" mesmo com 46 mil itens já "Atendido" em compras_itens —
-// o cabeçalho fica desatualizado quase sempre, ver nota no topo do módulo). Em vez disso, uma
-// solicitação conta como "entregue" quando TODOS os itens que ela tem rastreados já estão
-// "Atendido" e NENHUM ainda está "Aguardando"/"Liberado" — codigosEntreguesCompletos = (códigos
-// com algum item Atendido) MENOS (códigos com algum item ainda pendente). Validado contra os
-// dados reais: dá 74,8% de entrega geral, hora muito mais condizente do que os 4,9% do status.
-function comprasResumoExecutivoDados(solicitacoes, codigosEntreguesCompletos){
+// "Entregue"/"Cancelado" aqui NÃO usam compras_solicitacoes.status (testado em 14/10/2026: só
+// 4,9% das solicitações tinham status "Fechada" mesmo com 46 mil itens já "Atendido" em
+// compras_itens — o cabeçalho fica desatualizado quase sempre, ver nota no topo do módulo). Em
+// vez disso, uma solicitação é classificada pelos itens que ela tem rastreados em compras_itens:
+//   Pendente  -> ainda tem algum item Aguardando/Liberado (ou nunca gerou pedido — sem dado algum
+//                também cai aqui, como "ainda não resolvido").
+//   Entregue  -> não tem item pendente E tem pelo menos 1 item Atendido.
+//   Cancelado -> não tem item pendente nem Atendido, mas tem pelo menos 1 item Cancelado.
+// Validado contra os dados reais: dá 74,8% de entrega geral (vs. 4,9% usando status) — muito
+// mais condizente com a realidade.
+function comprasClassificarCodigo(codigo, pendentesSet, entreguesSet, canceladosSet){
+  if(pendentesSet.has(codigo)) return "Pendente";
+  if(entreguesSet.has(codigo)) return "Entregue";
+  if(canceladosSet.has(codigo)) return "Cancelado";
+  return "Pendente";
+}
+function comprasResumoExecutivoDados(solicitacoes, classificar){
   const porMes = {};
   solicitacoes.forEach(function(sol){
     const dt = parseLenientDate(sol.dt_abertura);
     if(!dt) return;
     const chave = comprasMesChave(dt);
-    if(!porMes[chave]) porMes[chave] = { total:0, entregue:0, porTipo:{ Normal:0, Urgente:0, Emergencial:0 } };
+    if(!porMes[chave]) porMes[chave] = {
+      total:0, porStatus:{ Pendente:0, Entregue:0, Cancelado:0 }, porTipo:{ Normal:0, Urgente:0, Emergencial:0 }
+    };
     porMes[chave].total++;
-    if(codigosEntreguesCompletos.has(sol.codigo)) porMes[chave].entregue++;
+    const st = classificar(sol.codigo);
+    if(porMes[chave].porStatus[st] !== undefined) porMes[chave].porStatus[st]++;
     if(porMes[chave].porTipo[sol.tipo] !== undefined) porMes[chave].porTipo[sol.tipo]++;
   });
   return porMes;
 }
 
+// Sets de códigos Entregue/Cancelado via busca LEVE (só codigo_solicitacao, ver
+// comprasFetchCodigosSet) — decidido de propósito pra NÃO depender da busca pesada (com todas as
+// colunas) da aba Entregues: entrar no Resumo Executivo não deve forçar carregar os ~46 mil itens
+// inteiros só pra mostrar uma contagem.
+let comprasResumoSetsCache = null;
+async function comprasFetchResumoSets(force){
+  if(comprasResumoSetsCache && !force) return comprasResumoSetsCache;
+  const [entreguesSet, canceladosSet] = await Promise.all([
+    comprasFetchCodigosSet("situacao_assinatura=ilike.*Atendid*"),
+    comprasFetchCodigosSet("situacao_assinatura=ilike.*Cancelad*"),
+  ]);
+  comprasResumoSetsCache = { entreguesSet: entreguesSet, canceladosSet: canceladosSet };
+  return comprasResumoSetsCache;
+}
+
+let comprasResumoUnidadeFiltro = null;
 async function renderComprasResumoExecutivo(area, dados, force){
-  const entregues = await comprasFetchEntregues(force);
-  const codigosPendentes = new Set(dados.itensPendentes.map(function(it){ return it.codigo_solicitacao; }));
-  const codigosEntreguesCompletos = new Set(
-    entregues.map(function(it){ return it.codigo_solicitacao; })
-      .filter(function(cod){ return !codigosPendentes.has(cod); })
-  );
+  area.innerHTML = '<div class="spinner">Carregando Resumo Executivo...</div>';
+  const sets = await comprasFetchResumoSets(force);
+  const pendentesSet = new Set(dados.itensPendentes.map(function(it){ return it.codigo_solicitacao; }));
+  const entreguesSet = new Set(Array.from(sets.entreguesSet).filter(function(c){ return !pendentesSet.has(c); }));
+  const canceladosSet = new Set(Array.from(sets.canceladosSet).filter(function(c){ return !pendentesSet.has(c) && !entreguesSet.has(c); }));
+  const classificar = function(codigo){ return comprasClassificarCodigo(codigo, pendentesSet, entreguesSet, canceladosSet); };
 
-  const todas = Array.from(dados.solicitacoes.values());
-  const porMes = comprasResumoExecutivoDados(todas, codigosEntreguesCompletos);
+  let todas = Array.from(dados.solicitacoes.values());
+  const unidadesTodas = Array.from(new Set(todas.map(function(s){ return (s.almoxarifado || "Sem almoxarifado").trim() || "Sem almoxarifado"; }))).sort();
+  if(comprasResumoUnidadeFiltro && unidadesTodas.indexOf(comprasResumoUnidadeFiltro) === -1) comprasResumoUnidadeFiltro = null;
+  if(comprasResumoUnidadeFiltro){
+    todas = todas.filter(function(s){ return ((s.almoxarifado || "Sem almoxarifado").trim() || "Sem almoxarifado") === comprasResumoUnidadeFiltro; });
+  }
+
+  const porMes = comprasResumoExecutivoDados(todas, classificar);
   const totalGeral = todas.length;
-  const entregueGeral = codigosEntreguesCompletos.size;
-  const pctEntregueGeral = totalGeral ? Math.round(entregueGeral/totalGeral*1000)/10 : 0;
+  const porStatusGeral = { Pendente:0, Entregue:0, Cancelado:0 };
+  todas.forEach(function(s){ const st = classificar(s.codigo); if(porStatusGeral[st] !== undefined) porStatusGeral[st]++; });
 
-  let html = '<div class="so-kpi-row">'
+  let html = unidadeFilterHtml("compras-resumo", unidadesTodas, comprasResumoUnidadeFiltro, false);
+
+  html += '<div class="so-kpi-row">'
     + '<div class="so-kpi"><div class="so-kpi-label">Total de Solicitações</div><div class="so-kpi-value">' + fmtNum(totalGeral) + '</div></div>'
-    + '<div class="so-kpi"><div class="so-kpi-label">Entregues (todos os itens atendidos)</div><div class="so-kpi-value">' + fmtNum(entregueGeral) + '</div>'
-    + '<span class="so-kpi-pct"><span class="so-kpi-arrow">▲</span>' + String(pctEntregueGeral).replace(".",",") + '%</span></div>'
+    + ["Entregue","Pendente","Cancelado"].map(function(st){
+        const pct = totalGeral ? Math.round(porStatusGeral[st]/totalGeral*1000)/10 : 0;
+        return '<div class="so-kpi"><div class="so-kpi-label">' + st + '</div><div class="so-kpi-value">' + fmtNum(porStatusGeral[st]) + '</div>'
+          + '<span class="so-kpi-pct"><span class="so-kpi-arrow">▲</span>' + String(pct).replace(".",",") + '%</span></div>';
+      }).join("")
     + '</div>';
 
   const meses = Object.keys(porMes).sort();
-  html += '<div class="table-wrap"><table class="so-ranking-table"><thead><tr>'
-    + '<th>Mês</th><th>Solicitações</th><th>Entregues</th><th>Normal</th><th>Urgente</th><th>Emergencial</th>'
-    + '</tr></thead><tbody>'
+
+  html += '<div class="subsection"><h3>Por status (mensal)</h3>'
+    + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th>Mês</th><th>Solicitações</th><th>Entregue</th><th>Pendente</th><th>Cancelado</th></tr></thead><tbody>'
     + meses.map(function(chave){
         const m = porMes[chave];
-        return '<tr>'
-          + '<td>' + comprasMesLabel(chave) + '</td>'
-          + '<td>' + fmtNum(m.total) + '</td>'
-          + '<td>' + fmtNum(m.entregue) + '</td>'
+        return '<tr><td>' + comprasMesLabel(chave) + '</td><td>' + fmtNum(m.total) + '</td>'
+          + ["Entregue","Pendente","Cancelado"].map(function(st){ return '<td>' + comprasBarraHtml(m.porStatus[st], m.total, COMPRAS_STATUS_BARCLASS[st]) + '</td>'; }).join("")
+          + '</tr>';
+      }).join("")
+    + '</tbody></table></div></div>';
+
+  html += '<div class="subsection"><h3>Por tipo (mensal)</h3>'
+    + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th>Mês</th><th>Solicitações</th><th>Normal</th><th>Urgente</th><th>Emergencial</th></tr></thead><tbody>'
+    + meses.map(function(chave){
+        const m = porMes[chave];
+        return '<tr><td>' + comprasMesLabel(chave) + '</td><td>' + fmtNum(m.total) + '</td>'
           + COMPRAS_TIPOS.map(function(t){ return '<td>' + comprasBarraHtml(m.porTipo[t], m.total, COMPRAS_TIPO_BARCLASS[t]) + '</td>'; }).join("")
           + '</tr>';
       }).join("")
-    + '</tbody></table></div>';
+    + '</tbody></table></div></div>';
 
   html += legendBox("Como interpretar", [
     { label:"Mês", desc:"Agrupado pela Dt. Abertura da solicitação." },
-    { label:"Entregues", desc:"Solicitações cujos itens já estão TODOS atendidos (nenhum ainda aguardando assinatura ou liberado). Meses recentes tendem a aparecer mais baixos aqui — ainda estão em andamento e devem subir nos dias seguintes." },
-    { label:"Normal / Urgente / Emergencial", desc:"Tipo da solicitação, em quantidade e % sobre o total de solicitações daquele mês." },
+    { label:"Entregue", desc:'<span class="badge b-good">verde</span> — todos os itens rastreados já estão atendidos.' },
+    { label:"Pendente", desc:'<span class="badge b-warning">amarelo</span> — ainda tem item aguardando assinatura ou liberado (ou nunca chegou a gerar pedido).' },
+    { label:"Cancelado", desc:'<span class="badge b-critical">vermelho</span> — a solicitação (ou o pedido dela) foi cancelada.' },
+    { label:"Filtro de unidade", desc:"Recalcula os KPIs e as duas tabelas só com as solicitações daquele Almoxarifado." },
   ]);
   html += '<div class="section-footer">' + srcNote("compras_solicitacoes, compras_itens (Robo-Transnet)") + '<p class="hint">Atualizado em ' + dados.loadedAt.toLocaleString("pt-BR") + '</p></div>';
 
   area.innerHTML = html;
   fitAllKpiValues(area);
   enableSortableTables(area);
+  wireUnidadeFilter("compras-resumo", function(v){ comprasResumoUnidadeFiltro = v; renderCompras(); });
 }
 
-function renderComprasListaPorUnidade(area, enriquecidos, dados, entregues){
+// Filtros de coluna (Tipo/Usuário/Código/Produto) compartilhados pelas abas Pendências e
+// Entregues — pedido por Jefferson em 14/10/2026.
+let comprasFiltroTipo = "", comprasFiltroUsuario = "", comprasFiltroCodigo = "", comprasFiltroProduto = "";
+function comprasFiltroBarHtml(enriquecidos){
+  const usuarios = Array.from(new Set(enriquecidos.map(function(it){ return it.usuario; }).filter(Boolean))).sort();
+  return '<div class="filters" style="margin:4px 0 14px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Tipo:</label>'
+    + '<select id="compras-f-tipo"><option value="">Todos</option>' + COMPRAS_TIPOS.map(function(t){
+        return '<option value="' + t + '"' + (t === comprasFiltroTipo ? " selected" : "") + '>' + t + '</option>';
+      }).join("") + '</select>'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Usuário:</label>'
+    + '<select id="compras-f-usuario"><option value="">Todos</option>' + usuarios.map(function(u){
+        return '<option value="' + escapeHtml(u) + '"' + (u === comprasFiltroUsuario ? " selected" : "") + '>' + escapeHtml(u) + '</option>';
+      }).join("") + '</select>'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Código:</label>'
+    + '<input type="text" id="compras-f-codigo" value="' + escapeHtml(comprasFiltroCodigo) + '" placeholder="ex.: 123456" style="width:110px;">'
+    + '<label style="font-size:12px;color:var(--text-secondary);">Produto:</label>'
+    + '<input type="text" id="compras-f-produto" value="' + escapeHtml(comprasFiltroProduto) + '" placeholder="buscar produto..." style="width:180px;">'
+    + '</div>';
+}
+function comprasAplicarFiltros(enriquecidos){
+  return enriquecidos.filter(function(it){
+    if(comprasFiltroTipo && it.tipo !== comprasFiltroTipo) return false;
+    if(comprasFiltroUsuario && it.usuario !== comprasFiltroUsuario) return false;
+    if(comprasFiltroCodigo && String(it.codigo || "").indexOf(comprasFiltroCodigo.trim()) === -1) return false;
+    if(comprasFiltroProduto && (it.produto || "").toLowerCase().indexOf(comprasFiltroProduto.trim().toLowerCase()) === -1) return false;
+    return true;
+  });
+}
+function comprasWireFiltros(area){
+  const campos = [
+    ["compras-f-tipo", function(v){ comprasFiltroTipo = v; }],
+    ["compras-f-usuario", function(v){ comprasFiltroUsuario = v; }],
+    ["compras-f-codigo", function(v){ comprasFiltroCodigo = v; }],
+    ["compras-f-produto", function(v){ comprasFiltroProduto = v; }],
+  ];
+  campos.forEach(function(c){
+    const el = area.querySelector("#" + c[0]);
+    if(!el) return;
+    // "change" (não "input") de propósito — pros campos de texto só filtra ao perder foco/Enter,
+    // evita re-renderizar a lista inteira a cada tecla digitada.
+    el.addEventListener("change", function(){ c[1](el.value); renderCompras(); });
+  });
+}
+
+function comprasLinhaHtml(it, entregues){
+  return '<tr>'
+    + '<td>' + escapeHtml(it.codigo) + '</td>'
+    + '<td>' + escapeHtml(it.produto) + '</td>'
+    + '<td>' + escapeHtml(it.quantidade) + '</td>'
+    + '<td>' + escapeHtml(it.tipo) + '</td>'
+    + '<td>' + escapeHtml(it.usuario) + '</td>'
+    + '<td>' + (it.dtAbertura ? it.dtAbertura.toLocaleDateString("pt-BR") : "—") + '</td>'
+    + (entregues
+        ? '<td>' + (it.dtEntrada ? it.dtEntrada.toLocaleDateString("pt-BR") : "—") + '</td>'
+        : '<td>' + comprasDiasBadge(it.dias) + '</td><td>' + comprasSituacaoBadge(it.situacao) + '</td>')
+    + '<td>' + (it.pedido ? ("#" + escapeHtml(it.pedido) + (it.fornecedor ? " — " + escapeHtml(it.fornecedor) : "")) : "—") + '</td>'
+    + '</tr>';
+}
+
+function renderComprasListaPorUnidade(area, enriquecidosTodos, dados, entregues){
+  const enriquecidos = comprasAplicarFiltros(enriquecidosTodos);
   const grupos = {};
   enriquecidos.forEach(function(it){
     if(!grupos[it.almoxarifado]) grupos[it.almoxarifado] = [];
@@ -5810,6 +5926,7 @@ function renderComprasListaPorUnidade(area, enriquecidos, dados, entregues){
   if(comprasUnidadeFiltro && unidadesTodas.indexOf(comprasUnidadeFiltro) === -1) comprasUnidadeFiltro = null;
 
   let html = unidadeFilterHtml("compras", unidadesTodas, comprasUnidadeFiltro, true);
+  html += comprasFiltroBarHtml(enriquecidosTodos);
 
   const codigosUnicos = new Set(enriquecidos.map(function(it){ return it.codigo; })).size;
   if(!entregues){
@@ -5838,36 +5955,34 @@ function renderComprasListaPorUnidade(area, enriquecidos, dados, entregues){
     .sort(function(a,b){ return grupos[b].length - grupos[a].length || a.localeCompare(b); });
 
   if(!listaUnidades.length){
-    html += '<p class="empty-hint">' + (entregues ? 'Nenhum item entregue encontrado.' : 'Nenhuma solicitação de compra em aberto no momento. 🎉') + '</p>';
+    html += '<p class="empty-hint">' + (enriquecidosTodos.length ? "Nenhum resultado para os filtros aplicados." : (entregues ? 'Nenhum item entregue encontrado.' : 'Nenhuma solicitação de compra em aberto no momento. 🎉')) + '</p>';
   }
 
-  listaUnidades.forEach(function(unidade){
+  // Cap de linhas renderizadas por unidade (COMPRAS_ITENS_POR_UNIDADE_INICIAL) com botão
+  // "mostrar mais" — unidades com milhares de itens (ex.: Almoxarifado Iguatemi com 6.745)
+  // deixavam a página inteira lenta pra renderizar de uma vez só. Pedido por Jefferson em
+  // 14/10/2026 depois de reclamar da demora na aba Entregues.
+  const expandiveis = [];
+  listaUnidades.forEach(function(unidade, gi){
     const linhas = grupos[unidade].slice().sort(function(a,b){
       return entregues
         ? ((b.dtEntrada ? b.dtEntrada.getTime() : 0) - (a.dtEntrada ? a.dtEntrada.getTime() : 0))
         : ((b.dias||0) - (a.dias||0));
     });
+    const visiveis = linhas.slice(0, COMPRAS_ITENS_POR_UNIDADE_INICIAL);
+    const resto = linhas.slice(COMPRAS_ITENS_POR_UNIDADE_INICIAL);
+    const tbodyId = "compras-tbody-" + gi, btnId = "compras-mais-" + gi;
     html += '<div class="subsection"><h3>' + escapeHtml(comprasUnidadeLabel(unidade)) + ' — ' + linhas.length + ' item(ns)</h3>'
       + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr>'
       + '<th>Código</th><th>Produto</th><th>Qtd.</th><th>Tipo</th><th>Usuário</th><th>Dt. Abertura</th>'
       + (entregues ? '<th>Dt. Entrada</th>' : '<th>Dias</th><th>Situação</th>')
       + '<th>Pedido / Fornecedor</th>'
-      + '</tr></thead><tbody>'
-      + linhas.map(function(it){
-          return '<tr>'
-            + '<td>' + escapeHtml(it.codigo) + '</td>'
-            + '<td>' + escapeHtml(it.produto) + '</td>'
-            + '<td>' + escapeHtml(it.quantidade) + '</td>'
-            + '<td>' + escapeHtml(it.tipo) + '</td>'
-            + '<td>' + escapeHtml(it.usuario) + '</td>'
-            + '<td>' + (it.dtAbertura ? it.dtAbertura.toLocaleDateString("pt-BR") : "—") + '</td>'
-            + (entregues
-                ? '<td>' + (it.dtEntrada ? it.dtEntrada.toLocaleDateString("pt-BR") : "—") + '</td>'
-                : '<td>' + comprasDiasBadge(it.dias) + '</td><td>' + comprasSituacaoBadge(it.situacao) + '</td>')
-            + '<td>' + (it.pedido ? ("#" + escapeHtml(it.pedido) + (it.fornecedor ? " — " + escapeHtml(it.fornecedor) : "")) : "—") + '</td>'
-            + '</tr>';
-        }).join("")
-      + '</tbody></table></div></div>';
+      + '</tr></thead><tbody id="' + tbodyId + '">'
+      + visiveis.map(function(it){ return comprasLinhaHtml(it, entregues); }).join("")
+      + '</tbody></table></div>'
+      + (resto.length ? '<button type="button" class="ghost" id="' + btnId + '" style="margin-top:8px;">Mostrar mais ' + fmtNum(resto.length) + ' item(ns)</button>' : '')
+      + '</div>';
+    if(resto.length) expandiveis.push({ tbodyId: tbodyId, btnId: btnId, resto: resto });
   });
 
   if(!entregues){
@@ -5885,6 +6000,15 @@ function renderComprasListaPorUnidade(area, enriquecidos, dados, entregues){
   fitAllKpiValues(area);
   enableSortableTables(area);
   wireUnidadeFilter("compras", function(v){ comprasUnidadeFiltro = v; renderCompras(); });
+  comprasWireFiltros(area);
+  expandiveis.forEach(function(ex){
+    const btn = document.getElementById(ex.btnId), tbody = document.getElementById(ex.tbodyId);
+    if(!btn || !tbody) return;
+    btn.addEventListener("click", function(){
+      tbody.insertAdjacentHTML("beforeend", ex.resto.map(function(it){ return comprasLinhaHtml(it, entregues); }).join(""));
+      btn.remove();
+    });
+  });
 }
 
 const COMPRAS_TABS = [
@@ -5892,9 +6016,11 @@ const COMPRAS_TABS = [
   { key:"entregues", label:"Entregues" },
   { key:"resumo", label:"Resumo Executivo" },
 ];
+// Mesmo estilo de aba usado em Telemetria (Tabela/Cards/Kanban/Resumo executivo) — pedido por
+// Jefferson em 14/10/2026 pra ficar visualmente igual em vez do chip arredondado anterior.
 function comprasTabsHtml(){
-  return '<div class="local-tabs">' + COMPRAS_TABS.map(function(t){
-    return '<button type="button" class="local-tab' + (comprasView===t.key?" active":"") + '" data-compras-tab="' + t.key + '">' + t.label + '</button>';
+  return '<div class="tabs" role="tablist" aria-label="Modo de visualização">' + COMPRAS_TABS.map(function(t){
+    return '<button type="button" role="tab" aria-selected="' + (comprasView===t.key?"true":"false") + '" class="' + (comprasView===t.key?"active":"") + '" data-compras-tab="' + t.key + '">' + escapeHtml(t.label) + '</button>';
   }).join("") + '</div>';
 }
 
