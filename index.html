@@ -1415,7 +1415,9 @@ function panelExportBuildDoc(id){
   src.querySelectorAll("[data-expand-before-export]").forEach(function(btn){ btn.click(); });
   const clone = src.cloneNode(true);
   // controles que só fazem sentido na tela
-  clone.querySelectorAll(".filters, .export-bar, .usec-export, .spinner, input, select, textarea").forEach(function(n){ n.remove(); });
+  // .legend-box ("Como interpretar") removida de propósito do export — Jefferson pediu em
+  // 14/10/2026 pra o relatório sair só com os dados, sem a caixa de critérios/legenda.
+  clone.querySelectorAll(".filters, .export-bar, .usec-export, .spinner, .legend-box, input, select, textarea").forEach(function(n){ n.remove(); });
   clone.querySelectorAll("button").forEach(function(b){ if(!b.closest("table")) b.remove(); });
   clone.querySelectorAll("details").forEach(function(d){ d.setAttribute("open", ""); });
   clone.querySelectorAll("[hidden]").forEach(function(n){ n.removeAttribute("hidden"); n.style.display = "none"; });
