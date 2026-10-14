@@ -976,6 +976,7 @@
         </div>
         <button class="nav-btn" data-section="abastecimento"><span class="ico">⛽</span> Abastecimento</button>
         <button class="nav-btn" data-section="suprimentos"><span class="ico">📦</span> Suprimentos</button>
+        <button class="nav-btn" data-section="compras"><span class="ico">🛒</span> Compras</button>
         <button class="nav-btn" data-section="dashboard"><span class="ico">📊</span> Dashboard</button>
         <button class="nav-btn" data-section="dados"><span class="ico">🔒</span> Base de Dados</button>
       </nav>
@@ -1158,6 +1159,14 @@
             <p>Estoque, sucata, borracharia e reforma externa de pneus por unidade — cruzando "Pneus por Unidade" com a frota cadastrada e a coleta de sulco (Manutencao - PRV).</p>
           </div>
           <div id="suprimentos-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-compras">
+          <div class="section-head">
+            <h2>Compras</h2>
+            <p>Necessidade de compra de pneus por unidade e por medida — pedido sugerido a partir do estoque mínimo, da frota e da coleta de sulco (mesmas regras do Suprimentos).</p>
+          </div>
+          <div id="compras-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-dashboard">
@@ -1380,6 +1389,7 @@ const PANEL_EXPORT = {
   manutprv:     { nome: "Manutenção · Preventiva", area: "manutprv-data-area" },
   manutmacro:   { nome: "Manutenção · Visão Macro", area: "manutmacro-data-area" },
   suprimentos:  { nome: "Suprimentos",             area: "suprimentos-data-area" },
+  compras:      { nome: "Compras",                 area: "compras-data-area" },
   dashboardevo: { nome: "Dashboard",               area: "dashboardevo-data-area" },
   inventario:   { nome: "Inventário",              area: "inventario-body" }
 };
@@ -2549,10 +2559,11 @@ const SECTION_TITLES = {
   "manut-retencao": "Manutenção — Retenção",
   abastecimento: "Abastecimento",
   suprimentos: "Suprimentos",
+  compras: "Compras",
   dashboard: "Dashboard",
   dados: "Base de Dados",
 };
-const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, "manut-macro":false, "manut-preventiva":false, "manut-retencao":false, abastecimento:false, suprimentos:false, dashboard:false, dados:false };
+const sectionLoaded = { home:false, telemetria:false, pneus:false, inventario:false, "manut-macro":false, "manut-preventiva":false, "manut-retencao":false, abastecimento:false, suprimentos:false, compras:false, dashboard:false, dados:false };
 // Seções que pertencem ao grupo expansível "Manutenção" — controla o submenu lateral aberto/
 // fechado e (por enquanto) a barra lateral secundária de Unidades.
 const MANUT_SECTIONS = ["manut-macro", "manut-preventiva", "manut-retencao"];
@@ -2602,6 +2613,7 @@ function activateSection(section){
     if(section === "manut-retencao") renderRetencao();
     if(section === "abastecimento") renderAbastecimentoPanel();
     if(section === "suprimentos") renderSuprimentos();
+    if(section === "compras") renderCompras();
     if(section === "dashboard") renderDashboardEvolutivo();
     if(section === "dados") renderDadosGeral();
   }
@@ -5537,6 +5549,186 @@ async function renderSuprimentos(newAsOf){
     });
   }catch(err){
     area.innerHTML = '<p>Erro ao carregar Suprimentos: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// COMPRAS (necessidade de compra de pneus por unidade e por medida)
+// =====================================================================
+// Monta o pedido sugerido em cima do módulo Suprimentos (mesmo estoque mínimo, mesmo status
+// Liberado / Não autorizado / Abaixo da média), sem nenhuma consulta nova ao Supabase:
+// - Falta = estoque mínimo − estoque atual da unidade (nunca negativo).
+// - A falta é dividida entre as medidas que a frota da unidade realmente roda (Dados RPV - Pneus),
+//   proporcional à quantidade de pneus de cada medida (maiores restos ficam com a sobra).
+// - Só entra no "pedido sugerido" quem está "Liberado para compra"; quem tem coleta de sulco
+//   pendente ou não tem dado de sulco aparece separado, aguardando.
+function comprasDividirPorMedida(falta, mix){
+  const total = mix.reduce(function(s,m){ return s + m.qtd; }, 0);
+  if(!falta || !total) return [];
+  const base = mix.map(function(m){
+    const exato = falta * m.qtd / total;
+    return { medida: m.medida, qtd: Math.floor(exato), resto: exato - Math.floor(exato), frota: m.qtd };
+  });
+  let sobra = falta - base.reduce(function(s,b){ return s + b.qtd; }, 0);
+  base.slice().sort(function(a,b){ return b.resto - a.resto || b.frota - a.frota; }).forEach(function(b){
+    if(sobra > 0){ b.qtd++; sobra--; }
+  });
+  return base.filter(function(b){ return b.qtd > 0; }).sort(function(a,b){ return b.qtd - a.qtd; });
+}
+
+function buildComprasFromSuprimentos(sup){
+  const unidades = sup.unidades.map(function(u){
+    const mixMap = {};
+    u.pneus.forEach(function(t){
+      const m = (t.medida || "").trim() || "Sem medida";
+      mixMap[m] = (mixMap[m] || 0) + 1;
+    });
+    const mix = Object.keys(mixMap).filter(function(m){ return m !== "Sem medida"; })
+      .map(function(m){ return { medida: m, qtd: mixMap[m] }; })
+      .sort(function(a,b){ return b.qtd - a.qtd; });
+    const estoqueMedidaMap = {};
+    u.estoque.forEach(function(it){ estoqueMedidaMap[it.medida] = (estoqueMedidaMap[it.medida] || 0) + 1; });
+    const estoquePorMedida = Object.keys(estoqueMedidaMap).map(function(m){ return { medida: m, qtd: estoqueMedidaMap[m] }; })
+      .sort(function(a,b){ return b.qtd - a.qtd; });
+    const falta = Math.max(0, SUPRIMENTOS_ESTOQUE_MINIMO - u.estoqueQtd);
+    return {
+      unidade: u.unidade, frota: u.frota, status: u.status, estoqueQtd: u.estoqueQtd,
+      sucataQtd: u.sucataQtd, borrachariaQtd: u.borrachariaQtd, reformaExternaQtd: u.reformaExternaQtd,
+      falta: falta, mix: mix, estoquePorMedida: estoquePorMedida,
+      pedido: comprasDividirPorMedida(falta, mix),
+      medidaPrincipal: mix.length ? mix[0].medida : null,
+    };
+  });
+  return { unidades: unidades, resolvedDates: sup.resolvedDates };
+}
+
+function comprasPedidoConsolidado(unidades){
+  const map = {};
+  unidades.forEach(function(u){
+    if(u.status !== "liberado") return;
+    u.pedido.forEach(function(p){
+      if(!map[p.medida]) map[p.medida] = { medida: p.medida, qtd: 0, unidades: [] };
+      map[p.medida].qtd += p.qtd;
+      map[p.medida].unidades.push(u.unidade.replace(/^GARAGEM\s+/i,"") + " (" + p.qtd + ")");
+    });
+  });
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return b.qtd - a.qtd; });
+}
+
+function comprasDetailHtml(u){
+  const pedido = u.pedido.length
+    ? '<table class="so-detail-table"><thead><tr><th>Medida</th><th>Pneus na frota</th><th>Qtd. sugerida</th></tr></thead><tbody>'
+      + u.pedido.map(function(p){ return '<tr><td>' + escapeHtml(p.medida) + '</td><td>' + fmtNum(p.frota) + '</td><td><b>' + fmtNum(p.qtd) + '</b></td></tr>'; }).join("")
+      + '</tbody></table>'
+    : '<p class="empty-hint">' + (u.falta ? 'Sem pneus com medida cadastrada em "Dados RPV - Pneus" para esta unidade — não dá pra sugerir a medida; a falta é de ' + fmtNum(u.falta) + ' pneu(s).' : 'Estoque já está no mínimo — nada a comprar.') + '</p>';
+  const estoque = u.estoquePorMedida.length
+    ? '<table class="so-detail-table"><thead><tr><th>Medida</th><th>Em estoque</th></tr></thead><tbody>'
+      + u.estoquePorMedida.map(function(e){ return '<tr><td>' + escapeHtml(e.medida) + '</td><td>' + fmtNum(e.qtd) + '</td></tr>'; }).join("")
+      + '</tbody></table>'
+    : '<p class="empty-hint">Nenhum pneu em estoque nesta unidade.</p>';
+  return '<div class="so-detail-panel">'
+    + '<div class="so-detail-head">Pedido sugerido — ' + escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,"")) + ' ' + suprimentosStatusBadge(u.status) + '</div>'
+    + '<div class="card-grid" style="grid-template-columns:1fr 1fr;">'
+    + '<div><p class="hint" style="margin-bottom:6px;"><b>Divisão por medida</b> (proporcional à frota)</p><div class="table-wrap">' + pedido + '</div></div>'
+    + '<div><p class="hint" style="margin-bottom:6px;"><b>Estoque atual por medida</b></p><div class="table-wrap">' + estoque + '</div></div>'
+    + '</div></div>';
+}
+
+let comprasAsOf = null;
+let comprasUnidadeFiltro = null;
+async function renderCompras(newAsOf){
+  if(newAsOf !== undefined) comprasAsOf = newAsOf;
+  const el = document.getElementById("compras-body");
+  el.innerHTML = periodToolbarHtml("compras", comprasAsOf) + '<div id="compras-data-area"><div class="spinner">Carregando dados de compras...</div></div>';
+  wirePeriodToolbar("compras", function(v){ renderCompras(v); });
+  const area = document.getElementById("compras-data-area");
+  try{
+    const sup = await getSuprimentosData(comprasAsOf, newAsOf !== undefined);
+    const full = buildComprasFromSuprimentos(sup);
+    const unidadesTodas = full.unidades.map(function(u){ return u.unidade; });
+    if(comprasUnidadeFiltro && unidadesTodas.indexOf(comprasUnidadeFiltro) === -1) comprasUnidadeFiltro = null;
+    const lista = comprasUnidadeFiltro ? full.unidades.filter(function(u){ return u.unidade === comprasUnidadeFiltro; }) : full.unidades;
+
+    let html = unidadeFilterHtml("compras", unidadesTodas, comprasUnidadeFiltro, true);
+    if(comprasUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(comprasUnidadeFiltro) + '</b>.</p>';
+    }
+
+    const liberadas = lista.filter(function(u){ return u.status === "liberado"; });
+    const naoAut = lista.filter(function(u){ return u.status === "nao_autorizado"; });
+    const semDado = lista.filter(function(u){ return u.status === "abaixo_media"; });
+    const soma = function(arr){ return arr.reduce(function(s,u){ return s + u.falta; }, 0); };
+    const consolidado = comprasPedidoConsolidado(lista);
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Pneus a comprar (liberados)", fmtNum(soma(liberadas)), soma(liberadas) ? "warning" : "good")
+      + kpiCard("Unidades liberadas para compra", fmtNum(liberadas.length), "info")
+      + kpiCard("Medidas no pedido", fmtNum(consolidado.length), "info")
+      + kpiCard("Bloqueado — sulco pendente (pneus)", fmtNum(soma(naoAut)), soma(naoAut) ? "critical" : "good")
+      + kpiCard("Sem dado de sulco (pneus)", fmtNum(soma(semDado)), soma(semDado) ? "warning" : "good")
+      + kpiCard("Estoque mínimo por unidade", fmtNum(SUPRIMENTOS_ESTOQUE_MINIMO), "info")
+      + '</div>';
+
+    // Pedido consolidado por medida — o que mandar pra Compras
+    html += '<div class="subsection"><h3>Pedido consolidado por medida</h3>'
+      + '<p class="hint" style="margin-bottom:10px;">Soma das unidades <b>liberadas para compra</b>, dividida pelas medidas que cada frota roda.</p>';
+    if(!consolidado.length){
+      html += '<p class="empty-hint">Nenhuma unidade liberada para compra no momento.</p>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Medida</th><th>Qtd. sugerida</th><th>Unidades (qtd.)</th></tr></thead><tbody>'
+        + consolidado.map(function(c){
+            return '<tr><td>' + escapeHtml(c.medida) + '</td><td><b>' + fmtNum(c.qtd) + '</b></td><td>' + escapeHtml(c.unidades.join(", ")) + '</td></tr>';
+          }).join("")
+        + '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    // Necessidade por unidade
+    const ordemStatus = { liberado:0, nao_autorizado:1, abaixo_media:2, ok:3 };
+    const ordenadas = lista.slice().sort(function(a,b){
+      return (ordemStatus[a.status] - ordemStatus[b.status]) || (b.falta - a.falta) || a.unidade.localeCompare(b.unidade);
+    });
+    html += '<div class="subsection"><h3>Necessidade de compra por unidade</h3>'
+      + '<p class="hint" style="margin-bottom:10px;">Clique na seta pra ver a divisão por medida e o estoque atual de cada medida.</p>'
+      + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th></th><th>Unidade</th><th>Frota</th><th>Estoque</th><th>Falta p/ mínimo</th><th>Medida principal</th><th>Status</th></tr></thead><tbody>'
+      + ordenadas.map(function(u, i){
+          return '<tr class="so-row">'
+            + '<td><button type="button" class="so-expand-btn" data-cmp-toggle="' + i + '" aria-expanded="false" title="Ver pedido por medida"></button></td>'
+            + '<td>' + escapeHtml(u.unidade.replace(/^GARAGEM\s+/i,"")) + '</td>'
+            + '<td>' + fmtNum(u.frota) + '</td>'
+            + '<td>' + fmtNum(u.estoqueQtd) + '</td>'
+            + '<td>' + (u.falta ? '<b>' + fmtNum(u.falta) + '</b>' : '0') + '</td>'
+            + '<td>' + escapeHtml(u.medidaPrincipal || "—") + '</td>'
+            + '<td>' + suprimentosStatusBadge(u.status) + '</td>'
+            + '</tr>'
+            + '<tr class="so-detail-row" data-cmp-detail="' + i + '" style="display:none;"><td colspan="7">' + comprasDetailHtml(u) + '</td></tr>';
+        }).join("")
+      + '</tbody></table></div></div>';
+
+    html += legendBox("Como o pedido é calculado", [
+      { label:"Falta p/ mínimo", desc:'Estoque mínimo (' + SUPRIMENTOS_ESTOQUE_MINIMO + ' pneus) menos o estoque atual da unidade — mesmo critério do módulo Suprimentos.' },
+      { label:"Divisão por medida", desc:'A falta é repartida entre as medidas dos pneus rodando na frota da unidade (Dados RPV - Pneus), proporcional à quantidade de cada medida.' },
+      { label:"Liberado para compra", desc:'<span class="badge b-good">verde</span> — entra no pedido consolidado.' },
+      { label:"Não autorizado / Abaixo da média", desc:'Ficam fora do pedido até a coleta de sulco ficar em dia (ou ter dado de sulco), mas a falta aparece nos KPIs pra dimensionar o que vem depois.' },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Pneus por Unidade, Base de Veículos - Pneus, Dados RPV - Pneus, Manutencao - PRV") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    area.innerHTML = html;
+    fitAllKpiValues(area);
+    enableSortableTables(area);
+    wireUnidadeFilter("compras", function(v){ comprasUnidadeFiltro = v; renderCompras(); });
+    area.querySelectorAll("[data-cmp-toggle]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        const row = area.querySelector('[data-cmp-detail="' + btn.dataset.cmpToggle + '"]');
+        if(!row) return;
+        const showing = row.style.display !== "none";
+        row.style.display = showing ? "none" : "table-row";
+        btn.classList.toggle("open", !showing);
+        btn.setAttribute("aria-expanded", String(!showing));
+      });
+    });
+  }catch(err){
+    area.innerHTML = '<p>Erro ao carregar Compras: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
