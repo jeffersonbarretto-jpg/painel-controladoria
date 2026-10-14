@@ -969,7 +969,13 @@
       <div class="side-divider"></div>
       <nav>
         <button class="nav-btn active" data-section="home"><span class="ico">🏠</span> Home</button>
-        <button class="nav-btn" data-section="telemetria"><span class="ico">📡</span> Telemetria</button>
+        <div class="nav-group" id="nav-telemetria-group">
+          <button class="nav-btn nav-btn-expand" id="nav-telemetria-toggle" type="button"><span class="ico">📡</span> Telemetria <span class="nav-caret">▾</span></button>
+          <div class="nav-sub" id="nav-telemetria-sub">
+            <button class="nav-btn nav-sub-btn" data-section="telemetria">Visão Geral</button>
+            <button class="nav-btn nav-sub-btn" data-section="telemetria-sem-os">Sem Comunicação / Sem O.S.</button>
+          </div>
+        </div>
         <div class="nav-group" id="nav-pneus-group">
           <button class="nav-btn nav-btn-expand" id="nav-pneus-toggle" type="button"><span class="ico">🛞</span> Pneus <span class="nav-caret">▾</span></button>
           <div class="nav-sub" id="nav-pneus-sub">
@@ -1026,6 +1032,14 @@
             <h2>Telemetria</h2>
           </div>
           <div id="telemetria-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-telemetria-sem-os">
+          <div class="section-head">
+            <h2>Telemetria — Sem Comunicação / Sem O.S.</h2>
+            <p>Veículos sem comunicação do rastreador e sem nenhum tratamento registrado (sem O.S. de telemetria aberta, sem menção na observação) — mesmo critério "Irregular" já usado na Visão Geral de Telemetria.</p>
+          </div>
+          <div id="telemetria-sem-os-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-pneus-macro">
@@ -1426,7 +1440,11 @@ const PANEL_EXPORT = {
   suprimentos:  { nome: "Suprimentos",             area: "suprimentos-data-area" },
   compras:      { nome: "Compras",                 area: "compras-data-area" },
   dashboardevo: { nome: "Dashboard",               area: "dashboardevo-data-area" },
-  inventario:   { nome: "Inventário",              area: "inventario-body" }
+  inventario:   { nome: "Inventário",              area: "inventario-body" },
+  pneuscalibragem: { nome: "Pneus · Calibragem",     area: "pneus-calibragem-body" },
+  pneussucat:      { nome: "Pneus · Sucateamento",   area: "pneus-sucateamento-body" },
+  pneusdivkm:      { nome: "Pneus · Divergência KM", area: "pneus-divergencia-km-body" },
+  telsemos:        { nome: "Telemetria · Sem Comunicação/O.S.", area: "telemetria-sem-os-body" }
 };
 function exportBarHtml(id){
   return '<div class="filters filters-right export-bar" style="margin-top:-4px;">'
@@ -2203,8 +2221,12 @@ const VizModes = (function(){
     return invert ? (av - bv) : (bv - av);
   }
 
-  function modeTabsHtml(vizKey, current){
-    return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + VZ_MODES.map(function(m){
+  // excludeModes (opcional): lista de modos a esconder SÓ nessa chamada (ex.: ["cards"] em Pneus —
+  // pedido do Jefferson em 15/10/2026, "não tem nada de importante" — mas só pra Pneus, os outros
+  // módulos que reaproveitam este mesmo componente continuam com Cards normalmente).
+  function modeTabsHtml(vizKey, current, excludeModes){
+    const modos = excludeModes && excludeModes.length ? VZ_MODES.filter(function(m){ return excludeModes.indexOf(m) === -1; }) : VZ_MODES;
+    return '<div class="tabs viz-mode-tabs" role="tablist" aria-label="Modo de visualização">' + modos.map(function(m){
       return '<button type="button" role="tab" aria-selected="' + (m===current?"true":"false") + '" class="' + (m===current?"active":"") + '" data-vz-mode="' + m + '">' + escapeHtml(VZ_MODE_LABEL[m]) + '</button>';
     }).join("") + '</div>';
   }
@@ -2628,6 +2650,7 @@ if(themeMenuBtn){
 const SECTION_TITLES = {
   home: "Home",
   telemetria: "Telemetria",
+  "telemetria-sem-os": "Telemetria — Sem Comunicação / Sem O.S.",
   "pneus-macro": "Pneus — Visão Macro",
   "pneus-calibragem": "Pneus — Calibragem",
   "pneus-sucateamento": "Pneus — Sucateamento",
@@ -2643,23 +2666,25 @@ const SECTION_TITLES = {
   dados: "Base de Dados",
 };
 const sectionLoaded = {
-  home:false, telemetria:false, inventario:false,
+  home:false, telemetria:false, "telemetria-sem-os":false, inventario:false,
   "pneus-macro":false, "pneus-calibragem":false, "pneus-sucateamento":false, "pneus-divergencia-km":false,
   "manut-macro":false, "manut-preventiva":false, "manut-retencao":false,
   abastecimento:false, suprimentos:false, compras:false, dashboard:false, dados:false,
 };
 // Grupos expansíveis do menu lateral (ex.: "Manutenção" -> Visão Macro/Preventiva/Retenção,
-// "Pneus" -> Visão Macro/Calibragem/Sucateamento/Divergência KM) — cada grupo controla seu
-// próprio submenu aberto/fechado; MANUT_SECTIONS também aciona a barra lateral secundária de
-// Unidades (só implementada pra Manutenção por enquanto).
+// "Pneus" -> Visão Macro/Calibragem/Sucateamento/Divergência KM, "Telemetria" -> Visão Geral/Sem
+// Comunicação) — cada grupo controla seu próprio submenu aberto/fechado; MANUT_SECTIONS também
+// aciona a barra lateral secundária de Unidades (só implementada pra Manutenção por enquanto).
 const MANUT_SECTIONS = ["manut-macro", "manut-preventiva", "manut-retencao"];
 const PNEUS_SECTIONS = ["pneus-macro", "pneus-calibragem", "pneus-sucateamento", "pneus-divergencia-km"];
+const TELEMETRIA_SECTIONS = ["telemetria", "telemetria-sem-os"];
 const NAV_GROUPS = [
   { groupId: "nav-manut-group", sections: MANUT_SECTIONS },
   { groupId: "nav-pneus-group", sections: PNEUS_SECTIONS },
+  { groupId: "nav-telemetria-group", sections: TELEMETRIA_SECTIONS },
 ];
 
-["nav-manut-toggle", "nav-pneus-toggle"].forEach(function(toggleId){
+["nav-manut-toggle", "nav-pneus-toggle", "nav-telemetria-toggle"].forEach(function(toggleId){
   const toggleBtn = document.getElementById(toggleId);
   const groupId = toggleId.replace("-toggle", "-group");
   if(toggleBtn){
@@ -2670,7 +2695,7 @@ const NAV_GROUPS = [
 });
 
 document.querySelectorAll(".nav-btn").forEach(function(btn){
-  if(btn.id === "nav-manut-toggle" || btn.id === "nav-pneus-toggle") return; // tratados separadamente acima (abrem/fecham o submenu)
+  if(btn.id === "nav-manut-toggle" || btn.id === "nav-pneus-toggle" || btn.id === "nav-telemetria-toggle") return; // tratados separadamente acima (abrem/fecham o submenu)
   btn.addEventListener("click", function(){
     if(btn.dataset.soon){
       activatePlaceholder(btn.dataset.soon);
@@ -2703,6 +2728,7 @@ function activateSection(section){
     sectionLoaded[section] = true;
     if(section === "home") renderHome();
     if(section === "telemetria") renderTelemetria();
+    if(section === "telemetria-sem-os") renderTelemetriaSemOS();
     if(section === "pneus-macro") renderPneusMacro();
     if(section === "pneus-calibragem") renderPneusCalibragem();
     if(section === "pneus-sucateamento") renderPneusSucateamento();
@@ -3259,6 +3285,71 @@ async function renderTelemetria(newAsOf){
 }
 
 // =====================================================================
+// TELEMETRIA — SEM COMUNICAÇÃO / SEM O.S. (pedido do Jefferson, 15/10/2026)
+// Reaproveita getTelemetriaData (mesmo cache da Visão Geral) e filtra pra classe === "irregular"
+// — exatamente o critério que a Visão Geral já usa pra "Irregular": sem comunicação do rastreador
+// E sem nenhum tratamento registrado (sem O.S. de telemetria aberta, sem menção na observação, sem
+// abastecimento recente que indicasse uso apesar da falta de sinal). Não é um critério novo, só uma
+// página dedicada pra esse recorte em vez de precisar filtrar dentro da Visão Geral toda vez.
+// =====================================================================
+let telSemOsUnidadeFiltro = null;
+async function renderTelemetriaSemOS(){
+  const el = document.getElementById("telemetria-sem-os-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de telemetria...</div>';
+  try{
+    const data = await getTelemetriaData(null, false);
+    const irregulares = data.vehicles.filter(function(v){ return v.classe === "irregular"; });
+    const unidadesTodas = Array.from(new Set(irregulares.map(function(v){ return v.unidade; }))).sort();
+    if(telSemOsUnidadeFiltro && unidadesTodas.indexOf(telSemOsUnidadeFiltro) === -1) telSemOsUnidadeFiltro = null;
+    const exibidos = telSemOsUnidadeFiltro ? irregulares.filter(function(v){ return v.unidade === telSemOsUnidadeFiltro; }) : irregulares;
+
+    let html = unidadeFilterHtml("telsemos", unidadesTodas, telSemOsUnidadeFiltro, true);
+    if(telSemOsUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(telSemOsUnidadeFiltro) + '</b>.</p>';
+    }
+
+    const comValores = exibidos.filter(function(v){ return v.diasSemCom != null; });
+    const media = comValores.length ? Math.round(comValores.reduce(function(s,v){ return s+v.diasSemCom; },0) / comValores.length) : 0;
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Sem comunicação e sem O.S.", fmtNum(exibidos.length), exibidos.length ? "critical" : "good")
+      + kpiCard("Média dias sem comunicação", fmtNum(media), "info")
+      + kpiCard("Total de carros monitorados", fmtNum(telSemOsUnidadeFiltro ? data.vehicles.filter(function(v){ return v.unidade === telSemOsUnidadeFiltro; }).length : data.vehicles.length), "info")
+      + '</div>';
+
+    const porUnidade = {};
+    irregulares.forEach(function(v){ porUnidade[v.unidade] = (porUnidade[v.unidade] || 0) + 1; });
+    const ranking = Object.keys(porUnidade).map(function(nome){ return { nome: nome, total: porUnidade[nome] }; })
+      .sort(function(a,b){ return b.total - a.total; });
+
+    html += '<div class="subsection"><h3>Por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Sem comunicação e sem O.S.</th></tr></thead><tbody>'
+      + (ranking.length ? ranking.map(function(r){
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td><b>' + r.total + '</b></td></tr>';
+        }).join("") : '<tr><td colspan="2">Nenhum veículo nessa situação — tudo com comunicação ou já tratado.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Veículos (' + exibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Carro</th><th>Unidade</th><th>Última comunicação</th><th>Dias sem comunicação</th><th>Observação</th></tr></thead><tbody>'
+      + (exibidos.length ? exibidos.slice().sort(function(a,b){ return (b.diasSemCom||0) - (a.diasSemCom||0); }).map(function(v){
+          return '<tr><td>' + escapeHtml(v.carro) + '</td><td>' + escapeHtml(v.unidade) + '</td><td>' + (v.ultimaCom ? v.ultimaCom.toLocaleDateString("pt-BR") : "—") + '</td><td><b>' + (v.diasSemCom==null?"—":v.diasSemCom) + '</b></td><td>' + escapeHtml(v.observacaoBase || "—") + '</td></tr>';
+        }).join("") : '<tr><td colspan="5">Nenhum veículo nessa situação.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Sem comunicação e sem O.S.", desc:'mesmo critério "Irregular" da Telemetria — Visão Geral: o rastreador não comunica, não existe O.S. de telemetria aberta pra esse veículo, a observação da base não menciona o assunto, e não tem abastecimento registrado depois da última comunicação (que indicaria uso apesar da falta de sinal — nesse caso entraria como "Crítico", não aqui).' },
+      { label:"Dias sem comunicação", desc:"calculado entre a última comunicação do rastreador e a data de verificação do próprio veículo (não a data de hoje)." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Base - TML, O.S Aberta - TML, O.S Fechada - TML, Abastecimento - TML") + resolvedDatesNote(data.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    enableSortableTables(el);
+    wireUnidadeFilter("telsemos", function(v){ telSemOsUnidadeFiltro = v; renderTelemetriaSemOS(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Telemetria — Sem Comunicação / Sem O.S.: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
 // PNEUS
 // =====================================================================
 const AXLE_PAIRS = [["DD","DE"],["TDE","TDI"],["TEE","TEI"],["TKDE","TKDI"],["TKEE","TKEI"],["TTDE","TTDI"],["TTEE","TTEI"]];
@@ -3297,7 +3388,7 @@ async function buildPneusData(asOfDate){
   const veicByKey = {};
   veicRows.forEach(function(r){
     const key = vehicleKey(r["Nº de Ordem"]);
-    if(key) veicByKey[key] = { placa: r.Placa, local: (r.Unidade||"").trim() || null, empresa: r.Empresa };
+    if(key) veicByKey[key] = { placa: r.Placa, local: (r.Unidade||"").trim() || null, empresa: r.Empresa, tipoEquipamento: r["Tipo de Equipamento"] || "", noOrdemRaw: r["Nº de Ordem"] || "" };
   });
 
   // Fallback: Unidade ja usada na Telemetria (Base - TML), para conciliar veiculos que a base de Pneus nao cobre
@@ -3333,7 +3424,11 @@ async function buildPneusData(asOfDate){
       const tiresAnterior = montaPneusDeRpv(rpvRowsAnterior, veicByKey, unidadeTmlByKey, companyByCode);
       const aggAnterior = computePneusAggregates(tiresAnterior, {});
       aggAnterior.ranking.forEach(function(r){
-        trendPorUnidade[r.nome] = { critico: r.critico, rodizio: r.rodizio };
+        // "coleta" (Pend.Coleta) fica de fora da comparação: esse alerta vem de manutencao_prv, que
+        // é SNAPSHOT (apagado e reescrito do zero a cada coleta) — não existe "o dado de ontem" pra
+        // comparar, só o estado de hoje. As outras 4 vêm de Dados RPV - Pneus, que tem histórico
+        // diário de verdade.
+        trendPorUnidade[r.nome] = { critico: r.critico, rodizio: r.rodizio, reform: r.reform, atencao: r.atencao, sempneu: r.sempneu };
       });
     }
   }catch(e){
@@ -3350,6 +3445,36 @@ async function buildPneusData(asOfDate){
       "Dados RPV - Pneus": rpvSnap, "Base de Veiculos - Pneus": veicSnap, "Manutencao - PRV": prvSnap, "Base - TML": tmlSnap,
     },
   });
+}
+
+// O campo de sulco (Ult_Media_Ap) mistura dois formatos na fonte: inteiro puro ("14") e decimal
+// com PONTO ("20.3" — ao contrário do padrão BR "1.234,56" usado no resto da planilha). Usar o
+// num() genérico (que trata "." como separador de milhar) corrompia esses valores: "20.3" virava
+// "203". Confirmado contra a base real em 15/10/2026 — 92 de 8.274 leituras do dia vinham nesse
+// formato com ponto, nenhuma com vírgula. parseFloat nativo já lê "." como decimal corretamente,
+// e sulco nunca chega a milhares (0-20mm), então não tem ambiguidade aqui.
+// Frota leve (carros/utilitários alugados ou próprios) não interessa pro módulo de Pneus — pedido
+// explícito do Jefferson (15/10/2026). Verificado contra a base real antes de implementar: o campo
+// "Tipo de Equipamento" da Base de Veículos - Pneus já vem com "FROTA LEVE - PRÓPRIA"/"FROTA LEVE -
+// ALUGADA" (confirmado: 260 veículos com esse valor em 13/10/2026, todos com "Nº de Ordem" começando
+// com A ou L — zero exceção na amostra). Esse campo é o critério PRIMÁRIO (mais confiável que o
+// prefixo); o prefixo A/L só entra como reserva pra veículo resolvido via Base-TML (que não tem esse
+// campo). Na prática, confirmado também que pneus_rpv e manutencao_prv não trazem frota leve de
+// forma nenhuma (0 veículos com prefixo A/L nas duas tabelas) — ou seja, isso é uma proteção pro
+// futuro (ex.: Sucateamento, ou se o Tr@nsnet passar a incluir frota leve nesses relatórios), não uma
+// mudança visível nos números de hoje.
+function isFrotaLeve(tipoEquipamento, veiculoRaw){
+  if(tipoEquipamento) return /FROTA LEVE/i.test(tipoEquipamento);
+  const semBarra = String(veiculoRaw || "").split("/").pop().trim();
+  return /^[AL]\d/i.test(semBarra);
+}
+
+function parseSulco(v){
+  if(v === null || v === undefined) return NaN;
+  const s = String(v).trim();
+  if(!s || s === "-") return NaN;
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : n;
 }
 
 // Extraído de buildPneusData pra poder rodar tanto na coleta de hoje quanto na coleta anterior
@@ -3374,10 +3499,12 @@ function montaPneusDeRpv(rpvRows, veicByKey, unidadeTmlByKey, companyByCode){
       pneu: r.Pneu,
       situacao: (r.Situacao||"").trim(),
       desenho: r.Desenho, marca: r.Marca, medida: r.Medida,
-      sulco: num(r.Ult_Media_Ap),
+      sulco: parseSulco(r.Ult_Media_Ap),
       dtSulco: parseLenientDate(r.Dt_Media_Ap) || parseLenientDate(r.Data),
+      tipoEquipamento: info ? info.tipoEquipamento : "",
     };
-  }).filter(function(t){ return t.veiculoKey || t.pneu === "S/PNEU"; });
+  }).filter(function(t){ return t.veiculoKey || t.pneu === "S/PNEU"; })
+    .filter(function(t){ return !isFrotaLeve(t.tipoEquipamento, t.veiculoRaw); });
 }
 
 // Renderiza a seta de evolução (▲ subiu / ▼ caiu / — sem variação) comparando a contagem de hoje
@@ -3532,12 +3659,14 @@ function buildPneusVizItems(tires, groupFieldKey){
 let pneusAsOf = null;
 let pneusUnidadeFiltro = null;
 let pneusVizMode = VizModes.loadMode("pneus", "kanban");
+if(pneusVizMode === "cards") pneusVizMode = "kanban"; // Cards foi removido de Pneus (15/10/2026) — quem tinha salvo essa preferência cai pro Kanban.
 let pneusGroupField = VizModes.loadGroupField("pneus", PNEUS_GROUP_FIELDS.map(function(f){ return f.key; }), "local");
 async function renderPneusMacro(newAsOf){
   if(newAsOf !== undefined) pneusAsOf = newAsOf;
   const el = document.getElementById("pneus-macro-body");
-  // Sub-abas primeiro, mesmo padrão de renderTelemetria/Compras (ver comentário lá).
-  el.innerHTML = VizModes.modeTabsHtml("pneus", pneusVizMode) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
+  // Sub-abas primeiro, mesmo padrão de renderTelemetria/Compras (ver comentário lá). Sem Cards
+  // nesta aba — pedido do Jefferson (15/10/2026): "não tem nada de importante".
+  el.innerHTML = VizModes.modeTabsHtml("pneus", pneusVizMode, ["cards"]) + '<div id="pneus-data-area"><div class="spinner">Carregando dados de pneus...</div></div>';
   VizModes.wireModeTabs(el, "pneus", function(m){ pneusVizMode = m; renderPneusMacro(); });
   const area = document.getElementById("pneus-data-area");
   try{
@@ -3574,15 +3703,42 @@ async function renderPneusMacro(newAsOf){
     const pneuVizAutoThresh = VizModes.computeDefaultThresholds(pneuVizItemsAll.map(function(it){ return it.severity; }), true);
     let pneuVizActiveThresh = pneuVizStoredThresh || pneuVizAutoThresh;
 
-    if(pneusVizMode === "tabela"){
+    const pneusCriticoBarCls = "bad", pneusAtencaoBarCls = "warn";
+
+    if(pneusVizMode === "exec"){
+      const totalPneusGeral = d.ranking.reduce(function(s, r){ return s + r.pneus; }, 0);
+      const totalCriticoGeral = d.ranking.reduce(function(s, r){ return s + r.critico; }, 0);
+      const totalAtencaoGeral = d.ranking.reduce(function(s, r){ return s + r.atencao; }, 0);
+
+      html += '<div class="so-kpi-row">'
+        + '<div class="so-kpi"><div class="so-kpi-label">Total de pneus analisados</div><div class="so-kpi-value">' + fmtNum(totalPneusGeral) + '</div></div>'
+        + '<div class="so-kpi"><div class="so-kpi-label">Crítico</div><div class="so-kpi-value">' + fmtNum(totalCriticoGeral) + '</div>'
+          + '<span class="so-kpi-pct">' + (totalPneusGeral ? String(Math.round(totalCriticoGeral/totalPneusGeral*1000)/10).replace(".",",") : "0") + '%</span></div>'
+        + '<div class="so-kpi"><div class="so-kpi-label">Atenção</div><div class="so-kpi-value">' + fmtNum(totalAtencaoGeral) + '</div>'
+          + '<span class="so-kpi-pct">' + (totalPneusGeral ? String(Math.round(totalAtencaoGeral/totalPneusGeral*1000)/10).replace(".",",") : "0") + '%</span></div>'
+        + '</div>';
+
+      html += '<div class="subsection"><h3>Por unidade — % do total de pneus daquela unidade</h3><p class="hint">O percentual é sobre a quantidade de pneus analisados NA PRÓPRIA unidade (não sobre o total geral) — mostra o quanto da frota de pneus daquela unidade está em cada situação.</p>'
+        + '<div class="table-wrap"><table class="so-ranking-table"><thead><tr><th>Unidade</th><th>Pneus</th><th>Crítico</th><th>Atenção</th></tr></thead><tbody>'
+        + d.ranking.slice().sort(function(a, b){ return b.critico - a.critico; }).map(function(r){
+            return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + fmtNum(r.pneus) + '</td>'
+              + '<td>' + comprasBarraHtml(r.critico, r.pneus, pneusCriticoBarCls) + '</td>'
+              + '<td>' + comprasBarraHtml(r.atencao, r.pneus, pneusAtencaoBarCls) + '</td>'
+              + '</tr>';
+          }).join("")
+        + '</tbody></table></div></div>';
+    } else if(pneusVizMode === "tabela"){
       html += '<div class="subsection"><h3>Ranking por unidade'
         + (d.trendDataAnteriorIso ? ' <span class="hint" style="font-weight:400;font-size:11.5px;">(setas comparam com a coleta de ' + fmtDateBR(d.trendDataAnteriorIso) + ')</span>' : '')
         + '</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th><th>Pneus</th><th>Reform.</th><th>Crítico</th><th>Atenção</th><th>Rodízio</th><th>Pend.Coleta</th><th>Sucata</th><th>Sem Pneu</th><th>Score</th></tr></thead><tbody>'
         + d.ranking.map(function(r){
           const trendAnterior = (d.trendPorUnidade || {})[r.nome];
+          const reformCell = r.reform + pneusTrendArrowHtml(r.reform, trendAnterior ? trendAnterior.reform : null);
           const criticoCell = r.critico + pneusTrendArrowHtml(r.critico, trendAnterior ? trendAnterior.critico : null);
+          const atencaoCell = r.atencao + pneusTrendArrowHtml(r.atencao, trendAnterior ? trendAnterior.atencao : null);
           const rodizioCell = r.rodizio + pneusTrendArrowHtml(r.rodizio, trendAnterior ? trendAnterior.rodizio : null);
-          return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+r.reform+'</td><td>'+criticoCell+'</td><td>'+r.atencao+'</td><td>'+rodizioCell+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+r.sempneu+'</td><td><b>'+r.score+'</b></td></tr>';
+          const sempneuCell = r.sempneu + pneusTrendArrowHtml(r.sempneu, trendAnterior ? trendAnterior.sempneu : null);
+          return '<tr><td>'+escapeHtml(r.nome)+'</td><td>'+r.veiculosCount+'</td><td>'+r.pneus+'</td><td>'+reformCell+'</td><td>'+criticoCell+'</td><td>'+atencaoCell+'</td><td>'+rodizioCell+'</td><td>'+r.coleta+'</td><td>'+r.sucata+'</td><td>'+sempneuCell+'</td><td><b>'+r.score+'</b></td></tr>';
         }).join("") + '</tbody></table></div></div>';
 
       html += '<div class="subsection"><h3>Veículos sem unidade (' + d.semUnidadeCount + ')</h3><div class="table-wrap"><table><thead><tr><th>Veículo</th><th>Placa</th><th>Empresa</th></tr></thead><tbody>'
@@ -3644,7 +3800,7 @@ async function renderPneusMacro(newAsOf){
     fitAllKpiValues(area);
     wirePeriodToolbar("pneus", function(v){ renderPneusMacro(v); });
 
-    if(pneusVizMode === "tabela"){
+    if(pneusVizMode === "tabela" || pneusVizMode === "exec"){
       enableSortableTables(area);
       wireUnidadeFilter("pneus", function(v){ pneusUnidadeFiltro = v; renderPneusMacro(); });
     } else {
@@ -3667,9 +3823,7 @@ async function renderPneusMacro(newAsOf){
         },
       };
       function drawPneuVizMode(){
-        if(pneusVizMode === "cards") VizModes.renderCardGroups(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, pneuVizOpts);
-        else if(pneusVizMode === "kanban") VizModes.renderKanban(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, pneuVizOpts);
-        else if(pneusVizMode === "exec") VizModes.renderExecSummary(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, Object.assign({ title:"Resumo executivo — Pneus" }, pneuVizOpts), { updatedNote: "Dados de " + fmtDateBR(d.resolvedDates["Dados RPV - Pneus"]) + " · Gerado em " + fmtDateTime(new Date()) });
+        VizModes.renderKanban(pneuVizMount, pneuVizItemsAll, pneuVizActiveThresh, pneuVizOpts);
       }
       drawPneuVizMode();
 
@@ -3726,12 +3880,14 @@ async function buildPneusCalibragemData(asOfDate){
   ]);
 
   const veicByKey = {};
-  const frotaPorUnidade = {}; // tamanho da frota TOTAL por unidade (denominador do % vencido — ver comentário abaixo)
+  const tipoEquipByKey = {};
+  const frotaPorUnidade = {}; // tamanho da frota TOTAL por unidade (denominador do % vencido — ver comentário abaixo) — já excluindo frota leve
   veicRows.forEach(function(r){
     const key = vehicleKey(r["Nº de Ordem"]);
     const u = (r.Unidade || "").trim();
-    if(key && u) veicByKey[key] = u;
-    if(u) frotaPorUnidade[u] = (frotaPorUnidade[u] || 0) + 1;
+    const tipoEquip = r["Tipo de Equipamento"] || "";
+    if(key){ veicByKey[key] = u; tipoEquipByKey[key] = tipoEquip; }
+    if(u && !isFrotaLeve(tipoEquip, r["Nº de Ordem"])) frotaPorUnidade[u] = (frotaPorUnidade[u] || 0) + 1;
   });
   const unidadeTmlByKey = {};
   tmlRows.forEach(function(r){
@@ -3740,7 +3896,9 @@ async function buildPneusCalibragemData(asOfDate){
     if(key && u) unidadeTmlByKey[key] = u;
   });
 
-  const itens = prvRows.filter(function(r){ return r.Plano_de_Manutencao === PNEUS_CALIBRAGEM_PLANO; }).map(function(r){
+  const itens = prvRows.filter(function(r){ return r.Plano_de_Manutencao === PNEUS_CALIBRAGEM_PLANO; })
+    .filter(function(r){ const key = vehicleKey(r.Veiculo); return !isFrotaLeve(key ? tipoEquipByKey[key] : "", r.Veiculo); })
+    .map(function(r){
     const key = vehicleKey(r.Veiculo);
     const local = (key && (veicByKey[key] || unidadeTmlByKey[key])) || "Sem unidade";
     const obs = String(r.Observacao || "").trim();
@@ -3810,8 +3968,12 @@ async function renderPneusCalibragem(newAsOf){
       + kpiCard("% da frota com calibragem vencida", frotaTotalExibida ? (Math.round(itensExibidos.length / frotaTotalExibida * 1000) / 10) + "%" : "—", itensExibidos.length ? "warning" : "good")
       + '</div>';
 
+    const rankingExibido = pneusCalibragemUnidadeFiltro
+      ? full.ranking.filter(function(r){ return r.nome === pneusCalibragemUnidadeFiltro; })
+      : full.ranking;
+
     html += '<div class="subsection"><h3>Ranking por unidade — % da frota com calibragem vencida</h3><p class="hint">Este relatório do Tr@nsnet só lista planos já vencidos — por isso o percentual é sobre o tamanho da frota da unidade, não sobre as linhas deste relatório (que seriam sempre ~100%).</p><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Frota total</th><th>Com calibragem vencida</th><th>% da frota</th></tr></thead><tbody>'
-      + (full.ranking.length ? full.ranking.map(function(r){
+      + (rankingExibido.length ? rankingExibido.map(function(r){
           const pctCell = r.pctVencido > 0
             ? '<span class="badge ' + (r.pctVencido >= 50 ? "b-critical" : "b-warning") + '">' + (Math.round(r.pctVencido * 10) / 10) + '%</span>'
             : '<span class="badge b-good">0%</span>';
