@@ -1831,6 +1831,26 @@ async function roboPreviousSnapshotDate(table, currentIso){
   if(i === -1 || i + 1 >= idx.length) return null;
   return idx[i + 1];
 }
+// Mesma ideia de roboPreviousSnapshotDate, mas pra tabelas GRANDES onde roboFetchDateIndex não
+// serve: o índice olha só as últimas 3000 linhas por coletado_em, e uma tabela com milhares de
+// linhas POR DIA (ex.: pneus_rpv, ~8.000 linhas/dia) consome esse limite inteiro com UM dia só,
+// nunca alcançando um dia anterior (testado na prática em 14/10/2026 — o índice só via
+// "14/10/2026"). Em vez disso, testa dia a dia pra trás (pergunta cheap, "existe ALGUMA linha
+// nessa data?", sem trazer os dados) até achar a primeira data com coleta, até `maxDiasAtras`.
+async function roboPreviousDateByProbing(table, currentIso, maxDiasAtras){
+  if(!currentIso) return null;
+  const limite = maxDiasAtras || 14;
+  const atual = new Date(currentIso + "T00:00:00");
+  for(let i = 1; i <= limite; i++){
+    const candidata = new Date(atual.getTime() - i * 24 * 60 * 60 * 1000);
+    const iso = isoDateOf(candidata);
+    const ddmmaaaa = isoToRoboDate(iso);
+    const resp = await roboRest(table + "?data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&select=data_referencia&limit=1");
+    const rows = await resp.json();
+    if(rows.length) return iso;
+  }
+  return null;
+}
 // Lista (ascendente) as datas <= maxIso já coletadas de um tab_name, limitada a `limit` — usada
 // pelos módulos que reconstroem histórico varrendo vários snapshots (Retenção/prazo, Telemetria
 // mês a mês). Tab migrado: reaproveita o índice do Robo-Transnet; não migrado: mesma consulta a
@@ -3306,7 +3326,7 @@ async function buildPneusData(asOfDate){
   let trendPorUnidade = {};
   let trendDataAnteriorIso = null;
   try{
-    const rpvSnapAnterior = await roboPreviousSnapshotDate("pneus_rpv", rpvSnap);
+    const rpvSnapAnterior = await roboPreviousDateByProbing("pneus_rpv", rpvSnap, 14);
     if(rpvSnapAnterior){
       trendDataAnteriorIso = rpvSnapAnterior;
       const rpvRowsAnterior = await fetchAllRows("Dados RPV - Pneus", rpvSnapAnterior);
