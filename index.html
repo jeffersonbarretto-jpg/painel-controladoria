@@ -983,6 +983,8 @@
             <button class="nav-btn nav-sub-btn" data-section="pneus-calibragem">Calibragem</button>
             <button class="nav-btn nav-sub-btn" data-section="pneus-sucateamento">Sucateamento</button>
             <button class="nav-btn nav-sub-btn" data-section="pneus-divergencia-km">Divergência KM</button>
+            <button class="nav-btn nav-sub-btn" data-section="pneus-estoque">Estoque x Borracharia</button>
+            <button class="nav-btn nav-sub-btn" data-section="pneus-reforma-externa">Reforma Externa</button>
           </div>
         </div>
         <button class="nav-btn" data-section="inventario"><span class="ico">🗃️</span> Inventário</button>
@@ -1072,6 +1074,22 @@
             <p>Veículos com quilometragem total do pneu (KM. Vida) fora do padrão esperado — possível erro de digitação/leitura na base.</p>
           </div>
           <div id="pneus-divergencia-km-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus-estoque">
+          <div class="section-head">
+            <h2>Pneus — Estoque x Borracharia</h2>
+            <p>Saldo cadastral (Apuração do Estoque) comparado com a contagem física de pneus por Centro de Custo (Estoque x Borracharia) — divergência entre o que o sistema diz que tem e o que foi localizado fisicamente.</p>
+          </div>
+          <div id="pneus-estoque-body"><div class="spinner">Carregando...</div></div>
+        </div>
+
+        <div class="section" id="sec-pneus-reforma-externa">
+          <div class="section-head">
+            <h2>Pneus — Reforma Externa</h2>
+            <p>Pneus enviados para reforma em borracharia terceirizada (Centro de Custo "REF. EXTERNA") — data de envio e alerta de atraso acima de 10 dias sem retorno.</p>
+          </div>
+          <div id="pneus-reforma-externa-body"><div class="spinner">Carregando...</div></div>
         </div>
 
         <div class="section" id="sec-inventario">
@@ -1444,7 +1462,9 @@ const PANEL_EXPORT = {
   pneuscalibragem: { nome: "Pneus · Calibragem",     area: "pneus-calibragem-body" },
   pneussucat:      { nome: "Pneus · Sucateamento",   area: "pneus-sucateamento-body" },
   pneusdivkm:      { nome: "Pneus · Divergência KM", area: "pneus-divergencia-km-body" },
-  telsemos:        { nome: "Telemetria · Sem Comunicação/O.S.", area: "telemetria-sem-os-body" }
+  telsemos:        { nome: "Telemetria · Sem Comunicação/O.S.", area: "telemetria-sem-os-body" },
+  pneusestoque:    { nome: "Pneus · Estoque x Borracharia", area: "pneus-estoque-body" },
+  pneusrefext:     { nome: "Pneus · Reforma Externa", area: "pneus-reforma-externa-body" }
 };
 function exportBarHtml(id){
   return '<div class="filters filters-right export-bar" style="margin-top:-4px;">'
@@ -1773,6 +1793,8 @@ const ROBO_EXP_FIELDS = { "Setor de Abastecimento":"setor_de_abastecimento", Dat
 const ROBO_ABAST_FIELDS = { Veiculo:"veiculo", Comb:"comb", Data:"data", Km_Rod:"km_rod", Km_Lt:"km_lt", Meta:"meta", Dif_Pct:"dif_percentual", St_Abast:"st_abast", Tur:"tur", Vl_Ab:"vl_ab" };
 const ROBO_RPV_FIELDS = { Veiculo:"empresa_veiculo", Empresa:"empresa", Posicao:"posicao", Pneu:"pneu", Data:"data", KM_Total:"km_total", KM_Vida:"km_vida", KM_Perc:"km_perc", Situacao:"situacao", Desenho:"desenho", Marca:"marca", Medida:"medida", Ult_Recapagem:"ult_recapagem", Ult_Media_Ap:"ult_media_ap", Dt_Media_Ap:"dt_media_ap" };
 const ROBO_SUCAT_FIELDS = { Empresa:"empresa", Pneu:"pneu", Marca:"marca", Desenho:"desenho", Dt_Inicial:"dt_inicial", Dt_Sucat:"dt_sucat", Vida_Util:"vida_util", Ult_Veic:"ult_veic", Tipo_Servico:"tipo_servico", KM_Total:"km_total", Total:"total", KM:"km", Vida:"vida", Motivo:"motivo", Setor:"setor", Medida:"medida" };
+const ROBO_APURACAO_FIELDS = { Codigo:"codigo", Nome:"nome", Localizacao:"localizacao", Ref_Fabricante:"ref_fabricante", Unid_Compra:"unid_compra", Saldo:"saldo", PMU:"pmu", Total:"total", Est_Min:"est_min", Est_Max:"est_max", Primeira_Cont:"primeira_cont", Almoxarifado:"almoxarifado", Grupo:"grupo", Subgrupo:"subgrupo" };
+const ROBO_CENTRO_CUSTO_FIELDS = { Empresa:"empresa", Pneu:"pneu", Nr_Serie:"nr_serie", Km_Rodada:"km_rodada", Marca:"marca", Modelo:"modelo", Medida:"medida", Data:"data", Motivo_Movimentacao:"motivo_movimentacao", Reformador:"reformador", Marca_Borracha:"marca_borracha", Desenho:"desenho", Centro_Custo:"centro_custo", Centro_Custo_Grupo:"centro_custo_grupo" };
 const ROBO_TAB_MAP = {
   "Oficina - RT": { table: "oficina_rt", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
   "O.S Aberta - TML": { table: "os_aberta_tml", fields: ROBO_OS_FIELDS, filterHeaderRows: true },
@@ -1784,6 +1806,8 @@ const ROBO_TAB_MAP = {
   "Abastecimento - TML": { table: "abastecimento_tml", fields: ROBO_ABAST_FIELDS, filterHeaderRows: false, cumulative: true },
   "Dados RPV - Pneus": { table: "pneus_rpv", fields: ROBO_RPV_FIELDS, filterHeaderRows: false },
   "Pneus Sucateados": { table: "pneus_sucateados_tml", fields: ROBO_SUCAT_FIELDS, filterHeaderRows: false },
+  "Apuracao Estoque": { table: "pneus_apuracao_estoque_tml", fields: ROBO_APURACAO_FIELDS, filterHeaderRows: false },
+  "Pneus Centro Custo": { table: "pneus_centro_custo_tml", fields: ROBO_CENTRO_CUSTO_FIELDS, filterHeaderRows: false },
 };
 
 async function roboRest(path, opts){
@@ -2655,6 +2679,8 @@ const SECTION_TITLES = {
   "pneus-calibragem": "Pneus — Calibragem",
   "pneus-sucateamento": "Pneus — Sucateamento",
   "pneus-divergencia-km": "Pneus — Divergência de KM",
+  "pneus-estoque": "Pneus — Estoque x Borracharia",
+  "pneus-reforma-externa": "Pneus — Reforma Externa",
   inventario: "Inventário",
   "manut-macro": "Manutenção — Visão Macro",
   "manut-preventiva": "Manutenção — Preventiva",
@@ -2668,6 +2694,7 @@ const SECTION_TITLES = {
 const sectionLoaded = {
   home:false, telemetria:false, "telemetria-sem-os":false, inventario:false,
   "pneus-macro":false, "pneus-calibragem":false, "pneus-sucateamento":false, "pneus-divergencia-km":false,
+  "pneus-estoque":false, "pneus-reforma-externa":false,
   "manut-macro":false, "manut-preventiva":false, "manut-retencao":false,
   abastecimento:false, suprimentos:false, compras:false, dashboard:false, dados:false,
 };
@@ -2676,7 +2703,7 @@ const sectionLoaded = {
 // Comunicação) — cada grupo controla seu próprio submenu aberto/fechado; MANUT_SECTIONS também
 // aciona a barra lateral secundária de Unidades (só implementada pra Manutenção por enquanto).
 const MANUT_SECTIONS = ["manut-macro", "manut-preventiva", "manut-retencao"];
-const PNEUS_SECTIONS = ["pneus-macro", "pneus-calibragem", "pneus-sucateamento", "pneus-divergencia-km"];
+const PNEUS_SECTIONS = ["pneus-macro", "pneus-calibragem", "pneus-sucateamento", "pneus-divergencia-km", "pneus-estoque", "pneus-reforma-externa"];
 const TELEMETRIA_SECTIONS = ["telemetria", "telemetria-sem-os"];
 const NAV_GROUPS = [
   { groupId: "nav-manut-group", sections: MANUT_SECTIONS },
@@ -2733,6 +2760,8 @@ function activateSection(section){
     if(section === "pneus-calibragem") renderPneusCalibragem();
     if(section === "pneus-sucateamento") renderPneusSucateamento();
     if(section === "pneus-divergencia-km") renderPneusDivergenciaKm();
+    if(section === "pneus-estoque") renderPneusEstoque();
+    if(section === "pneus-reforma-externa") renderPneusReformaExterna();
     if(section === "inventario") renderInventario();
     if(section === "manut-macro") renderManutMacro();
     if(section === "manut-preventiva") renderManutPreventiva();
@@ -4226,6 +4255,265 @@ async function renderPneusSucateamento(){
     wireUnidadeFilter("pneussucat", function(v){ pneusSucateamentoUnidadeFiltro = v; renderPneusSucateamento(); });
   }catch(err){
     el.innerHTML = '<p>Erro ao carregar Sucateamento: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS — REFORMA EXTERNA (fonte: Pneus por Centro de Custo / CRelPneusPorCentroCusto, coletado
+// por main_pneus_centro_custo.py). Pedido do Jefferson (15/10/2026): "entender quais pneus está na
+// reforma externa com a data de envio e ter um parâmetro de data para retorno de até 10 dias".
+//
+// Um pneu está em reforma externa quando a coluna "Centro Custo" daquela linha contém
+// "REF. EXTERNA" (ex.: "082 - REF. EXTERNA - CAMACARI") — confirmado por inspeção real em
+// 15/10/2026. A coluna "Data" é a data desse movimento (data de envio). Sem seletor de período:
+// mesma razão do Sucateamento — o robô faz snapshot do estado atual todo dia, não tem "dia
+// passado" pra escolher aqui.
+// =====================================================================
+const PNEUS_REFORMA_EXTERNA_LIMITE_DIAS = 10;
+
+let pneusReformaExternaUnidadeFiltro = null;
+let pneusReformaExternaCache = null;
+async function getPneusReformaExternaData(force){
+  if(force || !pneusReformaExternaCache){
+    pneusReformaExternaCache = buildPneusReformaExternaData().catch(function(err){ pneusReformaExternaCache = null; throw err; });
+  }
+  return pneusReformaExternaCache;
+}
+
+// "082 - REF. EXTERNA - CAMACARI" -> "CAMACARI" (tira o código e o rótulo "REF. EXTERNA").
+function reformaExternaUnidadeLabel(centroCusto){
+  const s = String(centroCusto || "").trim();
+  const m = /REF\.?\s*EXTERNA\s*-?\s*(.+)$/i.exec(s);
+  return m ? m[1].trim() : (s || "Sem unidade");
+}
+
+async function buildPneusReformaExternaData(){
+  const ccSnap = await resolveSnapshotDate("Pneus Centro Custo", null);
+  if(!ccSnap){
+    return { itens: [], ranking: [], resolvedDates: {}, semDados: true };
+  }
+  const ccRows = await fetchAllRows("Pneus Centro Custo", ccSnap);
+
+  const itens = ccRows.filter(function(r){ return /REF\.?\s*EXTERNA/i.test(r.Centro_Custo || ""); }).map(function(r){
+    const dtEnvio = parseLenientDate(roboFixShortYear(r.Data));
+    const dias = dtEnvio ? daysSince(dtEnvio) : null;
+    return {
+      empresa: r.Empresa || "", pneu: (r.Pneu || "").trim(), marca: r.Marca || "", modelo: r.Modelo || "",
+      medida: r.Medida || "", dtEnvio: dtEnvio, dtEnvioStr: r.Data || "", dias: dias,
+      atrasado: dias !== null && dias > PNEUS_REFORMA_EXTERNA_LIMITE_DIAS,
+      motivo: r.Motivo_Movimentacao || "", centroCusto: r.Centro_Custo || "",
+      unidade: reformaExternaUnidadeLabel(r.Centro_Custo),
+    };
+  });
+
+  const porUnidade = {};
+  itens.forEach(function(it){
+    porUnidade[it.unidade] = porUnidade[it.unidade] || { nome: it.unidade, total: 0, atrasados: 0 };
+    porUnidade[it.unidade].total++;
+    if(it.atrasado) porUnidade[it.unidade].atrasados++;
+  });
+  const ranking = Object.values(porUnidade).sort(function(a, b){ return b.atrasados - a.atrasados || b.total - a.total; });
+
+  return {
+    itens: itens, ranking: ranking,
+    resolvedDates: { "Pneus Centro Custo": ccSnap },
+  };
+}
+
+async function renderPneusReformaExterna(){
+  const el = document.getElementById("pneus-reforma-externa-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de reforma externa...</div>';
+  try{
+    const full = await getPneusReformaExternaData(false);
+
+    if(full.semDados){
+      el.innerHTML = '<p class="empty-hint">Nenhum dado de Pneus por Centro de Custo sincronizado ainda — a coleta diária (main_pneus_centro_custo.py) ainda não rodou ou a tabela ainda não foi criada no Supabase.</p>';
+      return;
+    }
+
+    const unidadesTodas = Array.from(new Set(full.itens.map(function(i){ return i.unidade; }))).sort();
+    if(pneusReformaExternaUnidadeFiltro && unidadesTodas.indexOf(pneusReformaExternaUnidadeFiltro) === -1) pneusReformaExternaUnidadeFiltro = null;
+    const itensExibidos = pneusReformaExternaUnidadeFiltro
+      ? full.itens.filter(function(i){ return i.unidade === pneusReformaExternaUnidadeFiltro; })
+      : full.itens;
+    const atrasadosExibidos = itensExibidos.filter(function(i){ return i.atrasado; }).length;
+
+    let html = unidadeFilterHtml("pneusrefext", unidadesTodas, pneusReformaExternaUnidadeFiltro, true);
+    if(pneusReformaExternaUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusReformaExternaUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Pneus em reforma externa", fmtNum(itensExibidos.length), "info")
+      + kpiCard("Atrasados (" + PNEUS_REFORMA_EXTERNA_LIMITE_DIAS + "d+)", fmtNum(atrasadosExibidos), atrasadosExibidos ? "critical" : "good")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Em reforma externa</th><th>Atrasados</th></tr></thead><tbody>'
+      + (full.ranking.length ? full.ranking.map(function(r){
+          const atrasadosCell = r.atrasados > 0 ? '<span class="badge b-critical">' + r.atrasados + '</span>' : '0';
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + r.total + '</td><td>' + atrasadosCell + '</td></tr>';
+        }).join("") : '<tr><td colspan="3">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += '<div class="subsection"><h3>Pneus (' + itensExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneu</th><th>Marca</th><th>Medida</th><th>Data de envio</th><th>Dias em reforma</th></tr></thead><tbody>'
+      + (itensExibidos.length ? itensExibidos.slice().sort(function(a, b){ return (b.dias||0) - (a.dias||0); }).map(function(i){
+          const diasCell = i.dias === null ? "—" : ('<b>' + i.dias + '</b>' + (i.atrasado ? ' <span class="badge b-critical">atrasado</span>' : ''));
+          return '<tr><td>' + escapeHtml(i.unidade) + '</td><td style="font-family:monospace">' + escapeHtml(i.pneu) + '</td><td>' + escapeHtml(i.marca) + '</td><td>' + escapeHtml(i.medida) + '</td><td>' + escapeHtml(i.dtEnvioStr || "—") + '</td><td>' + diasCell + '</td></tr>';
+        }).join("") : '<tr><td colspan="6">Nenhum pneu em reforma externa.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Reforma externa", desc:'pneu cujo Centro de Custo atual é "REF. EXTERNA" — está numa borracharia terceirizada, fora da unidade.' },
+      { label:"Data de envio", desc:"data do movimento que colocou o pneu nesse Centro de Custo (coluna Data do relatório Pneus por Centro de Custo)." },
+      { label:"Atrasado", desc:'mais de ' + PNEUS_REFORMA_EXTERNA_LIMITE_DIAS + ' dias desde o envio sem o pneu ter retornado (ainda aparece em "REF. EXTERNA" na coleta mais recente).' },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Pneus por Centro de Custo (CRelPneusPorCentroCusto)") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    enableSortableTables(el);
+    wireUnidadeFilter("pneusrefext", function(v){ pneusReformaExternaUnidadeFiltro = v; renderPneusReformaExterna(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Reforma Externa: ' + escapeHtml(err.message) + '</p>';
+  }
+}
+
+// =====================================================================
+// PNEUS — ESTOQUE x BORRACHARIA (divergência entre saldo cadastral e contagem física)
+// Fontes: Apuração do Estoque (CSuRelatorioApuracaoEstoque, saldo cadastral por Almoxarifado) x
+// Pneus por Centro de Custo (CRelPneusPorCentroCusto, contagem física por pneu em cada Centro de
+// Custo). Pedido do Jefferson (15/10/2026).
+//
+// A comparação é por UNIDADE (cidade): soma o saldo cadastral de TODOS os produtos do grupo
+// Borracharia naquela unidade (Apuração do Estoque) contra a contagem de pneus físicos achados
+// nos Centros de Custo "ESTOQUE X"/"BORRACHARIA X" daquela mesma unidade (Centro de Custo) — não
+// dá pra comparar pneu a pneu entre as duas fontes (a Apuração do Estoque não lista pneu por
+// número de série, só saldo agregado por produto/medida), então a divergência aqui é no nível de
+// QUANTIDADE total por unidade, não de pneu individual.
+// =====================================================================
+let pneusEstoqueCache = null;
+async function getPneusEstoqueData(force){
+  if(force || !pneusEstoqueCache){
+    pneusEstoqueCache = buildPneusEstoqueData().catch(function(err){ pneusEstoqueCache = null; throw err; });
+  }
+  return pneusEstoqueCache;
+}
+
+// "001-SALVADOR - MATRIZ" -> "SALVADOR - MATRIZ" (tira o código numérico do início).
+function estoqueUnidadeLabel(almoxarifado){
+  return String(almoxarifado || "").replace(/^\d+-\s*/, "").trim() || "Sem unidade";
+}
+// "002 - BORRACHARIA SALVADOR" -> unidade "SALVADOR" + tipo "BORRACHARIA" (ou "ESTOQUE").
+function centroCustoUnidadeETipo(centroCustoGrupo){
+  const s = String(centroCustoGrupo || "").replace(/^\d+\s*-\s*/, "").trim();
+  const m = /^(ESTOQUE|BORRACHARIA)\s+(.+)$/i.exec(s);
+  if(!m) return { tipo: null, unidade: s || "Sem unidade" };
+  return { tipo: m[1].toUpperCase(), unidade: m[2].trim() };
+}
+
+async function buildPneusEstoqueData(){
+  const [apSnap, ccSnap] = await Promise.all([
+    resolveSnapshotDate("Apuracao Estoque", null),
+    resolveSnapshotDate("Pneus Centro Custo", null),
+  ]);
+  if(!apSnap && !ccSnap){
+    return { ranking: [], resolvedDates: {}, semDados: true };
+  }
+  const [apRows, ccRows] = await Promise.all([
+    apSnap ? fetchAllRows("Apuracao Estoque", apSnap) : [],
+    ccSnap ? fetchAllRows("Pneus Centro Custo", ccSnap) : [],
+  ]);
+
+  // Saldo cadastral por unidade (soma do campo Saldo de todo produto do grupo Borracharia naquele
+  // Almoxarifado) — vem da Apuração do Estoque.
+  const saldoPorUnidade = {};
+  apRows.forEach(function(r){
+    const unidade = estoqueUnidadeLabel(r.Almoxarifado);
+    const saldo = num(r.Saldo);
+    if(isNaN(saldo)) return;
+    saldoPorUnidade[unidade] = (saldoPorUnidade[unidade] || 0) + saldo;
+  });
+
+  // Contagem física por unidade (quantas linhas de pneu foram achadas nos Centros de Custo
+  // ESTOQUE/BORRACHARIA daquela unidade) — vem de Pneus por Centro de Custo. Usa o "balde" de
+  // pesquisa (centro_custo_grupo), não a localização atual do pneu — contagem de "quantos pneus
+  // estão hoje alocados ao Estoque/Borracharia dessa unidade".
+  const fisicoPorUnidade = {};
+  ccRows.forEach(function(r){
+    const info = centroCustoUnidadeETipo(r.Centro_Custo_Grupo);
+    if(!info.tipo) return; // ignora centros de custo que não são Estoque/Borracharia (ex.: Sucata, Ref. Interna)
+    fisicoPorUnidade[info.unidade] = (fisicoPorUnidade[info.unidade] || 0) + 1;
+  });
+
+  const unidades = Array.from(new Set(Object.keys(saldoPorUnidade).concat(Object.keys(fisicoPorUnidade)))).sort();
+  const ranking = unidades.map(function(u){
+    const saldo = saldoPorUnidade[u] || 0;
+    const fisico = fisicoPorUnidade[u] || 0;
+    const divergencia = fisico - saldo;
+    return { nome: u, saldo: saldo, fisico: fisico, divergencia: divergencia };
+  }).sort(function(a, b){ return Math.abs(b.divergencia) - Math.abs(a.divergencia); });
+
+  return {
+    ranking: ranking,
+    resolvedDates: { "Apuracao Estoque": apSnap, "Pneus Centro Custo": ccSnap },
+  };
+}
+
+let pneusEstoqueUnidadeFiltro = null;
+async function renderPneusEstoque(){
+  const el = document.getElementById("pneus-estoque-body");
+  el.innerHTML = '<div class="spinner">Carregando dados de estoque...</div>';
+  try{
+    const full = await getPneusEstoqueData(false);
+
+    if(full.semDados){
+      el.innerHTML = '<p class="empty-hint">Nenhum dado de Apuração do Estoque ou Pneus por Centro de Custo sincronizado ainda — as coletas diárias (main_apuracao_estoque.py / main_pneus_centro_custo.py) ainda não rodaram ou as tabelas ainda não foram criadas no Supabase.</p>';
+      return;
+    }
+
+    const unidadesTodas = full.ranking.map(function(r){ return r.nome; });
+    if(pneusEstoqueUnidadeFiltro && unidadesTodas.indexOf(pneusEstoqueUnidadeFiltro) === -1) pneusEstoqueUnidadeFiltro = null;
+    const rankingExibido = pneusEstoqueUnidadeFiltro
+      ? full.ranking.filter(function(r){ return r.nome === pneusEstoqueUnidadeFiltro; })
+      : full.ranking;
+
+    const totalSaldo = rankingExibido.reduce(function(s, r){ return s + r.saldo; }, 0);
+    const totalFisico = rankingExibido.reduce(function(s, r){ return s + r.fisico; }, 0);
+    const unidadesComDivergencia = rankingExibido.filter(function(r){ return r.divergencia !== 0; }).length;
+
+    let html = unidadeFilterHtml("pneusestoque", unidadesTodas, pneusEstoqueUnidadeFiltro, true);
+    if(pneusEstoqueUnidadeFiltro){
+      html += '<p class="hint" style="margin-bottom:14px;">Filtro de unidade ativo — mostrando apenas <b>' + escapeHtml(pneusEstoqueUnidadeFiltro) + '</b>.</p>';
+    }
+
+    html += '<div class="kpi-grid">'
+      + kpiCard("Saldo cadastral (total)", fmtNum(Math.round(totalSaldo)), "info")
+      + kpiCard("Contado fisicamente (total)", fmtNum(totalFisico), "info")
+      + kpiCard("Unidades com divergência", fmtNum(unidadesComDivergencia), unidadesComDivergencia ? "warning" : "good")
+      + '</div>';
+
+    html += '<div class="subsection"><h3>Por unidade — saldo cadastral x contagem física</h3><p class="hint">Saldo = soma do campo "Saldo" da Apuração do Estoque (grupo Borracharia) na unidade. Físico = quantidade de pneus achados nos Centros de Custo Estoque/Borracharia daquela unidade. Divergência = Físico − Saldo (positivo = mais pneus achados fisicamente do que o saldo cadastral diz; negativo = menos).</p><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Saldo cadastral</th><th>Contado fisicamente</th><th>Divergência</th></tr></thead><tbody>'
+      + (rankingExibido.length ? rankingExibido.map(function(r){
+          const divCell = r.divergencia === 0
+            ? '<span class="badge b-good">0</span>'
+            : '<span class="badge ' + (Math.abs(r.divergencia) >= 10 ? "b-critical" : "b-warning") + '">' + (r.divergencia > 0 ? "+" : "") + r.divergencia + '</span>';
+          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + fmtNum(Math.round(r.saldo)) + '</td><td>' + fmtNum(r.fisico) + '</td><td>' + divCell + '</td></tr>';
+        }).join("") : '<tr><td colspan="4">Sem dados.</td></tr>')
+      + '</tbody></table></div></div>';
+
+    html += legendBox("O que significa cada critério", [
+      { label:"Saldo cadastral", desc:"quantidade que o sistema de estoque diz que existe daquele produto (grupo Borracharia: pneus novos/recapados/usados), somada por unidade." },
+      { label:"Contado fisicamente", desc:"quantidade de pneus individuais encontrados nos Centros de Custo Estoque/Borracharia daquela unidade, no relatório Pneus por Centro de Custo." },
+      { label:"Divergência", desc:"diferença entre as duas contagens — não é pneu a pneu (as duas fontes não têm uma chave em comum pra cruzar individualmente), é comparação de QUANTIDADE total por unidade." },
+    ]);
+    html += '<div class="section-footer">' + srcNote("Apuração do Estoque (CSuRelatorioApuracaoEstoque), Pneus por Centro de Custo (CRelPneusPorCentroCusto)") + resolvedDatesNote(full.resolvedDates) + '</div>';
+
+    el.innerHTML = html;
+    fitAllKpiValues(el);
+    enableSortableTables(el);
+    wireUnidadeFilter("pneusestoque", function(v){ pneusEstoqueUnidadeFiltro = v; renderPneusEstoque(); });
+  }catch(err){
+    el.innerHTML = '<p>Erro ao carregar Estoque x Borracharia: ' + escapeHtml(err.message) + '</p>';
   }
 }
 
