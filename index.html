@@ -6558,6 +6558,13 @@ const COMPRAS_STATUS_BARCLASS = { Entregue:"good", Pendente:"warn", Cancelado:"b
 // Unidades da empresa ATLANTICO TOCANTINS, tiradas de Compras por completo (coleta e painel) —
 // pedido do Jefferson em 15/10/2026. Mesma lista usada em main_compras.py (ALMOXARIFADOS_EXCLUIDOS).
 const COMPRAS_ALMOXARIFADOS_EXCLUIDOS = new Set(["PALMAS", "ARAGUAINA", "TOCANTINIA"]);
+// compras_solicitacoes.almoxarifado vem sem código ("PALMAS"), mas compras_itens.almoxarifado vem
+// COM código ("010-PALMAS") — confirmado contra a base real em 15/10/2026. Tira o prefixo "NNN-"
+// antes de comparar pra pegar os dois formatos.
+function comprasAlmoxEhExcluido(almox){
+  const semCodigo = String(almox || "").replace(/^\d+\s*-\s*/, "").trim().toUpperCase();
+  return COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has(semCodigo);
+}
 // Só as colunas realmente exibidas na tela — "select=*" baixava campos nunca usados aqui
 // (valor_produto, qtd_cancelada, status_item, status_pedido, dt_pedido, valor_entrada,
 // data_referencia, data_verificacao) e deixava a aba Entregues pesada pra carregar
@@ -6663,7 +6670,7 @@ function comprasEnriquecerItens(itens, solicitacoes){
       dtAbertura: dtAbertura, dias: daysSince(dtAbertura),
       dtEntrada: parseLenientDate(it.dt_entrada),
     };
-  }).filter(function(it){ return !COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has(it.almoxarifado.trim().toUpperCase()); });
+  }).filter(function(it){ return !comprasAlmoxEhExcluido(it.almoxarifado); });
 }
 
 let comprasCache = null;
@@ -6694,13 +6701,13 @@ async function comprasFetchDados(force){
   // main_compras.py — ver COMPRAS_ALMOXARIFADOS_EXCLUIDOS). Filtra aqui também pra esconder o
   // histórico já coletado antes dessa data, que continua no Supabase.
   bestSol.forEach(function(s, codigo){
-    if(COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has((s.almoxarifado || "").trim().toUpperCase())) bestSol.delete(codigo);
+    if(comprasAlmoxEhExcluido(s.almoxarifado)) bestSol.delete(codigo);
   });
   const itensFiltrados = Array.from(bestItem.values()).filter(function(it){
     const sol = bestSol.get(it.codigo_solicitacao);
-    const almoxItem = (it.almoxarifado || "").trim().toUpperCase();
-    if(COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has(almoxItem)) return false;
-    if(!almoxItem && sol === undefined && solsRaw.some(function(r){ return r.codigo === it.codigo_solicitacao && COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has((r.almoxarifado||"").trim().toUpperCase()); })) return false;
+    const almoxItem = (it.almoxarifado || "").trim();
+    if(comprasAlmoxEhExcluido(almoxItem)) return false;
+    if(!almoxItem && sol === undefined && solsRaw.some(function(r){ return r.codigo === it.codigo_solicitacao && comprasAlmoxEhExcluido(r.almoxarifado); })) return false;
     return true;
   });
 
@@ -7363,7 +7370,10 @@ function renderInventarioBody(data){
 // requisição sozinha pros outros módulos; não faz sentido pesar ainda mais só pra um preview.
 // Exclui ATLANTICO TOCANTINS (Palmas/Araguaína/Tocantinia) direto na query — mesmo filtro do
 // resto de Compras (ver COMPRAS_ALMOXARIFADOS_EXCLUIDOS), pra o preview da Home bater com a aba.
-const COMPRAS_FILTRO_SEM_TOCANTINS = "almoxarifado=not.in.(" + Array.from(COMPRAS_ALMOXARIFADOS_EXCLUIDOS).join(",") + ")";
+// compras_itens.almoxarifado vem às vezes com código ("010-PALMAS") e às vezes sem ("PALMAS") —
+// not.in exato não pega os dois formatos, por isso usa not.ilike com curinga (pega "PALMAS" e
+// "010-PALMAS" igual). Repetir a mesma coluna 3x no query string funciona como E (AND) no PostgREST.
+const COMPRAS_FILTRO_SEM_TOCANTINS = Array.from(COMPRAS_ALMOXARIFADOS_EXCLUIDOS).map(function(u){ return "almoxarifado=not.ilike.*" + u + "*"; }).join("&");
 async function getComprasHomeSummary(){
   const [aguardando, liberado, atendido] = await Promise.all([
     comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Aguardando*&" + COMPRAS_FILTRO_SEM_TOCANTINS),
