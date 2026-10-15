@@ -6267,6 +6267,9 @@ const COMPRAS_DIAS_ATENCAO = 10;
 const COMPRAS_TIPOS = ["Normal", "Urgente", "Emergencial"];
 const COMPRAS_TIPO_BARCLASS = { Normal:"good", Urgente:"warn", Emergencial:"bad" };
 const COMPRAS_STATUS_BARCLASS = { Entregue:"good", Pendente:"warn", Cancelado:"bad" };
+// Unidades da empresa ATLANTICO TOCANTINS, tiradas de Compras por completo (coleta e painel) —
+// pedido do Jefferson em 15/10/2026. Mesma lista usada em main_compras.py (ALMOXARIFADOS_EXCLUIDOS).
+const COMPRAS_ALMOXARIFADOS_EXCLUIDOS = new Set(["PALMAS", "ARAGUAINA", "TOCANTINIA"]);
 // Só as colunas realmente exibidas na tela — "select=*" baixava campos nunca usados aqui
 // (valor_produto, qtd_cancelada, status_item, status_pedido, dt_pedido, valor_entrada,
 // data_referencia, data_verificacao) e deixava a aba Entregues pesada pra carregar
@@ -6372,7 +6375,7 @@ function comprasEnriquecerItens(itens, solicitacoes){
       dtAbertura: dtAbertura, dias: daysSince(dtAbertura),
       dtEntrada: parseLenientDate(it.dt_entrada),
     };
-  });
+  }).filter(function(it){ return !COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has(it.almoxarifado.trim().toUpperCase()); });
 }
 
 let comprasCache = null;
@@ -6398,8 +6401,23 @@ async function comprasFetchDados(force){
   const bestSol = new Map();
   solsRaw.forEach(function(r){ if(!bestSol.has(r.codigo)) bestSol.set(r.codigo, r); });
 
+  // Unidades da ATLANTICO TOCANTINS (Palmas/Araguaína/Tocantinia) tiradas de Compras por
+  // completo no painel — pedido do Jefferson em 15/10/2026 (mesmo filtro aplicado na coleta,
+  // main_compras.py — ver COMPRAS_ALMOXARIFADOS_EXCLUIDOS). Filtra aqui também pra esconder o
+  // histórico já coletado antes dessa data, que continua no Supabase.
+  bestSol.forEach(function(s, codigo){
+    if(COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has((s.almoxarifado || "").trim().toUpperCase())) bestSol.delete(codigo);
+  });
+  const itensFiltrados = Array.from(bestItem.values()).filter(function(it){
+    const sol = bestSol.get(it.codigo_solicitacao);
+    const almoxItem = (it.almoxarifado || "").trim().toUpperCase();
+    if(COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has(almoxItem)) return false;
+    if(!almoxItem && sol === undefined && solsRaw.some(function(r){ return r.codigo === it.codigo_solicitacao && COMPRAS_ALMOXARIFADOS_EXCLUIDOS.has((r.almoxarifado||"").trim().toUpperCase()); })) return false;
+    return true;
+  });
+
   comprasCache = {
-    itensPendentes: Array.from(bestItem.values()),
+    itensPendentes: itensFiltrados,
     solicitacoes: bestSol,
     totalAtendidos: totalAtendidos,
     loadedAt: new Date(),
@@ -7055,11 +7073,14 @@ function renderInventarioBody(data){
 // Resumo leve pro card da Home — só contagens (comprasCount, sem baixar linha nenhuma), bem mais
 // barato que comprasFetchDados() (que baixa ~20 mil solicitações inteiras). A Home já faz bastante
 // requisição sozinha pros outros módulos; não faz sentido pesar ainda mais só pra um preview.
+// Exclui ATLANTICO TOCANTINS (Palmas/Araguaína/Tocantinia) direto na query — mesmo filtro do
+// resto de Compras (ver COMPRAS_ALMOXARIFADOS_EXCLUIDOS), pra o preview da Home bater com a aba.
+const COMPRAS_FILTRO_SEM_TOCANTINS = "almoxarifado=not.in.(" + Array.from(COMPRAS_ALMOXARIFADOS_EXCLUIDOS).join(",") + ")";
 async function getComprasHomeSummary(){
   const [aguardando, liberado, atendido] = await Promise.all([
-    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Aguardando*"),
-    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Liberado*"),
-    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*"),
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Aguardando*&" + COMPRAS_FILTRO_SEM_TOCANTINS),
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Liberado*&" + COMPRAS_FILTRO_SEM_TOCANTINS),
+    comprasCount(COMPRAS_ITEM_TABLE, "situacao_assinatura=ilike.*Atendid*&" + COMPRAS_FILTRO_SEM_TOCANTINS),
   ]);
   return { aguardando: aguardando, liberado: liberado, atendido: atendido };
 }
