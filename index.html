@@ -4505,6 +4505,14 @@ async function getPneusEstoqueData(force){
 function estoqueUnidadeLabel(almoxarifado){
   return String(almoxarifado || "").replace(/^\d+-\s*/, "").trim() || "Sem unidade";
 }
+// Normaliza medida de pneu pra comparar entre as duas fontes — confirmado em 15/10/2026 que a
+// MESMA medida aparece escrita diferente em cada relatório (ex.: "275/80R22,5" na Apuração do
+// Estoque x "275/80R 22.5" no Centro de Custo — vírgula/ponto e espaço extra antes do aro), o que
+// inflava a divergência artificialmente (parecia sobra/falta quando era só formatação). Mantém o
+// texto original pra exibir (não isso aqui), só usa a versão normalizada como CHAVE de agrupamento.
+function normalizaMedidaPneu(medida){
+  return String(medida || "").toUpperCase().replace(/\s+/g, "").replace(/\./g, ",").trim();
+}
 // "002 - BORRACHARIA SALVADOR" -> unidade "SALVADOR" + tipo "BORRACHARIA" (ou "ESTOQUE").
 function centroCustoUnidadeETipo(centroCustoGrupo){
   const s = String(centroCustoGrupo || "").replace(/^\d+\s*-\s*/, "").trim();
@@ -4537,7 +4545,7 @@ async function buildPneusEstoqueData(){
     const saldo = num(r.Saldo);
     if(isNaN(saldo)) return;
     saldoPorUnidade[unidade] = (saldoPorUnidade[unidade] || 0) + saldo;
-    const medida = (r.Ref_Fabricante || "").trim() || "Sem medida";
+    const medida = normalizaMedidaPneu(r.Ref_Fabricante) || "SEM MEDIDA";
     saldoPorUnidadeMedida[unidade] = saldoPorUnidadeMedida[unidade] || {};
     saldoPorUnidadeMedida[unidade][medida] = (saldoPorUnidadeMedida[unidade][medida] || 0) + saldo;
   });
@@ -4545,14 +4553,15 @@ async function buildPneusEstoqueData(){
   // Contagem física por unidade (quantas linhas de pneu foram achadas nos Centros de Custo
   // ESTOQUE/BORRACHARIA daquela unidade) — vem de Pneus por Centro de Custo. Usa o "balde" de
   // pesquisa (centro_custo_grupo), não a localização atual do pneu — contagem de "quantos pneus
-  // estão hoje alocados ao Estoque/Borracharia dessa unidade". Mesma quebra por medida.
+  // estão hoje alocados ao Estoque/Borracharia dessa unidade". Mesma quebra por medida
+  // (normalizada — ver normalizaMedidaPneu).
   const fisicoPorUnidade = {};
   const fisicoPorUnidadeMedida = {};
   ccRows.forEach(function(r){
     const info = centroCustoUnidadeETipo(r.Centro_Custo_Grupo);
     if(!info.tipo) return; // ignora centros de custo que não são Estoque/Borracharia (ex.: Sucata, Ref. Interna)
     fisicoPorUnidade[info.unidade] = (fisicoPorUnidade[info.unidade] || 0) + 1;
-    const medida = (r.Medida || "").trim() || "Sem medida";
+    const medida = normalizaMedidaPneu(r.Medida) || "SEM MEDIDA";
     fisicoPorUnidadeMedida[info.unidade] = fisicoPorUnidadeMedida[info.unidade] || {};
     fisicoPorUnidadeMedida[info.unidade][medida] = (fisicoPorUnidadeMedida[info.unidade][medida] || 0) + 1;
   });
@@ -4640,7 +4649,7 @@ async function renderPneusEstoque(){
       { label:"Saldo cadastral", desc:"quantidade que o sistema de estoque diz que existe daquele produto (grupo Borracharia: pneus novos/recapados/usados), somada por unidade (ou por medida, quando filtrado)." },
       { label:"Contado fisicamente", desc:"quantidade de pneus individuais encontrados nos Centros de Custo Estoque/Borracharia daquela unidade, no relatório Pneus por Centro de Custo." },
       { label:"Divergência", desc:"diferença entre as duas contagens — não é pneu a pneu (as duas fontes não têm uma chave em comum pra cruzar individualmente), é comparação de QUANTIDADE total por unidade/medida." },
-      { label:"Por medida", desc:'só aparece depois de selecionar uma unidade — mostra a mesma divergência quebrada por medida de pneu (ex.: "275/80R22,5"), pra achar onde ela está concentrada.' },
+      { label:"Por medida", desc:'só aparece depois de selecionar uma unidade — mostra a mesma divergência quebrada por medida de pneu (ex.: "275/80R22,5"), pra achar onde ela está concentrada. A medida é normalizada (maiúsculas, sem espaço, vírgula no lugar do ponto) antes de comparar, porque as duas fontes às vezes escrevem a mesma medida de formas diferentes (ex.: "275/80R 22.5" x "275/80R22,5").' },
     ]);
     html += '<div class="section-footer">' + srcNote("Apuração do Estoque (CSuRelatorioApuracaoEstoque), Pneus por Centro de Custo (CRelPneusPorCentroCusto)") + resolvedDatesNote(full.resolvedDates) + '</div>';
 
