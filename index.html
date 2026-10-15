@@ -376,6 +376,25 @@
   .so-chip.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
   .so-detail-table{ font-size:12.5px; }
 
+  /* Ranking em barras horizontais — alternativa mais visual à tabela plana "Unidade | Número"
+     (pedido do Jefferson em 15/10/2026: "não fique um padrão... sempre inovando"). Barra
+     proporcional ao maior valor da lista, primeiro lugar destacado. */
+  .rank-bars{ display:flex; flex-direction:column; gap:9px; }
+  .rank-bar-row{ display:grid; grid-template-columns:200px 1fr 56px; align-items:center; gap:10px; }
+  .rank-bar-row.rank-bar-top .rank-bar-label{ font-weight:700; color:var(--text-primary); }
+  .rank-bar-label{ font-size:12.5px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:default; }
+  .rank-bar-label.rank-bar-clickable{ cursor:pointer; color:var(--accent); }
+  .rank-bar-label.rank-bar-clickable:hover{ text-decoration:underline; }
+  .rank-bar-track{ height:16px; border-radius:6px; background:var(--gridline); overflow:hidden; position:relative; }
+  .rank-bar-fill{ display:block; height:100%; border-radius:6px; background:linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--good))); transition:width .25s ease; }
+  .rank-bar-fill.rank-bar-fill-bad{ background:linear-gradient(90deg, var(--critical), color-mix(in srgb, var(--critical) 60%, var(--warning))); }
+  .rank-bar-value{ font-size:12.5px; font-weight:700; color:var(--text-primary); text-align:right; white-space:nowrap; }
+  .rank-bar-sub{ font-size:10.5px; color:var(--text-muted); font-weight:400; }
+  @media (max-width:640px){
+    .rank-bar-row{ grid-template-columns:120px 1fr 44px; }
+    .rank-bar-label{ font-size:11.5px; }
+  }
+
   .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
   .dash-card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
   .dash-card h3{ margin:0 0 4px; font-size:15px; }
@@ -2115,6 +2134,36 @@ function fmtNum(n){
 }
 function kpiCard(label, value, tone){
   return '<div class="kpi-card k-' + (tone||"info") + '"><div class="kpi-label">' + escapeHtml(label) + '</div><div class="kpi-value">' + escapeHtml(value) + '</div></div>';
+}
+// Ranking em barras horizontais — substitui a tabela plana "Unidade | Número" por algo mais
+// visual e fácil de escanear (maior valor = barra mais cheia). items: [{label, value, sub?,
+// clickKey?}]. opts: { maxItems, badClass (barra vermelha em vez do gradiente padrão quando
+// true), onClick(item) (opcional — torna o rótulo clicável, ex. pra filtrar por aquela unidade),
+// emptyMsg }.
+function rankingBarChartHtml(items, opts){
+  opts = opts || {};
+  const lista = (items || []).slice(0, opts.maxItems || 20);
+  if(!lista.length) return '<p class="empty-hint">' + (opts.emptyMsg || "Sem dados.") + '</p>';
+  const max = Math.max.apply(null, lista.map(function(it){ return Math.abs(it.value) || 0; })) || 1;
+  return '<div class="rank-bars">' + lista.map(function(it, idx){
+    const pct = Math.max(2, Math.round(Math.abs(it.value) / max * 100));
+    const fillCls = (it.badClass !== undefined ? it.badClass : opts.badClass) ? " rank-bar-fill-bad" : "";
+    const labelCls = "rank-bar-label" + (opts.onClick ? " rank-bar-clickable" : "");
+    const labelAttr = opts.onClick ? ' data-rank-key="' + escapeHtml(it.clickKey != null ? it.clickKey : it.label) + '"' : "";
+    return '<div class="rank-bar-row' + (idx === 0 ? " rank-bar-top" : "") + '">'
+      + '<div class="' + labelCls + '"' + labelAttr + ' title="' + escapeHtml(it.label) + '">' + escapeHtml(it.label) + '</div>'
+      + '<div class="rank-bar-track"><span class="rank-bar-fill' + fillCls + '" style="width:' + pct + '%"></span></div>'
+      + '<div class="rank-bar-value">' + fmtNum(it.value) + (it.sub ? ' <span class="rank-bar-sub">' + escapeHtml(it.sub) + '</span>' : '') + '</div>'
+      + '</div>';
+  }).join("") + '</div>';
+}
+// Liga os cliques num rankingBarChartHtml renderizado com onClick — chamar depois de inserir o
+// HTML no DOM. `container` é o elemento que contém o ".rank-bars".
+function wireRankingBarChart(container, onClick){
+  if(!container) return;
+  container.querySelectorAll(".rank-bar-clickable[data-rank-key]").forEach(function(el){
+    el.addEventListener("click", function(){ onClick(el.dataset.rankKey); });
+  });
 }
 // Cartão de prévia da Home para um módulo já com dados ao vivo.
 // opts: { icon, title, section, badge:{text,tone}, kpis:[{n,l}, ...] }
@@ -4077,8 +4126,14 @@ async function renderPneusDivergenciaKm(newAsOf){
     veiculosDivergentes.forEach(function(v){
       porUnidade[v.local] = (porUnidade[v.local] || 0) + 1;
     });
-    const ranking = Object.keys(porUnidade).map(function(nome){ return { nome: nome, total: porUnidade[nome] }; })
+    const rankingTodas = Object.keys(porUnidade).map(function(nome){ return { nome: nome, total: porUnidade[nome] }; })
       .sort(function(a, b){ return b.total - a.total; });
+    // Respeita o filtro de unidade — mesmo ajuste feito em Reforma Externa (15/10/2026): se a
+    // unidade já foi escolhida, o ranking não deve trazer as outras de volta (export pra uma
+    // unidade específica não pode vazar números de outra unidade).
+    const ranking = pneusDivergenciaKmUnidadeFiltro
+      ? rankingTodas.filter(function(r){ return r.nome === pneusDivergenciaKmUnidadeFiltro; })
+      : rankingTodas;
 
     let html = periodToolbarHtml("pneusdivkm", pneusDivergenciaKmAsOf);
     html += unidadeFilterHtml("pneusdivkm", unidadesTodas, pneusDivergenciaKmUnidadeFiltro, true);
@@ -4092,11 +4147,12 @@ async function renderPneusDivergenciaKm(newAsOf){
       + kpiCard("Limite considerado", fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + " km", "info")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Veículos por unidade com divergência</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículos</th></tr></thead><tbody>'
-      + (ranking.length ? ranking.map(function(r){
-          return '<tr><td>' + escapeHtml(r.nome) + '</td><td><b>' + r.total + '</b></td></tr>';
-        }).join("") : '<tr><td colspan="2">Nenhuma divergência encontrada acima de ' + fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + ' km.</td></tr>')
-      + '</tbody></table></div></div>';
+    html += '<div class="subsection"><h3>Veículos por unidade com divergência</h3>'
+      + rankingBarChartHtml(ranking.map(function(r){ return { label: r.nome, value: r.total, clickKey: r.nome }; }), {
+          onClick: true, maxItems: 30,
+          emptyMsg: "Nenhuma divergência encontrada acima de " + fmtNum(PNEUS_KM_DIVERGENCIA_LIMITE) + " km.",
+        })
+      + '</div>';
 
     html += '<div class="subsection"><h3>Veículos (' + veiculosExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Veículo</th><th>Placa</th><th>Pneu (posição com maior KM)</th><th>KM. Vida</th></tr></thead><tbody>'
       + (veiculosExibidos.length ? veiculosExibidos.map(function(v){
@@ -4115,6 +4171,7 @@ async function renderPneusDivergenciaKm(newAsOf){
     wirePeriodToolbar("pneusdivkm", function(v){ renderPneusDivergenciaKm(v); });
     enableSortableTables(el);
     wireUnidadeFilter("pneusdivkm", function(v){ pneusDivergenciaKmUnidadeFiltro = v; renderPneusDivergenciaKm(); });
+    wireRankingBarChart(el, function(unidade){ pneusDivergenciaKmUnidadeFiltro = unidade; renderPneusDivergenciaKm(); });
   }catch(err){
     el.innerHTML = '<p>Erro ao carregar Divergência de KM: ' + escapeHtml(err.message) + '</p>';
   }
@@ -4170,15 +4227,11 @@ async function buildPneusSucateamentoData(){
   });
 
   const porUnidade = {};
-  const porMotivo = {};
   itens.forEach(function(it){
-    porUnidade[it.unidade] = porUnidade[it.unidade] || { nome: it.unidade, total: 0, somaVidaDias: 0, comVidaDias: 0 };
+    porUnidade[it.unidade] = porUnidade[it.unidade] || { nome: it.unidade, total: 0 };
     porUnidade[it.unidade].total++;
-    porMotivo[it.motivo] = (porMotivo[it.motivo] || 0) + 1;
   });
   const ranking = Object.values(porUnidade).sort(function(a, b){ return b.total - a.total; });
-  const rankingMotivo = Object.keys(porMotivo).map(function(m){ return { motivo: m, total: porMotivo[m] }; })
-    .sort(function(a, b){ return b.total - a.total; });
 
   // Sucateamentos dos últimos 30 dias (vs. total histórico) — recorte "recente" pra cobrança de
   // laudo/acompanhamento, já que o relatório traz anos de histórico de uma vez.
@@ -4187,9 +4240,17 @@ async function buildPneusSucateamentoData(){
   const recentes = itens.filter(function(it){ return it.dtSucatOrd && it.dtSucatOrd >= limite30d; });
 
   return {
-    itens: itens, ranking: ranking, rankingMotivo: rankingMotivo, recentesCount: recentes.length,
+    itens: itens, ranking: ranking, recentesCount: recentes.length,
     resolvedDates: { "Pneus Sucateados": sucatSnap },
   };
+}
+
+// "001-PRIMEIRA VIDA" -> "Primeira vida" (tira o código, capitaliza só a 1ª letra de cada palavra
+// pra não gritar em caixa alta no meio do texto).
+function pneusSucateamentoVidaLabel(vida){
+  const s = String(vida || "").replace(/^\d+-\s*/, "").trim();
+  if(!s) return "Sem informação";
+  return s.replace(/\p{L}+/gu, function(w){ return w.charAt(0) + w.slice(1).toLowerCase(); });
 }
 
 async function renderPneusSucateamento(){
@@ -4220,17 +4281,50 @@ async function renderPneusSucateamento(){
       + kpiCard("Sucateados nos últimos 30 dias", fmtNum(pneusSucateamentoUnidadeFiltro ? itensExibidos.filter(function(i){ const l=new Date(Date.now()-30*86400000); return i.dtSucatOrd && i.dtSucatOrd>=l; }).length : full.recentesCount), "warning")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Por unidade (histórico completo)</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneus sucateados</th></tr></thead><tbody>'
-      + (full.ranking.length ? full.ranking.map(function(r){
-          return '<tr><td>' + escapeHtml(r.nome) + '</td><td><b>' + r.total + '</b></td></tr>';
-        }).join("") : '<tr><td colspan="2">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    if(!pneusSucateamentoUnidadeFiltro){
+      // Sem unidade selecionada: ranking em barras de todas as unidades (clique numa barra filtra
+      // só aquela unidade, como clicar na lista de unidades faria).
+      html += '<div class="subsection"><h3>Por unidade (histórico completo)</h3><p class="hint">Selecione uma unidade acima pra ver a quebra mensal do descarte dela.</p>'
+        + rankingBarChartHtml(full.ranking.map(function(r){ return { label: r.nome, value: r.total, clickKey: r.nome }; }), { onClick: true, maxItems: 30, emptyMsg: "Sem dados." })
+        + '</div>';
+    } else {
+      // Unidade selecionada: quebra mensal do descarte DESSA unidade — mês/ano, quantidade e %
+      // sobre o total histórico da própria unidade (pedido do Jefferson, 15/10/2026).
+      const porMes = {};
+      itensExibidos.forEach(function(it){
+        if(!it.dtSucatOrd) return;
+        const chave = comprasMesChave(it.dtSucatOrd);
+        porMes[chave] = (porMes[chave] || 0) + 1;
+      });
+      const mesesOrdenados = Object.keys(porMes).sort().reverse();
+      const totalUnidade = itensExibidos.length;
+      html += '<div class="subsection"><h3>' + escapeHtml(pneusSucateamentoUnidadeFiltro) + ' — descarte por mês</h3>'
+        + '<div class="table-wrap"><table><thead><tr><th>Mês/Ano</th><th>Quantidade</th><th>% da unidade</th></tr></thead><tbody>'
+        + (mesesOrdenados.length ? mesesOrdenados.map(function(chave){
+            const qtd = porMes[chave];
+            const pct = totalUnidade ? Math.round(qtd / totalUnidade * 1000) / 10 : 0;
+            return '<tr><td>' + comprasMesLabel(chave) + '</td><td><b>' + fmtNum(qtd) + '</b></td><td>' + String(pct).replace(".", ",") + '%</td></tr>';
+          }).join("") : '<tr><td colspan="3">Sem data de sucateamento registrada.</td></tr>')
+        + '</tbody></table></div></div>';
+    }
 
-    html += '<div class="subsection"><h3>Por motivo (histórico completo)</h3><div class="table-wrap"><table><thead><tr><th>Motivo</th><th>Quantidade</th></tr></thead><tbody>'
-      + (full.rankingMotivo.length ? full.rankingMotivo.slice(0, 20).map(function(r){
-          return '<tr><td>' + escapeHtml(r.motivo || "—") + '</td><td><b>' + r.total + '</b></td></tr>';
-        }).join("") : '<tr><td colspan="2">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    // Vida útil — quantos pneus foram descartados em cada estágio de vida (Novo, 1ª, 2ª, 3ª...).
+    // Pedido do Jefferson (15/10/2026): entender quantos descartes acontecem entre a 1ª e a 2ª
+    // vida — mostra todos os estágios encontrados, não só esses dois, pra dar o quadro completo.
+    const porVida = {};
+    itensExibidos.forEach(function(it){
+      const label = pneusSucateamentoVidaLabel(it.vida);
+      porVida[label] = (porVida[label] || 0) + 1;
+    });
+    const rankingVida = Object.keys(porVida).map(function(v){ return { label: v, value: porVida[v] }; })
+      .sort(function(a, b){ return b.value - a.value; });
+    const totalVida = itensExibidos.length;
+    html += '<div class="subsection"><h3>Por vida útil' + (pneusSucateamentoUnidadeFiltro ? ' — ' + escapeHtml(pneusSucateamentoUnidadeFiltro) : '') + '</h3><p class="hint">Em qual estágio de vida (Novo, 1ª, 2ª, 3ª recapagem...) o pneu estava quando foi descartado.</p>'
+      + rankingBarChartHtml(rankingVida.map(function(r){
+          const pct = totalVida ? Math.round(r.value / totalVida * 1000) / 10 : 0;
+          return { label: r.label, value: r.value, sub: '(' + String(pct).replace(".", ",") + '%)' };
+        }), { maxItems: 10, emptyMsg: "Sem dados." })
+      + '</div>';
 
     html += '<div class="subsection"><h3>Pneus sucateados (' + itensExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneu</th><th>Marca</th><th>Dt. Sucat.</th><th>Vida útil</th><th>Último veículo</th><th>Vida</th><th>Motivo</th></tr></thead><tbody>'
       + (itensExibidos.length ? itensExibidos.slice().sort(function(a, b){
@@ -4244,7 +4338,8 @@ async function renderPneusSucateamento(){
 
     html += legendBox("O que significa cada critério", [
       { label:"Unidade", desc:'"Setor" do relatório (garagem/base operacional) — não é a mesma Unidade cadastrada na Base de Veículos, mas representa a mesma coisa na prática (onde o pneu foi sucateado).' },
-      { label:"Vida", desc:'1ª/2ª/3ª vida ou "Novo" — quantas vezes esse pneu já foi recapado antes de ser sucateado.' },
+      { label:"Descarte por mês", desc:"só aparece depois de selecionar uma unidade acima — quantidade e % de descarte daquela unidade, mês a mês (sobre o total histórico dela)." },
+      { label:"Por vida útil", desc:'em qual estágio (Novo, 1ª/2ª/3ª vida...) o pneu estava no descarte — ajuda a identificar se o pneu está durando pouco (descartado logo na 1ª vida) ou sendo bem aproveitado em recapagens.' },
       { label:"Laudo anexado", desc:"não disponível nesse relatório do Tr@nsnet — decisão de seguir sem esse controle por enquanto (14/10/2026)." },
     ]);
     html += '<div class="section-footer">' + srcNote("Pneus Sucateados (CRelPneusSucateados)") + resolvedDatesNote(full.resolvedDates) + '</div>';
@@ -4253,6 +4348,7 @@ async function renderPneusSucateamento(){
     fitAllKpiValues(el);
     enableSortableTables(el);
     wireUnidadeFilter("pneussucat", function(v){ pneusSucateamentoUnidadeFiltro = v; renderPneusSucateamento(); });
+    wireRankingBarChart(el, function(unidade){ pneusSucateamentoUnidadeFiltro = unidade; renderPneusSucateamento(); });
   }catch(err){
     el.innerHTML = '<p>Erro ao carregar Sucateamento: ' + escapeHtml(err.message) + '</p>';
   }
@@ -4348,12 +4444,17 @@ async function renderPneusReformaExterna(){
       + kpiCard("Atrasados (" + PNEUS_REFORMA_EXTERNA_LIMITE_DIAS + "d+)", fmtNum(atrasadosExibidos), atrasadosExibidos ? "critical" : "good")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Por unidade</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Em reforma externa</th><th>Atrasados</th></tr></thead><tbody>'
-      + (full.ranking.length ? full.ranking.map(function(r){
-          const atrasadosCell = r.atrasados > 0 ? '<span class="badge b-critical">' + r.atrasados + '</span>' : '0';
-          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + r.total + '</td><td>' + atrasadosCell + '</td></tr>';
-        }).join("") : '<tr><td colspan="3">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    // Ranking "Por unidade" respeita o filtro — pedido do Jefferson (15/10/2026): quando
+    // exportar o HTML de uma unidade específica, o ranking não pode mostrar as outras unidades
+    // (não é assunto pertinente pra quem vai receber aquele relatório).
+    const rankingExibido = pneusReformaExternaUnidadeFiltro
+      ? full.ranking.filter(function(r){ return r.nome === pneusReformaExternaUnidadeFiltro; })
+      : full.ranking;
+    html += '<div class="subsection"><h3>Por unidade</h3>'
+      + rankingBarChartHtml(rankingExibido.map(function(r){
+          return { label: r.nome, value: r.total, sub: r.atrasados > 0 ? r.atrasados + " atrasado(s)" : "em dia", badClass: r.atrasados > 0, clickKey: r.nome };
+        }), { onClick: true, maxItems: 30, emptyMsg: "Sem dados." })
+      + '</div>';
 
     html += '<div class="subsection"><h3>Pneus (' + itensExibidos.length + ')</h3><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Pneu</th><th>Marca</th><th>Medida</th><th>Data de envio</th><th>Dias em reforma</th></tr></thead><tbody>'
       + (itensExibidos.length ? itensExibidos.slice().sort(function(a, b){ return (b.dias||0) - (a.dias||0); }).map(function(i){
@@ -4373,6 +4474,7 @@ async function renderPneusReformaExterna(){
     fitAllKpiValues(el);
     enableSortableTables(el);
     wireUnidadeFilter("pneusrefext", function(v){ pneusReformaExternaUnidadeFiltro = v; renderPneusReformaExterna(); });
+    wireRankingBarChart(el, function(unidade){ pneusReformaExternaUnidadeFiltro = unidade; renderPneusReformaExterna(); });
   }catch(err){
     el.innerHTML = '<p>Erro ao carregar Reforma Externa: ' + escapeHtml(err.message) + '</p>';
   }
@@ -4425,24 +4527,34 @@ async function buildPneusEstoqueData(){
   ]);
 
   // Saldo cadastral por unidade (soma do campo Saldo de todo produto do grupo Borracharia naquele
-  // Almoxarifado) — vem da Apuração do Estoque.
+  // Almoxarifado) — vem da Apuração do Estoque. Guarda também por MEDIDA (Ref. Fabricante, ex.:
+  // "275/80R22,5") dentro de cada unidade — pedido do Jefferson (15/10/2026): quando filtrar por
+  // unidade, quebrar por medida pra achar ONDE está a divergência, não só "quanto".
   const saldoPorUnidade = {};
+  const saldoPorUnidadeMedida = {};
   apRows.forEach(function(r){
     const unidade = estoqueUnidadeLabel(r.Almoxarifado);
     const saldo = num(r.Saldo);
     if(isNaN(saldo)) return;
     saldoPorUnidade[unidade] = (saldoPorUnidade[unidade] || 0) + saldo;
+    const medida = (r.Ref_Fabricante || "").trim() || "Sem medida";
+    saldoPorUnidadeMedida[unidade] = saldoPorUnidadeMedida[unidade] || {};
+    saldoPorUnidadeMedida[unidade][medida] = (saldoPorUnidadeMedida[unidade][medida] || 0) + saldo;
   });
 
   // Contagem física por unidade (quantas linhas de pneu foram achadas nos Centros de Custo
   // ESTOQUE/BORRACHARIA daquela unidade) — vem de Pneus por Centro de Custo. Usa o "balde" de
   // pesquisa (centro_custo_grupo), não a localização atual do pneu — contagem de "quantos pneus
-  // estão hoje alocados ao Estoque/Borracharia dessa unidade".
+  // estão hoje alocados ao Estoque/Borracharia dessa unidade". Mesma quebra por medida.
   const fisicoPorUnidade = {};
+  const fisicoPorUnidadeMedida = {};
   ccRows.forEach(function(r){
     const info = centroCustoUnidadeETipo(r.Centro_Custo_Grupo);
     if(!info.tipo) return; // ignora centros de custo que não são Estoque/Borracharia (ex.: Sucata, Ref. Interna)
     fisicoPorUnidade[info.unidade] = (fisicoPorUnidade[info.unidade] || 0) + 1;
+    const medida = (r.Medida || "").trim() || "Sem medida";
+    fisicoPorUnidadeMedida[info.unidade] = fisicoPorUnidadeMedida[info.unidade] || {};
+    fisicoPorUnidadeMedida[info.unidade][medida] = (fisicoPorUnidadeMedida[info.unidade][medida] || 0) + 1;
   });
 
   const unidades = Array.from(new Set(Object.keys(saldoPorUnidade).concat(Object.keys(fisicoPorUnidade)))).sort();
@@ -4450,7 +4562,17 @@ async function buildPneusEstoqueData(){
     const saldo = saldoPorUnidade[u] || 0;
     const fisico = fisicoPorUnidade[u] || 0;
     const divergencia = fisico - saldo;
-    return { nome: u, saldo: saldo, fisico: fisico, divergencia: divergencia };
+
+    const medidas = Array.from(new Set(
+      Object.keys(saldoPorUnidadeMedida[u] || {}).concat(Object.keys(fisicoPorUnidadeMedida[u] || {}))
+    ));
+    const porMedida = medidas.map(function(m){
+      const s = (saldoPorUnidadeMedida[u] || {})[m] || 0;
+      const f = (fisicoPorUnidadeMedida[u] || {})[m] || 0;
+      return { medida: m, saldo: s, fisico: f, divergencia: f - s };
+    }).sort(function(a, b){ return Math.abs(b.divergencia) - Math.abs(a.divergencia); });
+
+    return { nome: u, saldo: saldo, fisico: fisico, divergencia: divergencia, porMedida: porMedida };
   }).sort(function(a, b){ return Math.abs(b.divergencia) - Math.abs(a.divergencia); });
 
   return {
@@ -4492,19 +4614,33 @@ async function renderPneusEstoque(){
       + kpiCard("Unidades com divergência", fmtNum(unidadesComDivergencia), unidadesComDivergencia ? "warning" : "good")
       + '</div>';
 
-    html += '<div class="subsection"><h3>Por unidade — saldo cadastral x contagem física</h3><p class="hint">Saldo = soma do campo "Saldo" da Apuração do Estoque (grupo Borracharia) na unidade. Físico = quantidade de pneus achados nos Centros de Custo Estoque/Borracharia daquela unidade. Divergência = Físico − Saldo (positivo = mais pneus achados fisicamente do que o saldo cadastral diz; negativo = menos).</p><div class="table-wrap"><table><thead><tr><th>Unidade</th><th>Saldo cadastral</th><th>Contado fisicamente</th><th>Divergência</th></tr></thead><tbody>'
-      + (rankingExibido.length ? rankingExibido.map(function(r){
-          const divCell = r.divergencia === 0
-            ? '<span class="badge b-good">0</span>'
-            : '<span class="badge ' + (Math.abs(r.divergencia) >= 10 ? "b-critical" : "b-warning") + '">' + (r.divergencia > 0 ? "+" : "") + r.divergencia + '</span>';
-          return '<tr><td>' + escapeHtml(r.nome) + '</td><td>' + fmtNum(Math.round(r.saldo)) + '</td><td>' + fmtNum(r.fisico) + '</td><td>' + divCell + '</td></tr>';
-        }).join("") : '<tr><td colspan="4">Sem dados.</td></tr>')
-      + '</tbody></table></div></div>';
+    if(!pneusEstoqueUnidadeFiltro){
+      // Sem unidade selecionada: ranking em barras por divergência absoluta (clique numa barra
+      // filtra aquela unidade e já mostra a quebra por medida abaixo).
+      html += '<div class="subsection"><h3>Por unidade — divergência entre saldo cadastral e contagem física</h3><p class="hint">Saldo = soma do campo "Saldo" da Apuração do Estoque (grupo Borracharia) na unidade. Físico = quantidade de pneus achados nos Centros de Custo Estoque/Borracharia. Clique numa unidade pra ver a quebra por medida.</p>'
+        + rankingBarChartHtml(rankingExibido.map(function(r){
+            return { label: r.nome, value: r.divergencia, sub: "saldo " + fmtNum(Math.round(r.saldo)) + " · físico " + fmtNum(r.fisico), clickKey: r.nome };
+          }), { onClick: true, maxItems: 30, emptyMsg: "Sem dados." })
+        + '</div>';
+    } else {
+      // Unidade selecionada: quebra por medida (215/80R..., 275/80R..., etc.) — pedido do
+      // Jefferson (15/10/2026) pra achar ONDE está o erro, não só a diferença total.
+      const porMedida = rankingExibido[0] ? rankingExibido[0].porMedida : [];
+      html += '<div class="subsection"><h3>' + escapeHtml(pneusEstoqueUnidadeFiltro) + ' — por medida</h3><p class="hint">Mesma comparação (saldo cadastral x contagem física), quebrada por medida de pneu, pra localizar onde a divergência está concentrada.</p><div class="table-wrap"><table><thead><tr><th>Medida</th><th>Saldo cadastral</th><th>Contado fisicamente</th><th>Divergência</th></tr></thead><tbody>'
+        + (porMedida.length ? porMedida.map(function(m){
+            const divCell = m.divergencia === 0
+              ? '<span class="badge b-good">0</span>'
+              : '<span class="badge ' + (Math.abs(m.divergencia) >= 5 ? "b-critical" : "b-warning") + '">' + (m.divergencia > 0 ? "+" : "") + m.divergencia + '</span>';
+            return '<tr><td>' + escapeHtml(m.medida) + '</td><td>' + fmtNum(Math.round(m.saldo)) + '</td><td>' + fmtNum(m.fisico) + '</td><td>' + divCell + '</td></tr>';
+          }).join("") : '<tr><td colspan="4">Sem dados de medida pra essa unidade.</td></tr>')
+        + '</tbody></table></div></div>';
+    }
 
     html += legendBox("O que significa cada critério", [
-      { label:"Saldo cadastral", desc:"quantidade que o sistema de estoque diz que existe daquele produto (grupo Borracharia: pneus novos/recapados/usados), somada por unidade." },
+      { label:"Saldo cadastral", desc:"quantidade que o sistema de estoque diz que existe daquele produto (grupo Borracharia: pneus novos/recapados/usados), somada por unidade (ou por medida, quando filtrado)." },
       { label:"Contado fisicamente", desc:"quantidade de pneus individuais encontrados nos Centros de Custo Estoque/Borracharia daquela unidade, no relatório Pneus por Centro de Custo." },
-      { label:"Divergência", desc:"diferença entre as duas contagens — não é pneu a pneu (as duas fontes não têm uma chave em comum pra cruzar individualmente), é comparação de QUANTIDADE total por unidade." },
+      { label:"Divergência", desc:"diferença entre as duas contagens — não é pneu a pneu (as duas fontes não têm uma chave em comum pra cruzar individualmente), é comparação de QUANTIDADE total por unidade/medida." },
+      { label:"Por medida", desc:'só aparece depois de selecionar uma unidade — mostra a mesma divergência quebrada por medida de pneu (ex.: "275/80R22,5"), pra achar onde ela está concentrada.' },
     ]);
     html += '<div class="section-footer">' + srcNote("Apuração do Estoque (CSuRelatorioApuracaoEstoque), Pneus por Centro de Custo (CRelPneusPorCentroCusto)") + resolvedDatesNote(full.resolvedDates) + '</div>';
 
@@ -4512,6 +4648,7 @@ async function renderPneusEstoque(){
     fitAllKpiValues(el);
     enableSortableTables(el);
     wireUnidadeFilter("pneusestoque", function(v){ pneusEstoqueUnidadeFiltro = v; renderPneusEstoque(); });
+    wireRankingBarChart(el, function(unidade){ pneusEstoqueUnidadeFiltro = unidade; renderPneusEstoque(); });
   }catch(err){
     el.innerHTML = '<p>Erro ao carregar Estoque x Borracharia: ' + escapeHtml(err.message) + '</p>';
   }
