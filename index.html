@@ -395,6 +395,22 @@
     .rank-bar-label{ font-size:11.5px; }
   }
 
+  /* Grade de "alertas" em cartões pequenos — pedido do Jefferson (16/10/2026): mostrar Sem
+     Comunicação/Sem O.S. de um jeito diferente da tabela plana da aba dedicada, dentro da própria
+     aba Cards de Telemetria. Cada cartão é compacto (carro, unidade, dias), cor na borda esquerda
+     conforme severidade — pensado pra escanear muitos de uma vez, tipo um mural de alertas. */
+  .alert-tile-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:10px; }
+  .alert-tile{ background:var(--card); border:1px solid var(--border); border-left:4px solid var(--border); border-radius:10px; padding:10px 12px; cursor:default; }
+  .alert-tile.tile-bad{ border-left-color:var(--critical); }
+  .alert-tile.tile-warn{ border-left-color:var(--warning); }
+  .alert-tile.tile-info{ border-left-color:var(--accent); }
+  .alert-tile-top{ display:flex; justify-content:space-between; align-items:baseline; gap:6px; }
+  .alert-tile-carro{ font-weight:700; font-size:14px; color:var(--text-primary); }
+  .alert-tile-dias{ font-size:11.5px; font-weight:700; color:var(--critical); white-space:nowrap; }
+  .alert-tile.tile-warn .alert-tile-dias{ color:var(--warning); }
+  .alert-tile-unidade{ font-size:11px; color:var(--text-secondary); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .alert-tile-meta{ font-size:10.5px; color:var(--text-muted); margin-top:5px; }
+
   .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
   .dash-card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 20px; }
   .dash-card h3{ margin:0 0 4px; font-size:15px; }
@@ -2165,6 +2181,28 @@ function wireRankingBarChart(container, onClick){
     el.addEventListener("click", function(){ onClick(el.dataset.rankKey); });
   });
 }
+// Grade de cartões de alerta compactos — alternativa à tabela plana pra listas de "isso está
+// errado" (ex.: veículos sem comunicação). items: [{titulo, sub, valor, meta?, tone:'bad'|'warn'|
+// 'info', clickKey?}]. opts: { onClick, emptyMsg }.
+function alertTileGridHtml(items, opts){
+  opts = opts || {};
+  if(!items || !items.length) return '<p class="empty-hint">' + (opts.emptyMsg || "Sem dados.") + '</p>';
+  return '<div class="alert-tile-grid">' + items.map(function(it){
+    const tone = it.tone || "bad";
+    const clickAttr = (opts.onClick && it.clickKey != null) ? ' data-tile-key="' + escapeHtml(it.clickKey) + '" style="cursor:pointer;"' : "";
+    return '<div class="alert-tile tile-' + tone + '"' + clickAttr + '>'
+      + '<div class="alert-tile-top"><span class="alert-tile-carro">' + escapeHtml(it.titulo) + '</span><span class="alert-tile-dias">' + escapeHtml(it.valor) + '</span></div>'
+      + '<div class="alert-tile-unidade">' + escapeHtml(it.sub || "") + '</div>'
+      + (it.meta ? '<div class="alert-tile-meta">' + escapeHtml(it.meta) + '</div>' : '')
+      + '</div>';
+  }).join("") + '</div>';
+}
+function wireAlertTileGrid(container, onClick){
+  if(!container) return;
+  container.querySelectorAll(".alert-tile[data-tile-key]").forEach(function(el){
+    el.addEventListener("click", function(){ onClick(el.dataset.tileKey); });
+  });
+}
 // Cartão de prévia da Home para um módulo já com dados ao vivo.
 // opts: { icon, title, section, badge:{text,tone}, kpis:[{n,l}, ...] }
 function previewCard(opts){
@@ -3289,6 +3327,35 @@ async function renderTelemetria(newAsOf){
       });
       html += '</div>';
     } else {
+      // Aba Cards: além do agrupamento genérico por unidade (mais abaixo), traz 2 seções extras
+      // pedidas pelo Jefferson (16/10/2026) — tudo centralizado na Visão Geral, sem precisar abrir
+      // outra aba: (1) veículos sem NENHUMA unidade associada na Base-TML (diverge do que o
+      // MobileGO deveria trazer preenchido) e (2) os mesmos veículos da aba dedicada "Sem
+      // Comunicação/Sem O.S.", só que em cartões compactos (alert-tile-grid) em vez da tabela
+      // plana de lá — forma diferente de ler a mesma informação, pra não ficar repetitivo.
+      if(telemetriaVizMode === "cards"){
+        const semUnidade = vehicles.filter(function(v){ return !v.unidade; });
+        const semComSemOs = vehicles.filter(function(v){ return v.classe === "irregular"; });
+
+        if(semUnidade.length){
+          html += '<div class="subsection"><h3>⚠️ Sem unidade (divergente do MobileGO)</h3><p class="hint">Veículo está na Base-TML sem nenhuma unidade associada — o MobileGO deveria trazer isso preenchido; indício de falha de sincronização pra esse veículo específico.</p>'
+            + alertTileGridHtml(semUnidade.map(function(v){
+                return { titulo: v.carro, valor: (v.diasSemCom==null?"—":v.diasSemCom+"d"), sub: "Sem unidade",
+                  meta: "Últ. com.: " + (v.ultimaCom ? v.ultimaCom.toLocaleDateString("pt-BR") : "—"), tone: "warn" };
+              }))
+            + '</div>';
+        }
+
+        html += '<div class="subsection"><h3>Sem Comunicação / Sem O.S. (' + semComSemOs.length + ')</h3><p class="hint">Mesmo critério da aba "Telemetria → Sem Comunicação/Sem O.S.", em cartões — clique num cartão pra filtrar a unidade dele.</p>'
+          + alertTileGridHtml(semComSemOs.map(function(v){
+              return { titulo: v.carro, valor: (v.diasSemCom==null?"—":v.diasSemCom+"d"), sub: v.unidade || "Sem unidade",
+                meta: "Últ. com.: " + (v.ultimaCom ? v.ultimaCom.toLocaleDateString("pt-BR") : "—"), tone: "bad",
+                clickKey: v.unidade || "" };
+            }), { onClick: true, emptyMsg: "Nenhum veículo sem comunicação e sem O.S." })
+          + '</div>';
+
+        html += '<div class="subsection"><h3>Por unidade (todas as classificações)</h3>';
+      }
       // O modo "Resumo executivo" usa o modelo próprio "Setor Operacional" (KPIs de comunicação +
       // ranking por unidade), sem limiar de severidade — os controles de limiar só fazem sentido
       // nos modos Cards/Kanban, que continuam usando o sistema genérico de bandas por percentil.
@@ -3296,6 +3363,7 @@ async function renderTelemetria(newAsOf){
         html += VizModes.thresholdControlsHtml("telemetria", telVizActiveThresh, !!telVizStoredThresh, "dias");
       }
       html += '<div id="telemetria-viz-mount"></div>';
+      if(telemetriaVizMode === "cards") html += '</div>';
     }
 
     html += legendBox("O que significa cada status", [
@@ -3323,6 +3391,15 @@ async function renderTelemetria(newAsOf){
       });
     } else {
       wireUnidadeFilter("telemetria", function(v){ telemetriaUnidadeFiltro = v; renderTelemetria(); });
+      if(telemetriaVizMode === "cards"){
+        wireAlertTileGrid(area, function(unidade){
+          if(!unidade) return;
+          telemetriaUnidadeFiltro = unidade;
+          telemetriaVizMode = "tabela";
+          VizModes.saveMode("telemetria", "tabela");
+          renderTelemetria();
+        });
+      }
 
       const telVizMount = document.getElementById("telemetria-viz-mount");
       const telVizOpts = {
