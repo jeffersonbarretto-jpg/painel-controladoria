@@ -3334,7 +3334,7 @@ async function renderTelemetria(newAsOf){
       // Comunicação/Sem O.S.", só que em cartões compactos (alert-tile-grid) em vez da tabela
       // plana de lá — forma diferente de ler a mesma informação, pra não ficar repetitivo.
       if(telemetriaVizMode === "cards"){
-        const semUnidade = vehicles.filter(function(v){ return !v.unidade; });
+        const semUnidade = vehicles.filter(function(v){ return !v.unidade || v.unidade === "Sem unidade"; });
         const semComSemOs = vehicles.filter(function(v){ return v.classe === "irregular"; });
 
         if(semUnidade.length){
