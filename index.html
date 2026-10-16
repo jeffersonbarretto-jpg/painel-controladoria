@@ -2059,18 +2059,43 @@ function roboCumulativeDedupe(raw, isoDate){
     return !day || bestByDay[day] === x.iso;
   }).map(function(x){ return x.r; });
 }
-// Resumo das coletas do robô (view coletas_resumo no Robo-Transnet: 1 linha por tabela + data de
-// referência, com total de linhas e horário da última gravação). Alimenta a página Base de Dados
-// (status, calendário, lista de datas). Últimos 90 dias; cache por carregamento de página.
+// Resumo das coletas do robô — alimenta a página Base de Dados (status, calendário, lista de
+// datas). Até 16/10/2026 isso vinha de uma VIEW (coletas_resumo) que recalculava um GROUP BY
+// sobre a tabela INTEIRA de cada fonte a cada consulta; depois que o bug do parser de O.S.
+// Fechada foi corrigido (volume diário saltou de ~23 mil pra ~58 mil linhas), essa consulta
+// passou a estourar o statement_timeout do Postgres (erro 57014) e a página toda virava "sem
+// leitura" pra TODAS as fontes migradas. Em vez de depender dessa view, monta o mesmo resultado
+// com consultas pequenas e já indexadas: roboFetchDateIndex(table) (já existente, cacheada) dá
+// as datas distintas recentes; linhas/última coleta só são buscadas de verdade pra data MAIS
+// RECENTE de cada tabela (é só isso que a Visão Geral usa — o Calendário só precisa saber SE
+// cada dia teve coleta, não quantas linhas). Últimos 90 dias teóricos, mas na prática só os
+// últimos 14 (o que o Calendário mostra) + a mais recente (Visão Geral); cache por carregamento
+// de página, igual antes.
 let roboColetasPromise = null;
 function roboFetchColetas(){
   if(roboColetasPromise) return roboColetasPromise;
   roboColetasPromise = (async function(){
-    const corte = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-    const resp = await roboRest("coletas_resumo?select=tabela,data_iso,linhas,ultima_coleta&data_iso=gte." + corte + "&order=data_iso.desc&limit=1000");
-    const rows = await resp.json();
+    const tabelas = Array.from(new Set(Object.keys(ROBO_TAB_MAP).map(function(k){ return ROBO_TAB_MAP[k].table; })));
     const byTable = {};
-    rows.forEach(function(r){ (byTable[r.tabela] = byTable[r.tabela] || []).push({ iso: r.data_iso, linhas: r.linhas, ultima: r.ultima_coleta }); });
+    await Promise.all(tabelas.map(async function(table){
+      let idx;
+      try{ idx = await roboFetchDateIndex(table); }catch(e){ idx = []; }
+      const recentes = idx.slice(0, 14);
+      if(!recentes.length){ byTable[table] = []; return; }
+      const ddmmaaaa = isoToRoboDate(recentes[0]);
+      let linhas = null, ultima = null;
+      try{
+        const respCount = await roboRest(table + "?data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&select=id", { headers: { Prefer: "count=exact", Range: "0-0" } });
+        const cr = respCount.headers.get("content-range");
+        linhas = cr ? parseInt(cr.split("/")[1], 10) : null;
+        const respUltima = await roboRest(table + "?data_referencia=eq." + encodeURIComponent(ddmmaaaa) + "&select=coletado_em&order=coletado_em.desc&limit=1");
+        const ultimaRows = await respUltima.json();
+        ultima = ultimaRows[0] ? ultimaRows[0].coletado_em : null;
+      }catch(e){}
+      byTable[table] = recentes.map(function(iso, i){
+        return i === 0 ? { iso: iso, linhas: linhas, ultima: ultima } : { iso: iso, linhas: null, ultima: null };
+      });
+    }));
     return byTable;
   })();
   roboColetasPromise.catch(function(){ roboColetasPromise = null; });
