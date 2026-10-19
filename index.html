@@ -1317,15 +1317,17 @@
 </div>
 
 <script>
-const SUPABASE_URL = "https://dxanuyfarsxmsunocumg.supabase.co";
-const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR4YW51eWZhcnN4bXN1bm9jdW1nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzUxMDUsImV4cCI6MjEwMjExMTEwNX0.FPzzszUQuAfQRrFssTrEssZDcgFk7jwi_B3Ujwo9iUs";
-// Segundo projeto Supabase — "Robo-Transnet" (cuyatukbcckgptorzpxu), alimentado pelo robô Python
-// de Jefferson (Playwright + coleta diária agendada), separado do Dash-Controladoria. Tabelas
-// próprias por fonte (sem tab_name/row_data), RLS ainda desabilitada — mesma chave anon usada
-// tanto pra leitura do site quanto pra escrita do robô (decisão do Jefferson, 21/09/2026). Sem
-// login/sessão própria (diferente do SUPABASE_URL acima): a chave anon já lê tudo diretamente.
-const ROBO_SUPABASE_URL = "https://cuyatukbcckgptorzpxu.supabase.co";
-const ROBO_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1eWF0dWtiY2NrZ3B0b3J6cHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0MzE2OTcsImV4cCI6MjEwNTAwNzY5N30.hCt_moE4mUWFQVDtEUcvQSX-KzL7LUeM2L2RaQ_5UG4";
+// Migração Supabase -> Neon (19/10/2026): os dois projetos Supabase (Dash-Controladoria e
+// Robo-Transnet) estouraram a cota de egress do plano grátis e ficaram bloqueados (erro 402 em
+// toda chamada). Login e todos os dados agora vêm de um Cloudflare Worker
+// (painel-controladoria-api) que fala com dois bancos Neon por trás — mesmo "shape" de query
+// (select/order/limit/eq./Range/Prefer:count=exact) que o PostgREST do Supabase já usava, então
+// o resto do arquivo (roboRest/rest e todos os call sites) não precisou mudar, só a URL/auth.
+const WORKER_URL = "https://painel-controladoria-api.jeffersonbarretto.workers.dev";
+const SUPABASE_URL = WORKER_URL;
+const ANON_KEY = "";
+const ROBO_SUPABASE_URL = WORKER_URL;
+const ROBO_ANON_KEY = "";
 const DADOS_GATE_CODE = "170726";
 
 const USERS = [
@@ -1351,13 +1353,13 @@ function clearSession(){
 }
 
 async function login(email, password){
-  const resp = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+  const resp = await fetch(WORKER_URL + "/auth/login", {
     method: "POST",
-    headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
   const body = await resp.json();
-  if(!resp.ok) throw new Error(body.error_description || body.msg || "Falha no login");
+  if(!resp.ok) throw new Error(body.message || "Falha no login");
   const session = {
     access_token: body.access_token,
     refresh_token: body.refresh_token,
@@ -1369,23 +1371,12 @@ async function login(email, password){
   return session;
 }
 
+// O Worker não tem endpoint de refresh (o JWT já dura 7 dias, mesma duração de sessão "longa"
+// que o Supabase Auth também dava) — se o token perto do fim, só desloga e pede login de novo em
+// vez de tentar renovar silenciosamente (simples e seguro o bastante pra esse caso de uso).
 async function refreshSession(session){
-  const resp = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
-    method: "POST",
-    headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: session.refresh_token }),
-  });
-  if(!resp.ok){ clearSession(); return null; }
-  const body = await resp.json();
-  const newSession = {
-    access_token: body.access_token,
-    refresh_token: body.refresh_token,
-    expires_at: Date.now() + (body.expires_in || 3600) * 1000,
-    user: body.user || session.user,
-    loginAt: session.loginAt || Date.now(),
-  };
-  saveSession(newSession);
-  return newSession;
+  clearSession();
+  return null;
 }
 
 let currentSession = null;
@@ -1847,8 +1838,11 @@ const ROBO_TAB_MAP = {
 
 async function roboRest(path, opts){
   opts = opts || {};
-  const headers = Object.assign({ apikey: ROBO_ANON_KEY, Authorization: "Bearer " + ROBO_ANON_KEY }, opts.headers || {});
+  const session = await getValidSession();
+  if(!session) throw new Error("not_authenticated");
+  const headers = Object.assign({ Authorization: "Bearer " + session.access_token }, opts.headers || {});
   const resp = await fetch(ROBO_SUPABASE_URL + "/rest/v1/" + path, Object.assign({}, opts, { headers: headers }));
+  if(resp.status === 401){ clearSession(); throw new Error("not_authenticated"); }
   if(!resp.ok){
     let detail = "";
     try{ const body = await resp.clone().json(); detail = (body && (body.message || body.hint)) || ""; }catch(e){}
