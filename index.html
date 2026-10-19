@@ -1397,7 +1397,7 @@ async function rest(path, opts){
   const session = await getValidSession();
   if(!session) throw new Error("not_authenticated");
   const fetchOpts = Object.assign({}, opts);
-  fetchOpts.headers = Object.assign({ apikey: ANON_KEY, Authorization: "Bearer " + session.access_token }, headers);
+  fetchOpts.headers = Object.assign({ Authorization: "Bearer " + session.access_token }, headers);
   const resp = await fetch(SUPABASE_URL + "/rest/v1/" + path, fetchOpts);
   if(resp.status === 401){ clearSession(); throw new Error("not_authenticated"); }
   return resp;
